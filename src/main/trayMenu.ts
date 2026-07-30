@@ -94,18 +94,18 @@ function openAboutWindow() {
 function createEquicordMenuItems(): MenuItemConstructorOptions[] {
     return [
         {
-            label: "Equicord",
+            label: "Veil",
             submenu: [
                 {
-                    label: "About Equicord",
+                    label: "About Veil",
                     click: () => openAboutWindow()
                 },
                 {
-                    label: cachedUpdateAvailable ? "Update Equicord" : "Check for Updates",
+                    label: cachedUpdateAvailable ? "Update Veil" : "Check for Updates",
                     click: () => sendToRenderer(IpcEvents.TRAY_CHECK_UPDATES)
                 },
                 {
-                    label: "Repair Equicord",
+                    label: "Repair Veil",
                     click: () => sendToRenderer(IpcEvents.TRAY_REPAIR)
                 },
                 { type: "separator" },
