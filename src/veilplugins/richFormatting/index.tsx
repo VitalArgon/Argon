@@ -362,11 +362,6 @@ function buildHelpText() {
         `**Icon:** \`${zw}icon:name}}\``,
         `Available icon names: ${iconNames}`,
     ].join("\n");
-}
-
-const RF_AUTHOR = {
-    name: "Zarak",
-    id: 1212639964605718582n,
 };
 
 const settings = definePluginSettings({
@@ -382,7 +377,7 @@ let observer: MutationObserver | null = null;
 export default definePlugin({
     name: "RichFormatting",
     description: "Type-to-render buttons, badges, progress bars, collapsible folds, and inline Discord icons in messages (client-side only).",
-    authors: [RF_AUTHOR],
+    authors: [VeilDevs.Zarak],
     settings,
     dependencies: ["CommandsAPI"],
 
