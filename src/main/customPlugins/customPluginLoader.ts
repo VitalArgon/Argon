@@ -59,6 +59,7 @@
  */
 
 import { getAllCustomPlugins, type StoredCustomPlugin } from "./customPluginStore";
+import { registerCustomPluginsSettingsEntry } from "./registerSettingsEntry";
 
 // ─────────────────────────────────────────────────────────────────────────
 // 1. Alias map: import specifier -> resolver returning the runtime export
@@ -243,6 +244,8 @@ export interface CustomPluginLoadResult {
  * webpack has initialized. Await it before continuing.
  */
 export async function initCustomPlugins(): Promise<CustomPluginLoadResult[]> {
+    registerCustomPluginsSettingsEntry();
+
     const stored = await getAllCustomPlugins();
     const results: CustomPluginLoadResult[] = [];
 
