@@ -98,7 +98,7 @@ interface SettingsLayoutBuilder {
 const settings = definePluginSettings({
     settingsLocation: {
         type: OptionType.SELECT,
-        description: "Where to put the Equicord settings section",
+        description: "Where to put the Veil settings section",
         options: [
             { label: "At the very top", value: "top" },
             { label: "Above Billing section", value: "aboveNitro", default: true },
@@ -110,7 +110,7 @@ const settings = definePluginSettings({
     },
     includeVencordInfoWhenCopying: {
         type: OptionType.BOOLEAN,
-        description: "Also copy Equicord info (Equicord, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
+        description: "Also copy Veil info (Veil, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
         default: true
     }
 });
@@ -193,8 +193,8 @@ export default definePlugin({
         const equicordEntries: SettingsLayoutNode[] = [
             buildEntry({
                 key: "equicord_main",
-                title: "Equicord",
-                panelTitle: "Equicord Settings",
+                title: "Veil",
+                panelTitle: "Veil Settings",
                 Component: VencordTab,
                 Icon: MainSettingsIcon
             }),
@@ -248,7 +248,7 @@ export default definePlugin({
         const equicordSection: SettingsLayoutNode = {
             key: "equicord_section",
             type: LayoutTypes.SECTION,
-            useTitle: () => "Equicord Settings",
+            useTitle: () => "Veil Settings",
             buildLayout: () => equicordEntries
         };
 
