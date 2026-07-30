@@ -72,7 +72,7 @@ jobs:
               run: |
                   gh release upload latest --clobber dist/release/*
 
-            - name: Upload Plugin JSONs to Equibored repo
+            - name: Upload Plugin JSONs to Veil repo
               if: github.repository == 'Zarak199076/Veil' && vars.ACT == 'false'
               run: |
                   git config --global user.name "GitHub-Actions"
