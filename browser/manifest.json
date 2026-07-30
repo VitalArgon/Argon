@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "minimum_chrome_version": "111",
     "name": "Veil Web",
-    "description": "Veil. That one random discord client that you do honestly don't need, made by a random dude in his RV.",
+    "description": "Veil. That one random discord client that you do honestly don't need.",
     "author": "Zarak",
     "homepage_url": "https://github.com/Zarak199076/Veil",
     "icons": {
