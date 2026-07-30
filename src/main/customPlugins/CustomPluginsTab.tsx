@@ -13,7 +13,7 @@
  */
 
 import { Margins } from "@utils/margins";
-import { Button, Card, Forms, React, Switch, TextArea, TextInput, useEffect, useState } from "@webpack/common";
+import { Button, Forms, React, Switch, TextArea, TextInput, useEffect, useState } from "@webpack/common";
 
 import {
     deleteCustomPlugin,
@@ -169,7 +169,15 @@ export function CustomPluginsTab() {
                 )}
 
                 {needsReload && (
-                    <Card className={cl(Margins.top16, "veil-custom-plugins-reload-card")}>
+                    <div
+                        className={cl(Margins.top16, "veil-custom-plugins-reload-card")}
+                        style={{
+                            padding: 12,
+                            borderRadius: 8,
+                            background: "var(--background-secondary)",
+                            border: "1px solid var(--background-modifier-accent)",
+                        }}
+                    >
                         <Forms.FormText>Changes need a reload to take effect.</Forms.FormText>
                         <Button
                             className={Margins.top8}
@@ -179,7 +187,7 @@ export function CustomPluginsTab() {
                         >
                             Reload now
                         </Button>
-                    </Card>
+                    </div>
                 )}
             </Forms.FormSection>
 
@@ -190,30 +198,40 @@ export function CustomPluginsTab() {
                 <Forms.FormText type={Forms.FormText.Types.DESCRIPTION}>None yet.</Forms.FormText>
             )}
             {plugins.map(p => (
-                <Card key={p.name} className={cl(Margins.bottom8, "veil-custom-plugin-card")}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div>
-                            <Forms.FormTitle tag="h5" style={{ marginBottom: 0 }}>{p.name}</Forms.FormTitle>
-                            {p.sourceUrl && (
-                                <Forms.FormText type={Forms.FormText.Types.DESCRIPTION}>{p.sourceUrl}</Forms.FormText>
-                            )}
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <Switch
-                                value={p.enabled}
-                                onChange={(v: boolean) => toggle(p.name, v)}
-                            />
-                            <Button
-                                size={Button.Sizes.SMALL}
-                                color={Button.Colors.RED}
-                                look={Button.Looks.OUTLINED}
-                                onClick={() => remove(p.name)}
-                            >
-                                Remove
-                            </Button>
-                        </div>
+                <div
+                    key={p.name}
+                    className={cl(Margins.bottom8, "veil-custom-plugin-card")}
+                    style={{
+                        padding: 12,
+                        borderRadius: 8,
+                        background: "var(--background-secondary)",
+                        border: "1px solid var(--background-modifier-accent)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                    }}
+                >
+                    <div>
+                        <Forms.FormTitle tag="h5" style={{ marginBottom: 0 }}>{p.name}</Forms.FormTitle>
+                        {p.sourceUrl && (
+                            <Forms.FormText type={Forms.FormText.Types.DESCRIPTION}>{p.sourceUrl}</Forms.FormText>
+                        )}
                     </div>
-                </Card>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <Switch
+                            value={p.enabled}
+                            onChange={(v: boolean) => toggle(p.name, v)}
+                        />
+                        <Button
+                            size={Button.Sizes.SMALL}
+                            color={Button.Colors.RED}
+                            look={Button.Looks.OUTLINED}
+                            onClick={() => remove(p.name)}
+                        >
+                            Remove
+                        </Button>
+                    </div>
+                </div>
             ))}
         </React.Fragment>
     );
