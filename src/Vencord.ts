@@ -19,6 +19,7 @@
 // DO NOT REMOVE UNLESS YOU WISH TO FACE THE WRATH OF THE CIRCULAR DEPENDENCY DEMON!!!!!!!
 import "~plugins";
 import "./fixWeirdAppRegionBug.css";
+import { initCustomPlugins } from "./main/customPlugins/customPluginLoader";
 
 export * as Api from "./api";
 export * as Plugins from "./api/PluginManager";
@@ -228,10 +229,13 @@ async function init() {
     }
 }
 
-initPluginManager();
-initStyles();
-startAllPlugins(StartAt.Init);
-init();
+(async () => {
+    await initCustomPlugins();   // from your new customPluginLoader.ts
+    initPluginManager();
+    initStyles();
+    startAllPlugins(StartAt.Init);
+    init();
+})();
 
 document.addEventListener("DOMContentLoaded", () => {
     startAllPlugins(StartAt.DOMContentLoaded);
