@@ -378,6 +378,7 @@ let observer: MutationObserver | null = null;
 export default definePlugin({
     name: "RichFormatting",
     description: "Type-to-render buttons, badges, progress bars, collapsible folds, and inline Discord icons in messages (client-side only).",
+    tags: ["Utility", "Veil", "Fun"],
     authors: [VeilDevs.Zarak],
     settings,
     dependencies: ["CommandsAPI"],
