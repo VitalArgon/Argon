@@ -57,6 +57,7 @@
         "monaco-editor": "^0.55.1",
         "nanoid": "^5.1.16",
         "native-file-system-adapter": "^3.0.1",
+        "sucrase": "^3.35.1",
         "virtual-merge": "^1.0.1",
         "yaml-js": "^0.3.1"
     },
