@@ -5,6 +5,7 @@
 Veil is a fork of Equicord, Which is a fork or Vencord. Forkception. Anyways, if you want to use this then figure it out yourself, I'm making this for me and my friends so no reason... though if you do use this then thanks ig, just a passion project really.
 
 Veil is not a cord, or a wire, or a line, or a cable.
+-# ps. We have actual custom plugins rather than userplugins (unlike *some* forks)
 ## Disclaimer
 
 Discord is trademark of Discord Inc., and solely mentioned for the sake of descriptivity.
