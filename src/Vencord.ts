@@ -147,7 +147,7 @@ async function runUpdateCheck() {
                 notifiedForUpdatesThisSession = true;
 
                 showNotice(
-                    "Equicord has been updated!",
+                    "Veil has been updated!",
                     "Restart",
                     relaunch
                 );
