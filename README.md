@@ -14,7 +14,7 @@ Vencord is not connected to Veil and as such, all donation links go to Vendicate
 <details>
 <summary>Using Veil violates Discord's terms of service</summary>
 
-Client modifications are against Discord’s Terms of Service.
+Client Modifications are against Discord’s Terms of Service.
 
 However, Discord is pretty indifferent about them and there are no known cases of users getting banned for using client mods! So you should generally be fine if you don’t use plugins that implement abusive behavior. (though, idgaf about discords TOS, but be careful if you wish to abide by it)
 
