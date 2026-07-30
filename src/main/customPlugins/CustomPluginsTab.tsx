@@ -5,8 +5,8 @@
  * plugin from another Vencord/Equicord fork. Lists installed custom plugins
  * with enable/disable and remove controls.
  *
- * Uses Equicord's own UI kit (Forms, Button, TextInput, Switch, Card) so it
- * sits flush with the native settings pages instead of looking bolted on.
+ * Lives in src/main/customPlugins/ alongside customPluginStore.ts and
+ * customPluginLoader.ts — imports below assume that location.
  *
  * Registration only takes effect on next reload (see loader.ts's timing
  * note) — this tab makes that explicit rather than pretending it's live.
@@ -21,8 +21,8 @@ import {
     saveCustomPlugin,
     setCustomPluginEnabled,
     type StoredCustomPlugin,
-} from "../../main/customPlugins/customPluginStore";
-import { dryRunCompile } from "../../main/customPlugins/customPluginLoader";
+} from "./customPluginStore";
+import { dryRunCompile } from "./customPluginLoader";
 
 const cl = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
 
