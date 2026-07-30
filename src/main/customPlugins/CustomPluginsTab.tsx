@@ -102,7 +102,7 @@ export function CustomPluginsTab() {
     return (
         <React.Fragment>
             <Forms.FormTitle tag="h2">Custom Plugins</Forms.FormTitle>
-            <Forms.FormText className={Margins.bottom20} type={Forms.FormText.Types.DESCRIPTION}>
+            <Forms.FormText className={Margins.bottom20} style={{ opacity: 0.7 }}>
                 Load plugins written for other Vencord/Equicord forks. Patches only take effect after a reload.
             </Forms.FormText>
 
@@ -162,7 +162,7 @@ export function CustomPluginsTab() {
                 {status.kind !== "idle" && (
                     <Forms.FormText
                         className={Margins.top8}
-                        type={status.kind === "error" ? Forms.FormText.Types.ERROR : Forms.FormText.Types.SUCCESS}
+                        style={{ color: status.kind === "error" ? "var(--text-danger)" : "var(--text-positive)" }}
                     >
                         {status.message}
                     </Forms.FormText>
@@ -195,7 +195,7 @@ export function CustomPluginsTab() {
 
             <Forms.FormTitle tag="h5">Installed custom plugins</Forms.FormTitle>
             {plugins.length === 0 && (
-                <Forms.FormText type={Forms.FormText.Types.DESCRIPTION}>None yet.</Forms.FormText>
+                <Forms.FormText style={{ opacity: 0.7 }}>None yet.</Forms.FormText>
             )}
             {plugins.map(p => (
                 <div
@@ -214,7 +214,7 @@ export function CustomPluginsTab() {
                     <div>
                         <Forms.FormTitle tag="h5" style={{ marginBottom: 0 }}>{p.name}</Forms.FormTitle>
                         {p.sourceUrl && (
-                            <Forms.FormText type={Forms.FormText.Types.DESCRIPTION}>{p.sourceUrl}</Forms.FormText>
+                            <Forms.FormText style={{ opacity: 0.7 }}>{p.sourceUrl}</Forms.FormText>
                         )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
