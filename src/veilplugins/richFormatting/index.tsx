@@ -1,4 +1,5 @@
 import definePlugin, { OptionType } from "@utils/types";
+import { VeilDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { React } from "@webpack/common";
