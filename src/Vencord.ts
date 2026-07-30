@@ -228,12 +228,9 @@ async function init() {
     }
 }
 
-(async () => {
-    initPluginManager();
-    initStyles();
-    startAllPlugins(StartAt.Init);
-    init();
-})();
+initStyles();
+startAllPlugins(StartAt.Init);
+init();
 
 document.addEventListener("DOMContentLoaded", () => {
     startAllPlugins(StartAt.DOMContentLoaded);
