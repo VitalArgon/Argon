@@ -34,6 +34,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
     const pluginMeta = PluginMeta[plugin.name];
     const isEquicordPlugin = pluginMeta.folderName.startsWith("src/equicordplugins/") ?? false;
     const isVencordPlugin = pluginMeta.folderName.startsWith("src/plugins/") ?? false;
+    const isVeilPlugin = pluginMeta.folderName.startsWith("src/veilplugins/") ?? false;
     const isUserPlugin = pluginMeta?.userPlugin ?? false;
     const isModifiedPlugin = plugin.isModified ?? false;
 
@@ -107,6 +108,12 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             src: "https://equicord.org/assets/icons/vencord/icon-light.png",
             alt: "Vencord",
             title: "Vencord Plugin"
+        },
+        {
+            condition: isVeilPlugin,
+            src: "https://raw.githubusercontent.com/Zarak199076/Veil/main/browser/icon.png",
+            alt: "Veil",
+            title: "Veil Plugin"
         },
         {
             condition: isUserPlugin,
