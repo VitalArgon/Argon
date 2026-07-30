@@ -283,7 +283,7 @@ function EquicordSettings() {
     );
 }
 
-export default wrapTab(EquicordSettings, "Equicord Settings");
+export default wrapTab(EquicordSettings, "Veil Settings");
 
 export function isEquicordDonor(userId: string): boolean {
     const donorBadges = BadgeAPI.getEquicordDonorBadges(userId);
