@@ -1,0 +1,15 @@
+// this us literally just for Revenge
+{
+  "name": "RichFormatting",
+  "description": "adds formatting options",
+  "authors": [
+    {
+      "name": "Zarak",
+      "id": "150745989836308480"
+    }
+  ],
+  "main": "index.tsx",
+  "vendetta": {
+    "icon": "VoiceNormalIcon"
+  }
+}
