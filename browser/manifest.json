@@ -1,10 +1,10 @@
 {
     "manifest_version": 3,
     "minimum_chrome_version": "111",
-    "name": "Equicord Web",
-    "description": "The other cutest Discord mod now in your browser",
-    "author": "Equicord",
-    "homepage_url": "https://github.com/Equicord/Equicord",
+    "name": "Veil Web",
+    "description": "Veil. That one random discord client that you do honestly don't need, made by a random dude in his RV.",
+    "author": "Zarak",
+    "homepage_url": "https://github.com/Zarak199076/Veil",
     "icons": {
         "128": "icon.png"
     },
