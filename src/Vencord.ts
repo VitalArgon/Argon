@@ -31,6 +31,7 @@ export { PlainSettings, Settings };
 
 import { coreStyleRootNode, initStyles } from "@api/Styles";
 import { openSettingsTabModal, UpdaterTab } from "@components/settings";
+import { openUpdateAvailableModal } from "@components/UpdateAvailableModal";
 import { debounce } from "@shared/debounce";
 import { IS_WINDOWS } from "@utils/constants";
 import { createAndAppendStyle } from "@utils/css";
@@ -40,12 +41,14 @@ import { SettingsRouter } from "@webpack/common";
 import { get as dsGet } from "./api/DataStore";
 import { popNotice, showNotice } from "./api/Notices";
 import { NotificationData, showNotification } from "./api/Notifications";
+import { PatchVersioning } from "./api/PatchVersioning";
+import { PluginHealth } from "./api/PluginHealth";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
-import { checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
-import { onceReady } from "./webpack";
+import { changes, checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
+import { addFactoryListener,onceReady, wreq } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
 if (IS_REPORTER) {
@@ -145,11 +148,14 @@ async function runUpdateCheck() {
                 if (notifiedForUpdatesThisSession) return;
                 notifiedForUpdatesThisSession = true;
 
-                showNotice(
-                    "Veil has been updated!",
-                    "Restart",
-                    relaunch
-                );
+                openUpdateAvailableModal({
+                    commits: changes,
+                    title: "TestCord has updated!",
+                    confirmText: "View Updates",
+                    onConfirm: () => openSettingsTabModal(UpdaterTab!),
+                    onUpdate: relaunch,
+                    updateText: "Restart"
+                });
             }
             return;
         }
@@ -157,11 +163,16 @@ async function runUpdateCheck() {
         if (notifiedForUpdatesThisSession) return;
         notifiedForUpdatesThisSession = true;
 
-        showNotice(
-            "A new version of Equicord is available!",
-            "View Update",
-            () => openSettingsTabModal(UpdaterTab!)
-        );
+        openUpdateAvailableModal({
+            commits: changes,
+            title: "TestCord has updated!",
+            confirmText: "View Updates",
+            onConfirm: () => openSettingsTabModal(UpdaterTab!),
+            onUpdate: async () => {
+                await update();
+                relaunch();
+            }
+        });
     } catch (err) {
         UpdateLogger.error("Failed to check for updates", err);
     }
@@ -176,7 +187,7 @@ function initTrayIpc() {
             VencordNative.tray.setUpdateState(isOutdated);
 
             if (isOutdated) {
-                showNotice("An Equicord update is available!", "View Update", () => openSettingsTabModal(UpdaterTab!));
+                showNotice("A Testcord update is available!", "View Update", () => openSettingsTabModal(UpdaterTab!));
             } else {
                 showNotice("No updates available, you're on the latest version!", "OK", popNotice);
             }
@@ -203,7 +214,6 @@ async function init() {
     startAllPlugins(StartAt.WebpackReady);
 
     syncSettings();
-    initTrayIpc();
 
     if (!IS_DEV && !IS_WEB && !IS_UPDATER_DISABLED) {
         runUpdateCheck();
@@ -221,11 +231,176 @@ async function init() {
                 "Webpack has finished initialising, but some patches haven't been applied yet.",
                 "This might be expected since some Modules are lazy loaded, but please verify",
                 "that all plugins are working as intended.",
-                "You are seeing this warning because this is a Development build of Equicord.",
+                "You are seeing this warning because this is a Development build of TestCord.",
                 "\nThe following patches have not been applied:",
                 "\n\n" + pendingPatches.map(p => `${p.plugin}: ${p.find}`).join("\n")
             );
     }
+
+    // Initialise patch versioning so that codeChanged entries are recorded
+    // when Discord updates the underlying code for a patched module.
+    void PatchVersioning.init();
+
+    // Delayed scan for patches that never matched any loaded module.
+    //
+    // Instead of blindly flagging every unresolved patch as "broken", we
+    // search Discord's complete factory map (wreq.m) — which contains the
+    // source code of EVERY module, loaded or not — to distinguish:
+    //
+    //   1. "lazy" — the find string IS in some factory's source, so the
+    //      module exists in the bundle but hasn't been instantiated yet.
+    //      This is normal: Discord lazy-loads emoji picker, settings panels,
+    //      voice UI, etc. We do NOT flag these.
+    //
+    //   2. "missing" — the find string is NOT in any factory's source, so
+    //      Discord removed or renamed the module. This is a genuine breakage
+    //      that the user should know about. We flag these as "noModule".
+    setTimeout(() => {
+        if (!wreq?.m) return;
+
+        // Build a single concatenated source string once, rather than calling
+        // .toString() on each factory individually per patch (which would be
+        // O(patches × factories) string operations).
+        // The bundle is typically 5–15 MB of source — this is fine for a
+        // one-time deferred scan.
+        let allFactorySource: string | null = null;
+        const getFactorySource = () => {
+            if (allFactorySource !== null) return allFactorySource;
+            const parts: string[] = [];
+            for (const id in wreq.m) {
+                try {
+                    parts.push(String(wreq.m[id]));
+                } catch {
+                    // Some factories may throw on toString — skip them.
+                }
+            }
+            allFactorySource = parts.join("\n");
+            return allFactorySource;
+        };
+
+        const noModulePlugins = new Set<string>();
+
+        // Track which patches were flagged as noModule so we can re-check
+        // them when Discord lazy-loads additional chunks later.
+        const noModulePatches: Array<{ plugin: string; find: string | RegExp; findStr: string; }> = [];
+
+        for (const patch of patches) {
+            if (patch.all) continue;
+            if (patch.predicate && patch.predicate() === false) continue;
+
+            const findStr = String(patch.find);
+
+            // Check whether the find string exists anywhere in the bundle's
+            // factory source code. If it does, the module is lazy-loaded and
+            // will be patched when the user opens the relevant UI — not a
+            // real failure.
+            const source = getFactorySource();
+            let isInBundle = false;
+            if (patch.find instanceof RegExp) {
+                if (patch.find.global) patch.find.lastIndex = 0;
+                isInBundle = patch.find.test(source);
+            } else {
+                isInBundle = source.includes(findStr);
+            }
+
+            if (isInBundle) continue;
+
+            PluginHealth.recordPatchFailure(patch.plugin, {
+                kind: "noModule",
+                find: findStr
+            });
+            noModulePlugins.add(patch.plugin);
+            noModulePatches.push({
+                plugin: patch.plugin,
+                find: patch.find,
+                findStr
+            });
+        }
+
+        // Register a factory listener that checks newly loaded factories
+        // against the noModule entries. When Discord lazy-loads a chunk
+        // that contains a previously "missing" module, the false positive
+        // is automatically cleared.
+        if (noModulePatches.length > 0) {
+            const removeListener = addFactoryListener(factory => {
+                let factorySource: string;
+                try {
+                    factorySource = String(factory);
+                } catch {
+                    return;
+                }
+
+                for (let i = noModulePatches.length - 1; i >= 0; i--) {
+                    const { plugin, find, findStr } = noModulePatches[i];
+                    let matches = false;
+                    if (find instanceof RegExp) {
+                        if (find.global) find.lastIndex = 0;
+                        matches = find.test(factorySource);
+                    } else {
+                        matches = factorySource.includes(findStr);
+                    }
+
+                    if (matches) {
+                        PluginHealth.clearPatchFailures(
+                            plugin,
+                            f => f.kind === "noModule" && f.find === findStr
+                        );
+                        noModulePatches.splice(i, 1);
+                        if (!noModulePatches.some(patch => patch.plugin === plugin)) {
+                            noModulePlugins.delete(plugin);
+                        }
+                    }
+                }
+
+                if (noModulePatches.length === 0) {
+                    removeListener();
+                }
+            });
+        }
+
+        // Discord update detection: if 3+ plugins have missing modules
+        // with real code-level find strings (not CSS class hashes or intl
+        // keys from lazy-loaded chunks), it's very likely Discord shipped
+        // an update that broke things.
+        // Show a one-time notice pointing the user to the Health tab.
+        // Check if the user has dismissed this notice permanently.
+        const realNoModulePlugins = [...noModulePlugins].filter(p =>
+            noModulePatches.some(patch =>
+                patch.plugin === p
+                && !patch.findStr.startsWith(".")
+                && !patch.findStr.startsWith("[\"")
+            )
+        );
+        if (realNoModulePlugins.length >= 3) {
+            void dsGet<boolean>("PluginHealthNoticeDismissed_v1").then(dismissed => {
+                if (!dismissed) {
+                    showNotice(
+                        `Discord may have updated — ${realNoModulePlugins.length} plugins have missing modules. Check the Plugin Health tab for details.`,
+                        "View Health",
+                        () => {
+                            SettingsRouter.openUserSettings("testcord_health_panel");
+                        }
+                    );
+                }
+            });
+        }
+    }, 60_000);
+
+    // Defer non-critical IPC init to not block the critical startup path
+    setTimeout(initTrayIpc, 0);
+}
+
+initPluginManager();
+
+if (!IS_DEV) {
+    window.onerror = (message, source, lineno, colno, error) => {
+        const msg = String(message);
+        if (msg.includes("startsWith") || msg.includes("Cannot read properties")) return true;
+    };
+    window.addEventListener("unhandledrejection", e => {
+        const { reason } = e;
+        if (reason?.message?.includes?.("startsWith")) e.preventDefault();
+    });
 }
 
 initStyles();
