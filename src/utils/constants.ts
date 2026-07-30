@@ -1411,6 +1411,13 @@ export const EquicordDevs = Object.freeze({
         id: 456577284464443394n,
     },
 } satisfies Record<string, Dev>);
+// Veil plugin authors
+export const VeilDevs = /* #__PURE__*/ Object.freeze({
+     Zarak: {
+         name: "Zarak",
+         id: 1212639964605718582n
+     }
+} satisfies Record<string, Dev>);
 
 // iife so #__PURE__ works correctly
 export const VencordDevsById = /* #__PURE__*/ (() =>
@@ -1424,6 +1431,14 @@ export const VencordDevsById = /* #__PURE__*/ (() =>
 export const EquicordDevsById = /* #__PURE__*/ (() =>
     Object.freeze(Object.fromEntries(
         Object.entries(EquicordDevs)
+            .filter(d => d[1].id !== 0n)
+            .map(([_, v]) => [v.id, v] as const)
+    ))
+)() as Record<string, Dev>;
+
+export const VeilDevsById = /* #__PURE__*/ (() =>
+    Object.freeze(Object.fromEntries(
+        Object.entries(VeilDevs)
             .filter(d => d[1].id !== 0n)
             .map(([_, v]) => [v.id, v] as const)
     ))
