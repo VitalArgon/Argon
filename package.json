@@ -61,7 +61,7 @@
         "yaml-js": "^0.3.1"
     },
     "devDependencies": {
-        "sucrase": "^3.35.0"
+        "sucrase": "^3.35.0",
         "@electron/asar": "^4.2.0",
         "@stylistic/eslint-plugin": "^5.10.0",
         "@types/chrome": "^0.2.0",
