@@ -1139,6 +1139,29 @@ export function EquicordIcon(props: IconProps) {
     );
 }
 
+export function VeilIcon(props: IconProps) {
+    return (
+        <Icon
+            {...props}
+            viewBox="0 0 309 309"
+        >
+            <path
+                fill={props.fill || "currentColor"}
+                d="M26,57 L161,285 L208,204 L119,56 Z"
+            />
+            <path
+                fill={props.fill || "currentColor"}
+                d="M193,57 L242,88 L243,130 L284,60 Z"
+            />
+            <path
+                fill={props.fill || "currentColor"}
+                fillOpacity={0.55}
+                d="M112,203 L160,284 L207,207 Z"
+            />
+        </Icon>
+    );
+}
+
 export function UserIcon(props: IconProps) {
     return (
         <Icon
