@@ -7,7 +7,7 @@ import { findByPropsLazy } from "@webpack";
 const MessageActions = findByPropsLazy("sendBotMessage", "receiveMessage");
 
 // Set this to your deployed Railway URL, e.g. "https://giff-proxy-production.up.railway.app"
-const PROXY_BASE_URL = "http://giff-production.up.railway.app";
+const PROXY_BASE_URL = "https://giff-production.up.railway.app";
 
 async function findGif(query: string): Promise<string | null> {
     const res = await fetch(`${PROXY_BASE_URL}/giff?q=${encodeURIComponent(query)}`);
