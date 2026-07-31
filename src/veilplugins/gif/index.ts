@@ -6,56 +6,15 @@ import { findByPropsLazy } from "@webpack";
 // Dynamically locate Discord's internal message routing engine
 const MessageActions = findByPropsLazy("sendBotMessage", "receiveMessage");
 
-// Subreddits to search — all SFW-moderated GIF communities.
-// Add more here if you want, but stick to subs that actively
-// enforce no-NSFW rules.
-const GIF_SUBREDDITS = ["gifs", "reactiongifs", "perfectloops", "porn_gifs", "hentai_gif"];
-
-interface RedditPost {
-    url: string;
-    over_18: boolean;
-    is_video: boolean;
-    title: string;
-}
-
-async function searchSubreddit(subreddit: string, query: string): Promise<RedditPost[]> {
-    const url = `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&sort=relevance&limit=15`;
-    const res = await fetch(url, {
-        headers: { "User-Agent": "VeilDiscordMod/1.0" },
-    });
-    if (!res.ok) throw new Error(`Reddit HTTP ${res.status} (r/${subreddit})`);
-    const json = await res.json();
-    return (json?.data?.children ?? []).map((c: any) => ({
-        url: c.data?.url_overridden_by_dest ?? c.data?.url,
-        over_18: !!c.data?.over_18,
-        is_video: !!c.data?.is_video,
-        title: c.data?.title ?? "",
-    }));
-}
-
-function isDirectGifUrl(url: string | undefined): url is string {
-    if (!url) return false;
-    return /\.(gif|gifv)(\?.*)?$/i.test(url) || url.includes("i.redd.it") || url.includes("i.imgur.com");
-}
+// Set this to your deployed Railway URL, e.g. "https://giff-proxy-production.up.railway.app"
+const PROXY_BASE_URL = "http://giff-production.up.railway.app";
 
 async function findGif(query: string): Promise<string | null> {
-    const settled = await Promise.allSettled(
-        GIF_SUBREDDITS.map(sub => searchSubreddit(sub, query))
-    );
-
-    const candidates: RedditPost[] = [];
-    for (const r of settled) {
-        if (r.status === "fulfilled") candidates.push(...r.value);
-        else console.error("[giff] subreddit search failed:", r.reason);
-    }
-
-    // Safety filter — drop anything flagged NSFW by Reddit itself.
-    // This is a second layer on top of subreddit selection, not a
-    // replacement for it: over_18 relies on correct post flagging,
-    // so it's not airtight on its own.
-    const safe = candidates.filter(p => p.over_18 && isDirectGifUrl(p.url));
-
-    return safe.length ? safe[0].url : null;
+    const res = await fetch(`${PROXY_BASE_URL}/giff?q=${encodeURIComponent(query)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+    const data = await res.json();
+    return data.url ?? null;
 }
 
 export default definePlugin({
