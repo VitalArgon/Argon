@@ -40,7 +40,7 @@ interface NormalizedGif {
 async function fetchGiphy(query: string, limit: number): Promise<NormalizedGif[]> {
     const key = settings.store.giphyApiKey || "dc6zaTOxFJmzC";
     const res = await fetch(
-        `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&rating=pg-13`
+        `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&rating=none`
     );
     if (!res.ok) throw new Error(`Giphy HTTP ${res.status}`);
     const data = await res.json();
