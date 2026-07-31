@@ -10,6 +10,7 @@ import { VeilDevs } from "@utils/constants";
  * - waitFor() if available, otherwise retry-find
  * - Patches multiple profile getter functions and handles Promise returns
  * - Clones profile objects before injecting to avoid frozen objects / render issues
+ * - Injects badges only once per user per session
  * - Proper start/stop lifecycle with cleanup and unpatching
  */
 
@@ -30,6 +31,7 @@ const getWebpack = () => {
 
 class CustomBadges {
   private badgeData: Map<string, Badge[]> = new Map();
+  private injectedUsers: Set<string> = new Set();
   private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/refs/heads/main/badges.json";
   private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -93,6 +95,7 @@ class CustomBadges {
     }
 
     this.badgeData.clear();
+    this.injectedUsers.clear();
   }
 
   private async loadBadgeData() {
@@ -242,7 +245,7 @@ class CustomBadges {
 
     const self = this;
 
-        const safeInject = (args: IArguments | any[], profile: any) => {
+    const safeInject = (args: IArguments | any[], profile: any) => {
       try {
         if (!profile) return profile;
 
@@ -259,22 +262,16 @@ class CustomBadges {
         }
         if (!userId) return profile;
 
+        // Skip if already injected for this user
+        if (self.injectedUsers.has(userId)) {
+          return profile;
+        }
+
         const badges = self.badgeData.get(userId);
         if (!badges || badges.length === 0) return profile;
 
-        const badgeIds = badges.map((b) => b.id);
-
-        // If the profile already contains all badge ids (in either profile.badges or profile.user.badges),
-        // return the original profile to avoid creating a new object identity and causing rerenders.
-        const existingIds = new Set<string>();
-        if (Array.isArray(profile.badges)) {
-          for (const b of profile.badges) if (b && b.id) existingIds.add(String(b.id));
-        }
-        if (profile.user && Array.isArray(profile.user.badges)) {
-          for (const b of profile.user.badges) if (b && b.id) existingIds.add(String(b.id));
-        }
-        const allPresent = badgeIds.every((id) => existingIds.has(id));
-        if (allPresent) return profile;
+        // Mark this user as injected
+        self.injectedUsers.add(userId);
 
         // create shallow clones so we don't mutate frozen objects and to provide new identity
         const cloned = Array.isArray(profile) ? profile.slice() : { ...profile };
@@ -286,27 +283,20 @@ class CustomBadges {
           cloned.user.badges = Array.isArray(profile.user.badges) ? profile.user.badges.slice() : [];
         }
 
-        let injectedSomething = false;
         for (const b of badges) {
           const entry = { id: b.id, description: b.description, icon: b.icon, link: b.link || "#" };
           if (!cloned.badges.some((x: any) => x?.id === b.id)) {
             cloned.badges.unshift(entry);
-            injectedSomething = true;
           }
           if (cloned.user && Array.isArray(cloned.user.badges) && !cloned.user.badges.some((x: any) => x?.id === b.id)) {
             cloned.user.badges.unshift(entry);
-            injectedSomething = true;
           }
         }
 
-        if (injectedSomething) {
-          try {
-            console.debug("[CustomBadges] injected badges for", userId, "->", badges.map((x) => x.id));
-          } catch {}
-          return cloned;
-        }
-
-        return profile;
+        try {
+          console.debug("[CustomBadges] injected badges for", userId, "->", badges.map((x) => x.id));
+        } catch {}
+        return cloned;
       } catch (e) {
         console.error("[CustomBadges] error injecting badges:", e);
         return profile;
