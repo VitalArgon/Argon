@@ -7,11 +7,13 @@
  * or its result filtering at all.
  *
  * Discord's GIF picker issues its search via XMLHttpRequest, not
- * fetch, so the passive interceptor subclasses XMLHttpRequest.
- * Because merging in extra providers is async and XHR completion
- * events are synchronous, we buffer the "done" event for any
- * listener Discord attaches, run the merge, patch the response
- * getters, and only then release the buffered calls.
+ * fetch, so the passive interceptor patches a handful of methods
+ * on XMLHttpRequest.prototype in place (never replaces the global
+ * constructor — doing that broke Vencord's own startup). Because
+ * merging in extra providers is async and XHR completion events
+ * are synchronous, we buffer the "done" event for any listener
+ * Discord attaches, run the merge, patch the response getters,
+ * and only then release the buffered calls.
  *
  * The /multi-gif command is a separate, independent path: it never
  * goes near Discord's request/response cycle, so whatever Discord's
@@ -211,108 +213,185 @@ function patchResultArrayInPlace(json: any, newArray: any[]) {
     return json;
 }
 
-let origXHR: typeof XMLHttpRequest;
+// --- XHR patching -----------------------------------------------------
+// IMPORTANT: we patch XMLHttpRequest.prototype in place rather than
+// replacing window.XMLHttpRequest with a subclass. Swapping out the
+// global constructor broke Vencord's own startup (instanceof checks
+// and/or the build's native-class-extension handling didn't like it),
+// so instead we do exactly what the original plugin did with fetch:
+// wrap a handful of existing methods, and every other request in the
+// client (the overwhelming majority) is completely unaffected.
 
-class VeilPatchedXHR extends XMLHttpRequest {
-    private _veilQuery: string | null = null;
-    private _veilPending: Array<() => void> = [];
-    private _veilMergeStarted = false;
-    private _veilPatchedText: string | null = null;
-    private _veilPatchedObj: any = undefined;
+function findAccessor(proto: any, name: string): PropertyDescriptor | null {
+    let p = proto;
+    while (p) {
+        const d = Object.getOwnPropertyDescriptor(p, name);
+        if (d) return d;
+        p = Object.getPrototypeOf(p);
+    }
+    return null;
+}
 
-    open(method: string, url: string | URL, ...rest: any[]) {
-        const urlStr = url.toString();
-        this._veilQuery = (settings.store.enablePickerIntercept && urlStr.includes(SEARCH_URL_FRAGMENT))
-            ? extractQuery(urlStr)
-            : null;
+interface VeilXHRState {
+    query: string | null;
+    pending: Array<() => void>;
+    mergeStarted: boolean;
+    patchedText: string | null;
+    patchedObj: any;
+}
+
+const veilState = new WeakMap<XMLHttpRequest, VeilXHRState>();
+
+function getState(xhr: XMLHttpRequest): VeilXHRState {
+    let s = veilState.get(xhr);
+    if (!s) {
+        s = { query: null, pending: [], mergeStarted: false, patchedText: null, patchedObj: undefined };
+        veilState.set(xhr, s);
+    }
+    return s;
+}
+
+function veilWrap(xhr: XMLHttpRequest, type: "load" | "readystatechange", listener: any) {
+    return function (this: any, ev: Event) {
+        const s = getState(xhr);
+        if (type === "readystatechange" && xhr.readyState !== 4) {
+            return listener.call(this, ev);
+        }
+        s.pending.push(() => listener.call(this, ev));
+        veilMaybeMerge(xhr);
+    };
+}
+
+function veilFlush(xhr: XMLHttpRequest) {
+    const s = getState(xhr);
+    const calls = s.pending;
+    s.pending = [];
+    for (const call of calls) call();
+}
+
+function veilMaybeMerge(xhr: XMLHttpRequest) {
+    const s = getState(xhr);
+    if (s.mergeStarted) return;
+    s.mergeStarted = true;
+
+    if (!s.query || xhr.status < 200 || xhr.status >= 300) {
+        return veilFlush(xhr);
+    }
+
+    (async () => {
+        try {
+            const type = xhr.responseType;
+            let json: any;
+            if (type === "" || type === "text") {
+                json = JSON.parse(origResponseTextDesc.get!.call(xhr));
+            } else if (type === "json") {
+                json = origResponseDesc.get!.call(xhr);
+            } else {
+                // arraybuffer/blob/document — not our shape, leave untouched
+                return;
+            }
+
+            const nativeArray = findResultArray(json);
+            if (!nativeArray) return;
+
+            const merged = await mergeExtraProviders(s.query!, nativeArray);
+            const patched = patchResultArrayInPlace(json, merged);
+
+            if (type === "json") s.patchedObj = patched;
+            else s.patchedText = JSON.stringify(patched);
+        } catch (e) {
+            console.error("[MultiGifSource] Failed to merge providers, passing through native response:", e);
+        } finally {
+            veilFlush(xhr);
+        }
+    })();
+}
+
+let origOpen: typeof XMLHttpRequest.prototype.open;
+let origAddEventListener: typeof XMLHttpRequest.prototype.addEventListener;
+let origOnloadDesc: PropertyDescriptor;
+let origOnreadystatechangeDesc: PropertyDescriptor;
+let origResponseDesc: PropertyDescriptor;
+let origResponseTextDesc: PropertyDescriptor;
+
+function installXHRPatch() {
+    origOpen = XMLHttpRequest.prototype.open;
+    origAddEventListener = XMLHttpRequest.prototype.addEventListener;
+    origOnloadDesc = findAccessor(XMLHttpRequest.prototype, "onload")!;
+    origOnreadystatechangeDesc = findAccessor(XMLHttpRequest.prototype, "onreadystatechange")!;
+    origResponseDesc = findAccessor(XMLHttpRequest.prototype, "response")!;
+    origResponseTextDesc = findAccessor(XMLHttpRequest.prototype, "responseText")!;
+
+    XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: any[]) {
+        const s = getState(this);
+        s.query = null;
+        s.pending = [];
+        s.mergeStarted = false;
+        s.patchedText = null;
+        s.patchedObj = undefined;
+        try {
+            const urlStr = url.toString();
+            if (settings.store.enablePickerIntercept && urlStr.includes(SEARCH_URL_FRAGMENT)) {
+                s.query = extractQuery(urlStr);
+            }
+        } catch { /* ignore */ }
         // @ts-ignore — variadic open() overloads
-        return super.open(method, url, ...rest);
-    }
+        return origOpen.apply(this, [method, url, ...rest]);
+    };
 
-    private _veilWrap(type: "load" | "readystatechange", listener: any) {
-        const self = this;
-        return function (this: any, ev: Event) {
-            if (type === "readystatechange" && self.readyState !== 4) {
-                return listener.call(this, ev);
-            }
-            self._veilPending.push(() => listener.call(this, ev));
-            self._veilMaybeMerge();
-        };
-    }
-
-    addEventListener(type: string, listener: any, options?: any) {
-        if (this._veilQuery && listener && (type === "readystatechange" || type === "load" || type === "loadend")) {
-            return super.addEventListener(type, this._veilWrap(type === "readystatechange" ? "readystatechange" : "load", listener), options);
+    XMLHttpRequest.prototype.addEventListener = function (this: XMLHttpRequest, type: string, listener: any, options?: any) {
+        const s = getState(this);
+        if (s.query && listener && (type === "readystatechange" || type === "load" || type === "loadend")) {
+            return origAddEventListener.call(this, type, veilWrap(this, type === "readystatechange" ? "readystatechange" : "load", listener), options);
         }
-        return super.addEventListener(type, listener, options);
-    }
+        return origAddEventListener.call(this, type, listener, options);
+    };
 
-    set onload(fn: any) {
-        super.onload = (this._veilQuery && fn) ? this._veilWrap("load", fn) : fn;
-    }
-    get onload() {
-        return super.onload;
-    }
+    Object.defineProperty(XMLHttpRequest.prototype, "onload", {
+        configurable: true,
+        get(this: XMLHttpRequest) { return origOnloadDesc.get!.call(this); },
+        set(this: XMLHttpRequest, fn: any) {
+            const s = getState(this);
+            origOnloadDesc.set!.call(this, (s.query && fn) ? veilWrap(this, "load", fn) : fn);
+        },
+    });
 
-    set onreadystatechange(fn: any) {
-        super.onreadystatechange = (this._veilQuery && fn) ? this._veilWrap("readystatechange", fn) : fn;
-    }
-    get onreadystatechange() {
-        return super.onreadystatechange;
-    }
+    Object.defineProperty(XMLHttpRequest.prototype, "onreadystatechange", {
+        configurable: true,
+        get(this: XMLHttpRequest) { return origOnreadystatechangeDesc.get!.call(this); },
+        set(this: XMLHttpRequest, fn: any) {
+            const s = getState(this);
+            origOnreadystatechangeDesc.set!.call(this, (s.query && fn) ? veilWrap(this, "readystatechange", fn) : fn);
+        },
+    });
 
-    get response() {
-        if (this._veilPatchedObj !== undefined) return this._veilPatchedObj;
-        if (this._veilPatchedText !== null) return this._veilPatchedText;
-        return super.response;
-    }
+    Object.defineProperty(XMLHttpRequest.prototype, "response", {
+        configurable: true,
+        get(this: XMLHttpRequest) {
+            const s = getState(this);
+            if (s.patchedObj !== undefined) return s.patchedObj;
+            if (s.patchedText !== null) return s.patchedText;
+            return origResponseDesc.get!.call(this);
+        },
+    });
 
-    get responseText() {
-        return this._veilPatchedText ?? super.responseText;
-    }
+    Object.defineProperty(XMLHttpRequest.prototype, "responseText", {
+        configurable: true,
+        get(this: XMLHttpRequest) {
+            const s = getState(this);
+            return s.patchedText ?? origResponseTextDesc.get!.call(this);
+        },
+    });
+}
 
-    private _veilMaybeMerge() {
-        if (this._veilMergeStarted) return;
-        this._veilMergeStarted = true;
-
-        if (!this._veilQuery || this.status < 200 || this.status >= 300) {
-            return this._veilFlush();
-        }
-
-        (async () => {
-            try {
-                const type = this.responseType;
-                let json: any;
-                if (type === "" || type === "text") {
-                    json = JSON.parse(super.responseText);
-                } else if (type === "json") {
-                    json = super.response;
-                } else {
-                    // arraybuffer/blob/document — not our shape, leave untouched
-                    return;
-                }
-
-                const nativeArray = findResultArray(json);
-                if (!nativeArray) return;
-
-                const merged = await mergeExtraProviders(this._veilQuery!, nativeArray);
-                const patched = patchResultArrayInPlace(json, merged);
-
-                if (type === "json") this._veilPatchedObj = patched;
-                else this._veilPatchedText = JSON.stringify(patched);
-            } catch (e) {
-                console.error("[MultiGifSource] Failed to merge providers, passing through native response:", e);
-            } finally {
-                this._veilFlush();
-            }
-        })();
-    }
-
-    private _veilFlush() {
-        const calls = this._veilPending;
-        this._veilPending = [];
-        for (const call of calls) call();
-    }
+function uninstallXHRPatch() {
+    if (!origOpen) return;
+    XMLHttpRequest.prototype.open = origOpen;
+    XMLHttpRequest.prototype.addEventListener = origAddEventListener;
+    Object.defineProperty(XMLHttpRequest.prototype, "onload", origOnloadDesc);
+    Object.defineProperty(XMLHttpRequest.prototype, "onreadystatechange", origOnreadystatechangeDesc);
+    Object.defineProperty(XMLHttpRequest.prototype, "response", origResponseDesc);
+    Object.defineProperty(XMLHttpRequest.prototype, "responseText", origResponseTextDesc);
 }
 
 function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initialQuery: string; }) {
@@ -394,7 +473,7 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
 export default definePlugin({
     name: "MultiGifSource",
     description: "Adds results from other GIF providers (Giphy, Tenor, etc.) alongside Discord's native Tenor search, plus a /multi-gif command that searches them directly without going through Discord's picker at all.",
-    authors: [VeilDevs.Zarak], // replace with your own entry
+    authors: [VeilDevs.Zarak],
     settings,
     dependencies: ["CommandsAPI"],
 
@@ -419,12 +498,10 @@ export default definePlugin({
     ],
 
     start() {
-        origXHR = window.XMLHttpRequest;
-        // @ts-ignore
-        window.XMLHttpRequest = VeilPatchedXHR;
+        installXHRPatch();
     },
 
     stop() {
-        if (origXHR) window.XMLHttpRequest = origXHR;
+        uninstallXHRPatch();
     },
 });
