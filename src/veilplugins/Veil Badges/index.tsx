@@ -251,39 +251,77 @@ class CustomBadges {
     this.originalGetUserProfile = orig;
 
     const self = this;
-    store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
-      try {
-        const profile = orig.apply(this, args);
-        let userId: string | undefined;
-        if (typeof args[0] === "string" || typeof args[0] === "number") userId = String(args[0]);
-        else if (args[0] && typeof args[0] === "object") userId = String((args[0] as any).id ?? "");
+    // inside applyPatch — replace the current store.getUserProfile = function ... { ... } with this:
+store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
+  const safeInject = (profile: any) => {
+    try {
+      if (!profile) return profile;
 
-        if (!profile || !userId) return profile;
+      // try to derive userId from args first, fallback to profile.user.id or profile.id
+      let userId: string | undefined;
+      if (typeof args[0] === "string" || typeof args[0] === "number") userId = String(args[0]);
+      else if (args[0] && typeof args[0] === "object") userId = String((args[0] as any).id ?? "");
+      if (!userId && profile.user && (profile.user.id || profile.user._id)) userId = String(profile.user.id ?? profile.user._id);
+      if (!userId && (profile.id || profile._id)) userId = String(profile.id ?? profile._id);
 
-        const badges = self.badgeData.get(userId);
-        if (!badges || badges.length === 0) return profile;
+      if (!userId) return profile;
 
-        profile.badges = Array.isArray(profile.badges) ? profile.badges : [];
-        for (const b of badges) {
-          if (!profile.badges.some((x: any) => x?.id === b.id)) {
-            profile.badges.unshift({
-              id: b.id,
-              description: b.description,
-              icon: b.icon,
-              link: b.link || "#",
-            });
-          }
-        }
-        return profile;
-      } catch (e) {
-        console.error("[CustomBadges] error in patched getUserProfile:", e);
-        try {
-          return orig.apply(this, args);
-        } catch {
-          return undefined;
+      const badges = self.badgeData.get(userId);
+      if (!badges || badges.length === 0) return profile;
+
+      // create a shallow clone so we don't mutate frozen/pooled objects and to give the renderer a new identity
+      const cloned = Array.isArray(profile) ? profile.slice() : { ...profile };
+
+      // ensure top-level badges array exists and is mutable
+      cloned.badges = Array.isArray(profile.badges) ? profile.badges.slice() : [];
+
+      // also handle common nested shape: profile.user.badges
+      if (profile.user && typeof profile.user === "object") {
+        cloned.user = { ...profile.user };
+        cloned.user.badges = Array.isArray(profile.user.badges) ? profile.user.badges.slice() : [];
+      }
+
+      for (const b of badges) {
+        const entry = { id: b.id, description: b.description, icon: b.icon, link: b.link || "#" };
+        if (!cloned.badges.some((x: any) => x?.id === b.id)) cloned.badges.unshift(entry);
+        if (cloned.user && Array.isArray(cloned.user.badges) && !cloned.user.badges.some((x: any) => x?.id === b.id)) {
+          cloned.user.badges.unshift(entry);
         }
       }
-    };
+
+      // debugging aid (remove or silence later)
+      try {
+        console.debug("[CustomBadges] injected badges for", userId, "->", badges.map(b => b.id));
+      } catch {}
+
+      return cloned;
+    } catch (e) {
+      console.error("[CustomBadges] error injecting badges:", e);
+      return profile;
+    }
+  };
+
+  try {
+    const result = orig.apply(this, args);
+    // if the original returned a Promise, inject after it resolves
+    if (result && typeof (result as any).then === "function") {
+      return (result as Promise<any>).then((profile) => safeInject(profile)).catch((err) => {
+        console.error("[CustomBadges] promise getUserProfile rejected:", err);
+        // preserve original promise rejection behavior
+        return Promise.reject(err);
+      });
+    }
+    // sync path
+    return safeInject(result);
+  } catch (e) {
+    console.error("[CustomBadges] error in patched getUserProfile wrapper:", e);
+    try {
+      return orig.apply(this, args);
+    } catch {
+      return undefined;
+    }
+  }
+};
 
     (store as any).__customBadgesPatched = true;
     console.log("[CustomBadges] Patch applied to profile store");
