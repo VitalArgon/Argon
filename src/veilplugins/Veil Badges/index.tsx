@@ -2,7 +2,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 
 /**
- * Veil Badges plugin — patches getUserProfile like the userscript does
+ * Veil Badges Plugin, Injects Badges Into The User Profile When Viewing Said Profile.
  */
 
 type Badge = {
@@ -24,7 +24,6 @@ class CustomBadges {
   private abortController: AbortController | null = null;
   private patchedStore: any = null;
   private originalGetUserProfile: any = null;
-  private injectedUsers: Set<string> = new Set();
 
   constructor() {}
 
@@ -266,7 +265,6 @@ class CustomBadges {
       const self = this;
 
       store.getUserProfile = function (userId: string) {
-        if (self.injectedUsers.has(userId)) return self.originalGetUserProfile.apply(this, arguments);
         const profile = self.originalGetUserProfile.apply(this, arguments);
         if (!profile) return profile;
 
@@ -284,11 +282,9 @@ class CustomBadges {
               icon: b.icon,
               link: b.link || "#",
             });
-        self.injectedUsers.add(userId);
           }
         }
 
-        console.debug("[CustomBadges] Injected badges for", userId, "->", badges.map((x) => x.id));
         return profile;
       };
 
