@@ -2,21 +2,18 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 
 /**
- * Veil Badges plugin — improved, robust version
+ * Veil Badges plugin — runtime-adapted from userscript
  *
- * Fixes:
- * - Correct raw GitHub badges.json URL + fallback
- * - Robust Webpack store discovery (waitFor/findModule/findByProps + retry)
+ * Behavior:
+ * - Loads badges.json (with fallback)
+ * - Dynamically finds Vencord/Webpack at runtime
+ * - waitFor() if available, otherwise retry-find
+ * - Patches multiple profile getter functions and handles Promise returns
+ * - Clones profile objects before injecting to avoid frozen objects / render issues
  * - Proper start/stop lifecycle with cleanup and unpatching
- * - Safer image fixer (marks processed images)
  */
 
-const getVencord = () => (window as any).Vencord || (window as any).vencord || null;
-const getWebpack = () => {
-  // Read the helper dynamically at runtime (don't capture at module-eval time)
-  const v = getVencord();
-  return v?.Webpack || v?.webpack || (window as any).VencordWebpack || null;
-};
+const BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
 
 type Badge = {
   id: string;
@@ -25,24 +22,28 @@ type Badge = {
   link?: string;
 };
 
+const getVencord = () => (window as any).Vencord || (window as any).vencord || null;
+const getWebpack = () => {
+  const v = getVencord();
+  return v?.Webpack || v?.webpack || (window as any).VencordWebpack || (window as any).webpack || null;
+};
+
 class CustomBadges {
   private badgeData: Map<string, Badge[]> = new Map();
-  private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/main/badges.json";
+  private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/refs/heads/main/badges.json";
   private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-  private BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
   private observer: MutationObserver | null = null;
   private intervalId: number | null = null;
   private retryPatchId: number | null = null;
-  private originalGetUserProfile: Function | null = null;
   private abortController: AbortController | null = null;
-  private retryLogged = false;
+
+  // track patched stores so we can restore originals on stop
+  private patchedStores: Array<{ store: any; originals: Record<string, Function> }> = [];
 
   constructor() {}
 
-  async onLoad() {
-    // no-op for now
-  }
+  async onLoad() {}
 
   async onStart() {
     console.log("[CustomBadges] Plugin started.");
@@ -53,14 +54,12 @@ class CustomBadges {
     const registered = this.patchProfileStore();
     console.log("[CustomBadges] Patch listener registered:", registered);
 
-    // refresh periodically
     this.intervalId = window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
   }
 
   onStop() {
     console.log("[CustomBadges] Plugin stopped.");
 
-    // disconnect observer
     if (this.observer) {
       try {
         this.observer.disconnect();
@@ -70,19 +69,16 @@ class CustomBadges {
       this.observer = null;
     }
 
-    // clear refresh interval
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
 
-    // clear retry interval (if set)
     if (this.retryPatchId !== null) {
       clearInterval(this.retryPatchId);
       this.retryPatchId = null;
     }
 
-    // abort any inflight fetch
     if (this.abortController) {
       try {
         this.abortController.abort();
@@ -90,20 +86,16 @@ class CustomBadges {
       this.abortController = null;
     }
 
-    // attempt to restore original store if patched
     try {
-      this.unpatchProfileStore();
+      this.unpatchAllStores();
     } catch (e) {
-      console.warn("[CustomBadges] unpatchProfileStore error:", e);
+      console.warn("[CustomBadges] unpatchAllStores error:", e);
     }
 
-    // clear data
     this.badgeData.clear();
   }
 
-  // Load badges.json with fallback handling
-  async loadBadgeData() {
-    // abort previous if necessary
+  private async loadBadgeData() {
     if (this.abortController) {
       try {
         this.abortController.abort();
@@ -167,7 +159,6 @@ class CustomBadges {
     return /^(https?:\/\/|data:)/i.test(u);
   }
 
-  // Fix image srcs inserted by older wrappers; mark processed to avoid repeats
   private tryFixImage(img: HTMLImageElement) {
     try {
       if (!img || img.dataset?.veilBadgeFixed === "1") return;
@@ -204,13 +195,13 @@ class CustomBadges {
         }
       }
     } catch (e) {
-      // swallow image fixes errors
+      // swallow
     }
   }
 
   private startImageFixerObserver() {
     try {
-      document.querySelectorAll(this.BADGE_IMG_SELECTOR).forEach((el) => {
+      document.querySelectorAll(BADGE_IMG_SELECTOR).forEach((el) => {
         if (el instanceof HTMLImageElement) this.tryFixImage(el);
       });
     } catch (e) {
@@ -225,8 +216,8 @@ class CustomBadges {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
           const el = node as Element;
           try {
-            if (el.matches?.(this.BADGE_IMG_SELECTOR) && el instanceof HTMLImageElement) this.tryFixImage(el as HTMLImageElement);
-            el.querySelectorAll?.(this.BADGE_IMG_SELECTOR).forEach((child) => {
+            if (el.matches?.(BADGE_IMG_SELECTOR) && el instanceof HTMLImageElement) this.tryFixImage(el as HTMLImageElement);
+            el.querySelectorAll?.(BADGE_IMG_SELECTOR).forEach((child) => {
               if (child instanceof HTMLImageElement) this.tryFixImage(child);
             });
           } catch {}
@@ -242,130 +233,127 @@ class CustomBadges {
     }
   }
 
-  // Patch the profile store's getUserProfile to inject badges
   private applyPatch(store: any) {
-    if (!store || typeof store.getUserProfile !== "function") return;
+    if (!store) return;
     if ((store as any).__customBadgesPatched) return;
 
-    const orig = store.getUserProfile;
-    this.originalGetUserProfile = orig;
+    const candidateNames = ["getUserProfile", "getUser", "getUserById", "getGuildMemberProfile"];
+    const originals: Record<string, Function> = {};
 
     const self = this;
-    // inside applyPatch — replace the current store.getUserProfile = function ... { ... } with this:
-store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
-  const safeInject = (profile: any) => {
-    try {
-      if (!profile) return profile;
 
-      // try to derive userId from args first, fallback to profile.user.id or profile.id
-      let userId: string | undefined;
-      if (typeof args[0] === "string" || typeof args[0] === "number") userId = String(args[0]);
-      else if (args[0] && typeof args[0] === "object") userId = String((args[0] as any).id ?? "");
-      if (!userId && profile.user && (profile.user.id || profile.user._id)) userId = String(profile.user.id ?? profile.user._id);
-      if (!userId && (profile.id || profile._id)) userId = String(profile.id ?? profile._id);
+    const safeInject = (args: IArguments | any[], profile: any) => {
+      try {
+        if (!profile) return profile;
 
-      if (!userId) return profile;
-
-      const badges = self.badgeData.get(userId);
-      if (!badges || badges.length === 0) return profile;
-
-      // create a shallow clone so we don't mutate frozen/pooled objects and to give the renderer a new identity
-      const cloned = Array.isArray(profile) ? profile.slice() : { ...profile };
-
-      // ensure top-level badges array exists and is mutable
-      cloned.badges = Array.isArray(profile.badges) ? profile.badges.slice() : [];
-
-      // also handle common nested shape: profile.user.badges
-      if (profile.user && typeof profile.user === "object") {
-        cloned.user = { ...profile.user };
-        cloned.user.badges = Array.isArray(profile.user.badges) ? profile.user.badges.slice() : [];
-      }
-
-      for (const b of badges) {
-        const entry = { id: b.id, description: b.description, icon: b.icon, link: b.link || "#" };
-        if (!cloned.badges.some((x: any) => x?.id === b.id)) cloned.badges.unshift(entry);
-        if (cloned.user && Array.isArray(cloned.user.badges) && !cloned.user.badges.some((x: any) => x?.id === b.id)) {
-          cloned.user.badges.unshift(entry);
+        // derive userId from args or from profile shapes
+        let userId: string | undefined;
+        if (args && args.length > 0) {
+          const a0 = args[0];
+          if (typeof a0 === "string" || typeof a0 === "number") userId = String(a0);
+          else if (a0 && typeof a0 === "object") userId = String((a0 as any).id ?? "");
         }
-      }
+        if (!userId) {
+          if (profile.user && (profile.user.id || profile.user._id)) userId = String(profile.user.id ?? profile.user._id);
+          if (!userId && (profile.id || profile._id)) userId = String(profile.id ?? profile._id);
+        }
+        if (!userId) return profile;
 
-      // debugging aid (remove or silence later)
-      try {
-        console.debug("[CustomBadges] injected badges for", userId, "->", badges.map(b => b.id));
-      } catch {}
+        const badges = self.badgeData.get(userId);
+        if (!badges || badges.length === 0) return profile;
 
-      return cloned;
-    } catch (e) {
-      console.error("[CustomBadges] error injecting badges:", e);
-      return profile;
-    }
-  };
+        // create shallow clones so we don't mutate frozen objects and to provide new identity
+        const cloned = Array.isArray(profile) ? profile.slice() : { ...profile };
 
-  try {
-    const result = orig.apply(this, args);
-    // if the original returned a Promise, inject after it resolves
-    if (result && typeof (result as any).then === "function") {
-      return (result as Promise<any>).then((profile) => safeInject(profile)).catch((err) => {
-        console.error("[CustomBadges] promise getUserProfile rejected:", err);
-        // preserve original promise rejection behavior
-        return Promise.reject(err);
-      });
-    }
-    // sync path
-    return safeInject(result);
-  } catch (e) {
-    console.error("[CustomBadges] error in patched getUserProfile wrapper:", e);
-    try {
-      return orig.apply(this, args);
-    } catch {
-      return undefined;
-    }
-  }
-};
+        cloned.badges = Array.isArray(profile.badges) ? profile.badges.slice() : [];
 
-    (store as any).__customBadgesPatched = true;
-    console.log("[CustomBadges] Patch applied to profile store");
-  }
+        if (profile.user && typeof profile.user === "object") {
+          cloned.user = { ...profile.user };
+          cloned.user.badges = Array.isArray(profile.user.badges) ? profile.user.badges.slice() : [];
+        }
 
-  private unpatchProfileStore() {
-    if (!this.originalGetUserProfile) return;
-    try {
-      const filter = (m: any) =>
-        m && (typeof m.getUserProfile === "function" || typeof m.getGuildMemberProfile === "function" || typeof m.getUser === "function");
+        for (const b of badges) {
+          const entry = { id: b.id, description: b.description, icon: b.icon, link: b.link || "#" };
+          if (!cloned.badges.some((x: any) => x?.id === b.id)) cloned.badges.unshift(entry);
+          if (cloned.user && Array.isArray(cloned.user.badges) && !cloned.user.badges.some((x: any) => x?.id === b.id)) cloned.user.badges.unshift(entry);
+        }
 
-      // try to find the store synchronously and restore
-      let store: any = null;
-      try {
-        const WEBPACK = getWebpack();
-        if (WEBPACK && typeof WEBPACK.findModule === "function") store = WEBPACK.findModule(filter);
-        if (!store && WEBPACK && typeof WEBPACK.findByProps === "function") store = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile", "getUser");
-      } catch {}
-
-      if (store && store.getUserProfile && this.originalGetUserProfile) {
         try {
-          store.getUserProfile = this.originalGetUserProfile;
-          delete (store as any).__customBadgesPatched;
-          console.log("[CustomBadges] Restored original getUserProfile on store");
-        } catch (e) {
-          console.warn("[CustomBadges] Failed to restore original getUserProfile:", e);
-        }
-      }
+          console.debug("[CustomBadges] injected badges for", userId, "->", badges.map((x) => x.id));
+        } catch {}
 
-      this.originalGetUserProfile = null;
-    } catch (e) {
-      console.warn("[CustomBadges] unpatch error:", e);
+        return cloned;
+      } catch (e) {
+        console.error("[CustomBadges] error injecting badges:", e);
+        return profile;
+      }
+    };
+
+    // wrapper factory for original function
+    const makeWrapper = (orig: Function) => {
+      return function patched(...innerArgs: any[]) {
+        try {
+          const res = orig.apply(this, innerArgs);
+          if (res && typeof (res as any).then === "function") {
+            return (res as Promise<any>)
+              .then((profile) => safeInject(innerArgs, profile))
+              .catch((err) => {
+                // preserve rejection behavior
+                return Promise.reject(err);
+              });
+          }
+          return safeInject(innerArgs, res);
+        } catch (e) {
+          try {
+            return orig.apply(this, innerArgs);
+          } catch {
+            return undefined;
+          }
+        }
+      };
+    };
+
+    for (const name of candidateNames) {
+      try {
+        if (typeof store[name] === "function") {
+          originals[name] = store[name];
+          store[name] = makeWrapper(store[name]);
+        }
+      } catch (e) {}
+    }
+
+    // if we patched at least one function, record it
+    if (Object.keys(originals).length > 0) {
+      (store as any).__customBadgesPatched = true;
+      this.patchedStores.push({ store, originals });
+      console.log("[CustomBadges] Patch applied to store (patched methods):", Object.keys(originals));
     }
   }
 
-  // Robust patch find: waitFor -> findModule -> findByProps -> short retry loop
+  private unpatchAllStores() {
+    for (const entry of this.patchedStores) {
+      try {
+        const { store, originals } = entry;
+        for (const [k, fn] of Object.entries(originals)) {
+          try {
+            store[k] = fn;
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        try {
+          delete (store as any).__customBadgesPatched;
+        } catch {}
+      } catch (e) {
+        /* ignore per-store errors */
+      }
+    }
+    this.patchedStores = [];
+  }
+
   patchProfileStore() {
     try {
-      const filter = (m: any) =>
-        m &&
-        (typeof m.getUserProfile === "function" ||
-          typeof m.getGuildMemberProfile === "function" ||
-          typeof m.getUser === "function" ||
-          typeof m.getUserById === "function");
+      const filter = (m: any) => m && (typeof m.getUserProfile === "function" || typeof m.getUser === "function" || typeof m.getUserById === "function");
 
       const trySyncFind = (): any => {
         try {
@@ -379,13 +367,7 @@ store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
           }
           if (typeof WEBPACK.findByProps === "function") {
             try {
-              const s = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile", "getUser");
-              if (s) return s;
-            } catch {}
-          }
-          if (typeof WEBPACK.findModuleByProps === "function") {
-            try {
-              const s = WEBPACK.findModuleByProps(["getUserProfile", "getGuildMemberProfile", "getUser"]);
+              const s = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile", "getUser", "getUserById");
               if (s) return s;
             } catch {}
           }
@@ -395,7 +377,6 @@ store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
         return null;
       };
 
-      // If async waitFor exists, prefer it
       const WEBPACK = getWebpack();
       if (WEBPACK && typeof WEBPACK.waitFor === "function") {
         try {
@@ -412,7 +393,6 @@ store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
         }
       }
 
-      // Try sync find once
       const store = trySyncFind();
       if (store) {
         try {
@@ -423,13 +403,9 @@ store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
         return true;
       }
 
-      // Retry loop: short-lived to give environment time to load modules
-      if (!this.retryLogged) {
-        console.warn("[CustomBadges] Webpack.waitFor not available; starting short retry loop to find profile store.");
-        this.retryLogged = true;
-      }
+      // retry loop
       let tries = 0;
-      const maxTries = 40; // increase attempts slightly to be more resilient
+      const maxTries = 40;
       const intervalMs = 1000;
       this.retryPatchId = window.setInterval(() => {
         tries++;
