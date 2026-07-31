@@ -4,6 +4,14 @@
  * Discord's native Tenor search, by intercepting the /gifs/search
  * network response rather than patching the (obfuscated, unstable)
  * picker component itself.
+ *
+ * Discord's GIF picker issues this request via XMLHttpRequest, not
+ * fetch, so we subclass XMLHttpRequest. Because merging in extra
+ * providers is async and XHR completion events are synchronous,
+ * we have to buffer the "done" event (load/readystatechange@4) for
+ * any listener Discord attaches, run the merge, patch the response
+ * getters, and only then release the buffered calls — otherwise
+ * Discord's code would read the original, unmerged body.
  */
 
 import { definePluginSettings } from "@api/Settings";
@@ -20,6 +28,16 @@ const settings = definePluginSettings({
         type: OptionType.STRING,
         description: "Giphy API key — get a free one at developers.giphy.com. The default below is Giphy's shared public beta key, heavily rate-limited across everyone using it.",
         default: "dc6zaTOxFJmzC",
+    },
+    enableTenor: {
+        type: OptionType.BOOLEAN,
+        description: "Include a second Tenor pass alongside Discord's built-in one (useful if you want a different limit/filter than Discord's own query)",
+        default: false,
+    },
+    tenorApiKey: {
+        type: OptionType.STRING,
+        description: "Tenor API key — get a free one at tenor.com/gifapi. The default below is Google's shared public test key, heavily rate-limited across everyone using it.",
+        default: "LIVDSRZULELA",
     },
     resultsPerProvider: {
         type: OptionType.NUMBER,
@@ -54,15 +72,37 @@ async function fetchGiphy(query: string, limit: number): Promise<NormalizedGif[]
     }));
 }
 
-// Add more providers here as you find ones you like — same shape as fetchGiphy:
-// (query, limit) => Promise<NormalizedGif[]>
+async function fetchTenor(query: string, limit: number): Promise<NormalizedGif[]> {
+    const key = settings.store.tenorApiKey || "LIVDSRZULELA";
+    const res = await fetch(
+        `https://tenor.googleapis.com/v2/search?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&media_filter=gif`
+    );
+    if (!res.ok) throw new Error(`Tenor HTTP ${res.status}`);
+    const data = await res.json();
+    return (data.results ?? []).map((g: any) => {
+        const media = g.media_formats?.gif ?? g.media_formats?.mediumgif ?? g.media_formats?.tinygif;
+        return {
+            url: media?.url ?? g.itemurl,
+            src: media?.url,
+            width: Number(media?.dims?.[0]) || 0,
+            height: Number(media?.dims?.[1]) || 0,
+            format: "gif",
+            title: g.content_description,
+        };
+    });
+}
+
+// Add more providers here as you find ones you like — same shape as
+// fetchGiphy/fetchTenor: (query, limit) => Promise<NormalizedGif[]>
 const ALL_PROVIDERS: Record<string, (query: string, limit: number) => Promise<NormalizedGif[]>> = {
     giphy: fetchGiphy,
+    tenor: fetchTenor,
 };
 
 function activeProviders() {
     const list: Array<(q: string, l: number) => Promise<NormalizedGif[]>> = [];
     if (settings.store.enableGiphy) list.push(ALL_PROVIDERS.giphy);
+    if (settings.store.enableTenor) list.push(ALL_PROVIDERS.tenor);
     return list;
 }
 
@@ -139,51 +179,121 @@ function patchResultArrayInPlace(json: any, newArray: any[]) {
     return json;
 }
 
-let origFetch: typeof window.fetch;
+let origXHR: typeof XMLHttpRequest;
 
-function patchedFetchFactory(orig: typeof window.fetch): typeof window.fetch {
-    return async function (this: any, ...args: Parameters<typeof fetch>) {
-        const url = typeof args[0] === "string" ? args[0] : (args[0] as Request).url;
-        if (!url.includes(SEARCH_URL_FRAGMENT)) {
-            return orig.apply(this, args);
+class VeilPatchedXHR extends XMLHttpRequest {
+    private _veilQuery: string | null = null;
+    private _veilPending: Array<() => void> = [];
+    private _veilMergeStarted = false;
+    private _veilPatchedText: string | null = null;
+    private _veilPatchedObj: any = undefined;
+
+    open(method: string, url: string | URL, ...rest: any[]) {
+        const urlStr = url.toString();
+        this._veilQuery = urlStr.includes(SEARCH_URL_FRAGMENT) ? extractQuery(urlStr) : null;
+        // @ts-ignore — variadic open() overloads
+        return super.open(method, url, ...rest);
+    }
+
+    private _veilWrap(type: "load" | "readystatechange", listener: any) {
+        const self = this;
+        return function (this: any, ev: Event) {
+            if (type === "readystatechange" && self.readyState !== 4) {
+                return listener.call(this, ev);
+            }
+            self._veilPending.push(() => listener.call(this, ev));
+            self._veilMaybeMerge();
+        };
+    }
+
+    addEventListener(type: string, listener: any, options?: any) {
+        if (this._veilQuery && listener && (type === "readystatechange" || type === "load" || type === "loadend")) {
+            return super.addEventListener(type, this._veilWrap(type === "readystatechange" ? "readystatechange" : "load", listener), options);
+        }
+        return super.addEventListener(type, listener, options);
+    }
+
+    set onload(fn: any) {
+        super.onload = (this._veilQuery && fn) ? this._veilWrap("load", fn) : fn;
+    }
+    get onload() {
+        return super.onload;
+    }
+
+    set onreadystatechange(fn: any) {
+        super.onreadystatechange = (this._veilQuery && fn) ? this._veilWrap("readystatechange", fn) : fn;
+    }
+    get onreadystatechange() {
+        return super.onreadystatechange;
+    }
+
+    get response() {
+        if (this._veilPatchedObj !== undefined) return this._veilPatchedObj;
+        if (this._veilPatchedText !== null) return this._veilPatchedText;
+        return super.response;
+    }
+
+    get responseText() {
+        return this._veilPatchedText ?? super.responseText;
+    }
+
+    private _veilMaybeMerge() {
+        if (this._veilMergeStarted) return;
+        this._veilMergeStarted = true;
+
+        if (!this._veilQuery || this.status < 200 || this.status >= 300) {
+            return this._veilFlush();
         }
 
-        const query = extractQuery(url);
-        const response = await orig.apply(this, args);
-        if (!query || !response.ok) return response;
+        (async () => {
+            try {
+                const type = this.responseType;
+                let json: any;
+                if (type === "" || type === "text") {
+                    json = JSON.parse(super.responseText);
+                } else if (type === "json") {
+                    json = super.response;
+                } else {
+                    // arraybuffer/blob/document — not our shape, leave untouched
+                    return;
+                }
 
-        try {
-            const json = await response.clone().json();
-            const nativeArray = findResultArray(json);
-            if (!nativeArray) return response;
+                const nativeArray = findResultArray(json);
+                if (!nativeArray) return;
 
-            const merged = await mergeExtraProviders(query, nativeArray);
-            const patchedJson = patchResultArrayInPlace(json, merged);
+                const merged = await mergeExtraProviders(this._veilQuery!, nativeArray);
+                const patched = patchResultArrayInPlace(json, merged);
 
-            return new Response(JSON.stringify(patchedJson), {
-                status: response.status,
-                statusText: response.statusText,
-                headers: response.headers,
-            });
-        } catch (e) {
-            console.error("[MultiGifSource] Failed to merge providers, passing through native response:", e);
-            return response;
-        }
-    };
+                if (type === "json") this._veilPatchedObj = patched;
+                else this._veilPatchedText = JSON.stringify(patched);
+            } catch (e) {
+                console.error("[MultiGifSource] Failed to merge providers, passing through native response:", e);
+            } finally {
+                this._veilFlush();
+            }
+        })();
+    }
+
+    private _veilFlush() {
+        const calls = this._veilPending;
+        this._veilPending = [];
+        for (const call of calls) call();
+    }
 }
 
 export default definePlugin({
     name: "MultiGifSource",
-    description: "Adds results from other GIF providers (Giphy, etc.) alongside Discord's native Tenor search.",
+    description: "Adds results from other GIF providers (Giphy, Tenor, etc.) alongside Discord's native Tenor search.",
     authors: [VeilDevs.Zarak],
     settings,
 
     start() {
-        origFetch = window.fetch;
-        window.fetch = patchedFetchFactory(origFetch);
+        origXHR = window.XMLHttpRequest;
+        // @ts-ignore
+        window.XMLHttpRequest = VeilPatchedXHR;
     },
 
     stop() {
-        if (origFetch) window.fetch = origFetch;
+        if (origXHR) window.XMLHttpRequest = origXHR;
     },
 });
