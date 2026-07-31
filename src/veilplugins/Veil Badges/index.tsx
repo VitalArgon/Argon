@@ -2,7 +2,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 
 /**
- * Veil Badges plugin — scans for profiles periodically and injects badges
+ * Veil Badges plugin — patches getUserProfile like the userscript does
  */
 
 type Badge = {
@@ -12,14 +12,18 @@ type Badge = {
   link?: string;
 };
 
+const BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
+
 class CustomBadges {
   private badgeData: Map<string, Badge[]> = new Map();
-  private injectedProfiles: Set<string> = new Set();
   private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/refs/heads/main/badges.json";
   private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-  private scanIntervalId: number | null = null;
+  private observer: MutationObserver | null = null;
+  private intervalId: number | null = null;
   private abortController: AbortController | null = null;
+  private patchedStore: any = null;
+  private originalGetUserProfile: any = null;
 
   constructor() {}
 
@@ -27,21 +31,41 @@ class CustomBadges {
 
   async onStart() {
     console.log("[CustomBadges] Plugin started.");
+    this.startImageFixerObserver();
+
     await this.loadBadgeData();
-    
-    // Scan for profiles every 500ms
-    this.scanIntervalId = window.setInterval(() => this.scanAllProfiles(), 500) as unknown as number;
-    
-    // Reload badge data every 5 minutes
-    window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
+
+    // Try to patch immediately and register for future stores
+    this.patchProfileStore();
+
+    this.intervalId = window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
   }
 
   onStop() {
     console.log("[CustomBadges] Plugin stopped.");
 
-    if (this.scanIntervalId !== null) {
-      clearInterval(this.scanIntervalId);
-      this.scanIntervalId = null;
+    // Restore original function
+    if (this.patchedStore && this.originalGetUserProfile) {
+      try {
+        this.patchedStore.getUserProfile = this.originalGetUserProfile;
+        console.log("[CustomBadges] Restored original getUserProfile");
+      } catch (e) {
+        console.warn("[CustomBadges] Failed to restore getUserProfile:", e);
+      }
+    }
+
+    if (this.observer) {
+      try {
+        this.observer.disconnect();
+      } catch (e) {
+        console.warn("[CustomBadges] observer.disconnect error:", e);
+      }
+      this.observer = null;
+    }
+
+    if (this.intervalId !== null) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
 
     if (this.abortController) {
@@ -52,7 +76,6 @@ class CustomBadges {
     }
 
     this.badgeData.clear();
-    this.injectedProfiles.clear();
   }
 
   private async loadBadgeData() {
@@ -119,178 +142,157 @@ class CustomBadges {
     return /^(https?:\/\/|data:)/i.test(u);
   }
 
-  private scanAllProfiles() {
+  private tryFixImage(img: HTMLImageElement) {
     try {
-      // Look for all possible profile containers
-      const selectors = [
-        '[class*="userProfile"]',
-        '[class*="userCard"]',
-        '[class*="profileBadges"]',
-        '[data-test-id*="user-profile"]',
-        '[data-test-id*="user-card"]',
-        '.header-2Y0yW9',  // Discord user profile header
-        '[class*="Popout"]', // For user popouts
-      ];
+      if (!img || img.dataset?.veilBadgeFixed === "1") return;
 
-      for (const selector of selectors) {
+      const src = img.getAttribute("src") || "";
+      if (
+        src.includes("/badge-icons/https://") ||
+        src.includes("/badge-icons/http://") ||
+        src.includes("/badge-icons/data:")
+      ) {
+        const m =
+          src.match(/\/badge-icons\/(.+?)(?:\.(?:png|webp|jpg|jpeg|gif|svg))(?:\?|$)/i) ||
+          src.match(/\/badge-icons\/(.+)$/i);
+        if (!m) return;
+
+        let raw = m[1];
         try {
-          const elements = document.querySelectorAll(selector);
-          elements.forEach((el) => this.tryInjectBadges(el));
-        } catch (e) {
-          // Ignore invalid selectors
+          raw = decodeURIComponent(raw);
+        } catch {}
+        raw = raw.replace(/%2F/gi, "/");
+
+        if (/^(https?:|data:)/.test(raw)) {
+          try {
+            img.setAttribute("referrerPolicy", "no-referrer");
+          } catch {}
+          try {
+            img.loading = "eager";
+          } catch {}
+          try {
+            (img as any).decoding = "async";
+          } catch {}
+          img.src = raw;
+          img.dataset.veilBadgeFixed = "1";
         }
       }
     } catch (e) {
-      console.debug("[CustomBadges] scanAllProfiles error:", e);
+      // swallow
     }
   }
 
-  private tryInjectBadges(container: Element) {
+  private startImageFixerObserver() {
     try {
-      // Try to extract user ID from nearby elements or data attributes
-      const userId = this.extractUserIdFromContainer(container);
-      if (!userId) {
-        return;
-      }
-
-      // Create a unique key for this profile render
-      const innerText = container.textContent?.substring(0, 100) || "";
-      const containerKey = `${userId}-${innerText}`;
-      
-      if (this.injectedProfiles.has(containerKey)) {
-        return;
-      }
-
-      const badges = this.badgeData.get(userId);
-      if (!badges || badges.length === 0) {
-        return;
-      }
-
-      this.injectedProfiles.add(containerKey);
-      console.log("[CustomBadges] Injecting badges for user", userId);
-
-      // Try to find or create badge elements
-      this.injectBadgeElements(container, badges, userId);
+      document.querySelectorAll(BADGE_IMG_SELECTOR).forEach((el) => {
+        if (el instanceof HTMLImageElement) this.tryFixImage(el);
+      });
     } catch (e) {
-      console.debug("[CustomBadges] tryInjectBadges error:", e);
+      console.warn("[CustomBadges] init image fixer error:", e);
     }
-  }
 
-  private extractUserIdFromContainer(container: Element): string | null {
+    if (this.observer) return;
+
+    this.observer = new MutationObserver((mutations) => {
+      for (const mut of mutations) {
+        mut.addedNodes.forEach((node) => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          const el = node as Element;
+          try {
+            if (el.matches?.(BADGE_IMG_SELECTOR) && el instanceof HTMLImageElement) this.tryFixImage(el as HTMLImageElement);
+            el.querySelectorAll?.(BADGE_IMG_SELECTOR).forEach((child) => {
+              if (child instanceof HTMLImageElement) this.tryFixImage(child);
+            });
+          } catch {}
+        });
+      }
+    });
+
     try {
-      // Try to find userId in data attributes by searching up the tree
-      let el: Element | null = container;
-      let depth = 0;
-      while (el && el !== document.body && depth < 15) {
-        const userId = 
-          el.getAttribute?.("data-user-id") ||
-          el.getAttribute?.("userid") ||
-          el.getAttribute?.("data-userid") ||
-          (el as any).dataset?.userId ||
-          null;
-        if (userId) {
-          return userId;
-        }
-        el = el.parentElement;
-        depth++;
-      }
-
-      // Try to extract from links
-      const userLink = container.querySelector?.('a[href*="/users/"]');
-      if (userLink) {
-        const match = userLink.href.match(/\/users\/(\d+)/);
-        if (match) {
-          return match[1];
-        }
-      }
-
-      // Try to find in the entire page if container has profile-like content
-      if (container.textContent && (container.textContent.includes("@") || container.textContent.length > 100)) {
-        // Look for user ID in any data attributes on the container or its children
-        const allElements = container.querySelectorAll?.("[data-user-id]") || [];
-        if (allElements.length > 0) {
-          const userId = (allElements[0] as any).getAttribute?.("data-user-id");
-          if (userId) return userId;
-        }
-      }
-
-      return null;
+      this.observer.observe(document.documentElement, { childList: true, subtree: true });
     } catch (e) {
-      return null;
+      console.warn("[CustomBadges] observer.observe failed:", e);
+      this.observer = null;
     }
   }
 
-  private injectBadgeElements(container: Element, badges: Badge[], userId: string) {
+  private patchProfileStore() {
     try {
-      // Check if badges already exist in this container
-      if (container.querySelector(".veil-custom-badges")) {
+      const Vencord = (window as any).Vencord || (window as any).vencord;
+      if (!Vencord?.Webpack) {
+        console.warn("[CustomBadges] Vencord.Webpack not available yet");
         return;
       }
 
-      // Create a container for custom badges
-      const customBadgeContainer = document.createElement("div");
-      customBadgeContainer.className = "veil-custom-badges";
-      customBadgeContainer.style.display = "flex";
-      customBadgeContainer.style.gap = "6px";
-      customBadgeContainer.style.alignItems = "center";
-      customBadgeContainer.style.marginLeft = "8px";
+      const filter = (m: any) =>
+        m &&
+        typeof m.getUserProfile === "function" &&
+        typeof m.getGuildMemberProfile === "function";
 
-      for (const badge of badges) {
-        const badgeImg = document.createElement("img");
-        badgeImg.src = badge.icon;
-        badgeImg.alt = badge.description || badge.id;
-        badgeImg.title = badge.description || badge.id;
-        badgeImg.style.width = "24px";
-        badgeImg.style.height = "24px";
-        badgeImg.style.objectFit = "contain";
-        badgeImg.style.cursor = badge.link && badge.link !== "#" ? "pointer" : "default";
-
-        if (badge.link && badge.link !== "#") {
-          badgeImg.addEventListener("click", () => window.open(badge.link, "_blank"));
+      // Use waitFor to handle both sync and async module loading
+      if (typeof Vencord.Webpack.waitFor === "function") {
+        Vencord.Webpack.waitFor(filter, (store: any) => {
+          try {
+            this.applyPatch(store);
+          } catch (e) {
+            console.error("[CustomBadges] Failed to apply patch:", e);
+          }
+        });
+        console.log("[CustomBadges] Registered patch listener with waitFor");
+      } else if (typeof Vencord.Webpack.findStore === "function") {
+        // Fallback for older Vencord versions
+        const store = Vencord.Webpack.findStore(filter);
+        if (store) {
+          this.applyPatch(store);
         }
+      }
+    } catch (e) {
+      console.error("[CustomBadges] patchProfileStore error:", e);
+    }
+  }
 
-        customBadgeContainer.appendChild(badgeImg);
+  private applyPatch(store: any) {
+    try {
+      if (!store) return;
+      if (store.__customBadgesPatched) {
+        console.log("[CustomBadges] Store already patched");
+        return;
       }
 
-      // Try to find a good insertion point - look for existing badges or username area
-      let inserted = false;
+      this.patchedStore = store;
+      this.originalGetUserProfile = store.getUserProfile;
 
-      // Look for existing badge container
-      const existingBadgeContainer = container.querySelector('[class*="badge"]');
-      if (existingBadgeContainer?.parentElement) {
-        existingBadgeContainer.parentElement.insertBefore(customBadgeContainer, existingBadgeContainer.nextSibling);
-        inserted = true;
-      }
+      const self = this;
 
-      // Look for username or name element
-      if (!inserted) {
-        const nameElements = container.querySelectorAll?.('[class*="username"], [class*="name"], [class*="nick"]') || [];
-        if (nameElements.length > 0) {
-          const nameEl = nameElements[0];
-          if (nameEl?.parentElement) {
-            nameEl.parentElement.appendChild(customBadgeContainer);
-            inserted = true;
+      store.getUserProfile = function (userId: string) {
+        const profile = self.originalGetUserProfile.apply(this, arguments);
+        if (!profile) return profile;
+
+        const badges = self.badgeData.get(userId);
+        if (!badges || badges.length === 0) return profile;
+
+        profile.badges = Array.isArray(profile.badges) ? profile.badges : [];
+
+        for (let i = 0; i < badges.length; i++) {
+          const b = badges[i];
+          if (!profile.badges.some((x: any) => x?.id === b.id)) {
+            profile.badges.splice(i, 0, {
+              id: b.id,
+              description: b.description,
+              icon: b.icon,
+              link: b.link || "#",
+            });
           }
         }
-      }
 
-      // Try to append to first direct child container
-      if (!inserted) {
-        const firstChild = container.firstElementChild;
-        if (firstChild) {
-          firstChild.appendChild(customBadgeContainer);
-          inserted = true;
-        }
-      }
+        console.debug("[CustomBadges] Injected badges for", userId, "->", badges.map((x) => x.id));
+        return profile;
+      };
 
-      // Fall back to appending to container
-      if (!inserted) {
-        container.appendChild(customBadgeContainer);
-      }
-
-      console.debug("[CustomBadges] Injected badges for user", userId, "->", badges.map((x) => x.id));
+      store.__customBadgesPatched = true;
+      console.log("[CustomBadges] Patch applied successfully");
     } catch (e) {
-      console.error("[CustomBadges] injectBadgeElements error:", e);
+      console.error("[CustomBadges] applyPatch error:", e);
     }
   }
 }
