@@ -11,8 +11,12 @@ import { VeilDevs } from "@utils/constants";
  * - Safer image fixer (marks processed images)
  */
 
-const VENCORD = (window as any).Vencord || (window as any).vencord || null;
-const WEBPACK = VENCORD?.Webpack || VENCORD?.webpack || null;
+const getVencord = () => (window as any).Vencord || (window as any).vencord || null;
+const getWebpack = () => {
+  // Read the helper dynamically at runtime (don't capture at module-eval time)
+  const v = getVencord();
+  return v?.Webpack || v?.webpack || (window as any).VencordWebpack || null;
+};
 
 type Badge = {
   id: string;
@@ -32,6 +36,7 @@ class CustomBadges {
   private retryPatchId: number | null = null;
   private originalGetUserProfile: Function | null = null;
   private abortController: AbortController | null = null;
+  private retryLogged = false;
 
   constructor() {}
 
@@ -288,13 +293,14 @@ class CustomBadges {
     if (!this.originalGetUserProfile) return;
     try {
       const filter = (m: any) =>
-        m && typeof m.getUserProfile === "function" && typeof m.getGuildMemberProfile === "function";
+        m && (typeof m.getUserProfile === "function" || typeof m.getGuildMemberProfile === "function" || typeof m.getUser === "function");
 
       // try to find the store synchronously and restore
       let store: any = null;
       try {
+        const WEBPACK = getWebpack();
         if (WEBPACK && typeof WEBPACK.findModule === "function") store = WEBPACK.findModule(filter);
-        if (!store && WEBPACK && typeof WEBPACK.findByProps === "function") store = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile");
+        if (!store && WEBPACK && typeof WEBPACK.findByProps === "function") store = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile", "getUser");
       } catch {}
 
       if (store && store.getUserProfile && this.originalGetUserProfile) {
@@ -317,10 +323,15 @@ class CustomBadges {
   patchProfileStore() {
     try {
       const filter = (m: any) =>
-        m && typeof m.getUserProfile === "function" && typeof m.getGuildMemberProfile === "function";
+        m &&
+        (typeof m.getUserProfile === "function" ||
+          typeof m.getGuildMemberProfile === "function" ||
+          typeof m.getUser === "function" ||
+          typeof m.getUserById === "function");
 
       const trySyncFind = (): any => {
         try {
+          const WEBPACK = getWebpack();
           if (!WEBPACK) return null;
           if (typeof WEBPACK.findModule === "function") {
             try {
@@ -330,14 +341,13 @@ class CustomBadges {
           }
           if (typeof WEBPACK.findByProps === "function") {
             try {
-              const s = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile");
+              const s = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile", "getUser");
               if (s) return s;
             } catch {}
           }
-          // other helper names
           if (typeof WEBPACK.findModuleByProps === "function") {
             try {
-              const s = WEBPACK.findModuleByProps(["getUserProfile", "getGuildMemberProfile"]);
+              const s = WEBPACK.findModuleByProps(["getUserProfile", "getGuildMemberProfile", "getUser"]);
               if (s) return s;
             } catch {}
           }
@@ -348,6 +358,7 @@ class CustomBadges {
       };
 
       // If async waitFor exists, prefer it
+      const WEBPACK = getWebpack();
       if (WEBPACK && typeof WEBPACK.waitFor === "function") {
         try {
           WEBPACK.waitFor(filter, (store: any) => {
@@ -375,10 +386,13 @@ class CustomBadges {
       }
 
       // Retry loop: short-lived to give environment time to load modules
-      console.warn("[CustomBadges] Webpack.waitFor not available; starting short retry loop to find profile store.");
+      if (!this.retryLogged) {
+        console.warn("[CustomBadges] Webpack.waitFor not available; starting short retry loop to find profile store.");
+        this.retryLogged = true;
+      }
       let tries = 0;
-      const maxTries = 25;
-      const intervalMs = 1500;
+      const maxTries = 40; // increase attempts slightly to be more resilient
+      const intervalMs = 1000;
       this.retryPatchId = window.setInterval(() => {
         tries++;
         const s = trySyncFind();
