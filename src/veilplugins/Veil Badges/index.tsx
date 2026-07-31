@@ -242,7 +242,7 @@ class CustomBadges {
 
     const self = this;
 
-    const safeInject = (args: IArguments | any[], profile: any) => {
+        const safeInject = (args: IArguments | any[], profile: any) => {
       try {
         if (!profile) return profile;
 
@@ -262,6 +262,20 @@ class CustomBadges {
         const badges = self.badgeData.get(userId);
         if (!badges || badges.length === 0) return profile;
 
+        const badgeIds = badges.map((b) => b.id);
+
+        // If the profile already contains all badge ids (in either profile.badges or profile.user.badges),
+        // return the original profile to avoid creating a new object identity and causing rerenders.
+        const existingIds = new Set<string>();
+        if (Array.isArray(profile.badges)) {
+          for (const b of profile.badges) if (b && b.id) existingIds.add(String(b.id));
+        }
+        if (profile.user && Array.isArray(profile.user.badges)) {
+          for (const b of profile.user.badges) if (b && b.id) existingIds.add(String(b.id));
+        }
+        const allPresent = badgeIds.every((id) => existingIds.has(id));
+        if (allPresent) return profile;
+
         // create shallow clones so we don't mutate frozen objects and to provide new identity
         const cloned = Array.isArray(profile) ? profile.slice() : { ...profile };
 
@@ -272,17 +286,27 @@ class CustomBadges {
           cloned.user.badges = Array.isArray(profile.user.badges) ? profile.user.badges.slice() : [];
         }
 
+        let injectedSomething = false;
         for (const b of badges) {
           const entry = { id: b.id, description: b.description, icon: b.icon, link: b.link || "#" };
-          if (!cloned.badges.some((x: any) => x?.id === b.id)) cloned.badges.unshift(entry);
-          if (cloned.user && Array.isArray(cloned.user.badges) && !cloned.user.badges.some((x: any) => x?.id === b.id)) cloned.user.badges.unshift(entry);
+          if (!cloned.badges.some((x: any) => x?.id === b.id)) {
+            cloned.badges.unshift(entry);
+            injectedSomething = true;
+          }
+          if (cloned.user && Array.isArray(cloned.user.badges) && !cloned.user.badges.some((x: any) => x?.id === b.id)) {
+            cloned.user.badges.unshift(entry);
+            injectedSomething = true;
+          }
         }
 
-        try {
-          console.debug("[CustomBadges] injected badges for", userId, "->", badges.map((x) => x.id));
-        } catch {}
+        if (injectedSomething) {
+          try {
+            console.debug("[CustomBadges] injected badges for", userId, "->", badges.map((x) => x.id));
+          } catch {}
+          return cloned;
+        }
 
-        return cloned;
+        return profile;
       } catch (e) {
         console.error("[CustomBadges] error injecting badges:", e);
         return profile;
