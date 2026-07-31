@@ -1,30 +1,61 @@
 import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
-import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
+import {
+    ApplicationCommandInputType,
+    ApplicationCommandOptionType,
+    findOption
+} from "@api/Commands";
 import { sendMessage } from "@utils/discord";
 import { findByPropsLazy } from "@webpack";
 
-// sendBotMessage shows a local-only "Clyde" message — used for errors
-// only. Actually sending the GIF uses Vencord's sendMessage wrapper
-// below, not this — raw MessageActions.sendMessage requires a fully
-// constructed message object (nonce, etc.) that isn't meant to be
-// built by hand.
+// sendBotMessage shows a local-only "Clyde" error message
 const MessageActions = findByPropsLazy("sendBotMessage", "receiveMessage");
 
-// Set this to your deployed Railway URL, e.g. "https://giff-proxy-production.up.railway.app"
-const PROXY_BASE_URL = "https://giff-production.up.railway.app";
+async function getVqdToken(searchTerm: string): Promise<string> {
+    const res = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(searchTerm)}`);
+    const html = await res.text();
+    const match = html.match(/vqd='([\d-]+)'/) || html.match(/vqd="([\d-]+)"/) || html.match(/vqd=([\d-]+)/);
+    if (!match) {
+        throw new Error("Failed to extract VQD token from DuckDuckGo page");
+    }
+    return match[1];
+}
 
-async function findGif(query: string): Promise<string | null> {
-    const res = await fetch(`${PROXY_BASE_URL}/giff?q=${encodeURIComponent(query)}`);
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
+async function fetchGif(searchTerm: string): Promise<string | null> {
+    const vqd = await getVqdToken(searchTerm);
+    const url = new URL("https://duckduckgo.com/i.js");
+    url.searchParams.set("q", searchTerm);
+    url.searchParams.set("vqd", vqd);
+    url.searchParams.set("f", "");
+    url.searchParams.set("p", "-2"); // Safe search on
+
+    const res = await fetch(url.toString(), {
+        headers: {
+            "Referer": "https://duckduckgo.com/",
+            "User-Agent": "Mozilla/5.0 (compatible)"
+        }
+    });
+
+    if (!res.ok) {
+        throw new Error(`DuckDuckGo image request failed with status ${res.status}`);
+    }
     const data = await res.json();
-    return data.url ?? null;
+
+    if (!data.results || !Array.isArray(data.results) || data.results.length === 0) {
+        return null;
+    }
+
+    // Filter for GIFs only
+    const gifEntry = data.results.find((item: any) =>
+        typeof item.image === "string" && item.image.toLowerCase().endsWith(".gif")
+    );
+
+    return gifEntry ? gifEntry.image : null;
 }
 
 export default definePlugin({
     name: "giff",
-    description: "/giff <query> — pulls a GIF from Openverse's public Creative Commons search API",
+    description: "/giff <query> — fetch a GIF from DuckDuckGo image search",
     authors: [VeilDevs.Zarak],
     dependencies: ["CommandsAPI"],
 
@@ -42,22 +73,32 @@ export default definePlugin({
                 },
             ],
             execute: async (opts, ctx) => {
-                const searchWord = findOption(opts, "query", "");
+                const searchWord = findOption(opts, "query", "").trim();
                 const channel = ctx.channel;
 
-                findGif(searchWord).then(gifUrl => {
+                if (!searchWord) {
+                    MessageActions.sendBotMessage(channel.id, {
+                        content: "❌ You must provide a search query."
+                    });
+                    return {};
+                }
+
+                try {
+                    const gifUrl = await fetchGif(searchWord);
                     if (!gifUrl) {
                         MessageActions.sendBotMessage(channel.id, {
-                            content: "❌ No GIFs found for that search.",
+                            content: "❌ No GIFs found for that search."
                         });
                     } else {
-                        sendMessage(channel.id, { content: gifUrl });
+                        await sendMessage(channel.id, { content: gifUrl });
                     }
-                }).catch(err => {
+                } catch (error) {
                     MessageActions.sendBotMessage(channel.id, {
-                        content: `❌ Search failed: ${String(err)}`,
+                        content: `❌ Search failed: ${String(error)}`
                     });
-                });
+                }
+
+                return {};
             },
         },
     ],
