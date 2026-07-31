@@ -6,6 +6,7 @@
 
 import { VeilDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
+import { VeilIcon } from "@components/Icons"; // confirm this is where it actually lives
 
 // Set this to your actual Discord user ID (right-click your name → Copy User ID,
 // requires Developer Mode enabled in Discord's own settings).
@@ -17,18 +18,21 @@ function VeilTag() {
             style={{
                 display: "inline-flex",
                 alignItems: "center",
+                gap: 2,
+                height: 15,
                 backgroundColor: "#a259ff",
                 color: "#ffffff",
                 borderRadius: 3,
-                padding: "0 4px",
+                padding: "0 3px",
                 marginLeft: 4,
                 fontSize: 10,
                 fontWeight: 700,
-                lineHeight: "14px",
-                verticalAlign: "middle",
+                lineHeight: "12px",
                 textTransform: "uppercase",
+                verticalAlign: "middle",
             }}
         >
+            <VeilIcon width={10} height={10} />
             Veil
         </span>
     );
