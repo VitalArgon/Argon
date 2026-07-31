@@ -1,5 +1,5 @@
-import { VeilDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
+import { VeilDevs } from "@utils/constants";
 
 const { Webpack } = window.Vencord;
 
