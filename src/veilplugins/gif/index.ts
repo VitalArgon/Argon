@@ -9,7 +9,7 @@ const MessageActions = Finder.byProps("sendBotMessage", "receiveMessage");
 // Subreddits to search — all SFW-moderated GIF communities.
 // Add more here if you want, but stick to subs that actively
 // enforce no-NSFW rules.
-const GIF_SUBREDDITS = ["gifs", "reactiongifs", "perfectloops", "porn_gifs", "hentai_gif];
+const GIF_SUBREDDITS = ["gifs", "reactiongifs", "perfectloops", "porn_gifs", "hentai_gif"];
 
 interface RedditPost {
     url: string;
