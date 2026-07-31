@@ -1,24 +1,10 @@
 /*
  * Veil, a Discord client mod
- * MultiGifSource — adds results from other GIF providers alongside
- * Discord's native Tenor search, by intercepting the /gifs/search
- * network response, PLUS a standalone /multi-gif command that
- * searches providers directly and never touches Discord's picker
- * or its result filtering at all.
- *
- * Discord's GIF picker issues its search via XMLHttpRequest, not
- * fetch, so the passive interceptor patches a handful of methods
- * on XMLHttpRequest.prototype in place (never replaces the global
- * constructor — doing that broke Vencord's own startup). Because
- * merging in extra providers is async and XHR completion events
- * are synchronous, we buffer the "done" event for any listener
- * Discord attaches, run the merge, patch the response getters,
- * and only then release the buffered calls.
- *
- * The /multi-gif command is a separate, independent path: it never
- * goes near Discord's request/response cycle, so whatever Discord's
- * own filtering does (that was tripping up another plugin) simply
- * doesn't apply to it.
+ * MultiGifSource — a /multi-gif command that searches GIF providers
+ * (Giphy, Tenor, etc.) directly and shows the results in a picker
+ * modal. Deliberately doesn't touch Discord's own GIF picker or its
+ * network requests at all, so none of Discord's own result filtering
+ * (which was crashing a different plugin) applies here.
  */
 
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
@@ -29,7 +15,15 @@ import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, open
 import definePlugin, { OptionType } from "@utils/types";
 import { React } from "@webpack/common";
 
-const h = React.createElement;
+// NOTE: don't do `const h = React.createElement` at module scope —
+// this file is evaluated once on load, and if @webpack/common's React
+// export isn't fully resolved at that exact moment, grabbing a method
+// off it immediately throws and the whole plugin fails to register.
+// Wrapping it in a function defers the property access until we
+// actually render, by which point React is available.
+function h(...args: Parameters<typeof React.createElement>) {
+    return React.createElement(...args);
+}
 
 const settings = definePluginSettings({
     enableGiphy: {
@@ -56,11 +50,6 @@ const settings = definePluginSettings({
         type: OptionType.NUMBER,
         description: "How many results to pull from each provider per search",
         default: 15,
-    },
-    enablePickerIntercept: {
-        type: OptionType.BOOLEAN,
-        description: "Also inject extra results into Discord's native GIF picker (disable this if it's the thing causing crashes elsewhere — /multi-gif works independently of this setting)",
-        default: true,
     },
 });
 
@@ -124,7 +113,6 @@ function activeProviders() {
     return list;
 }
 
-/** Used by /multi-gif: hits every enabled provider directly and returns the flat, unfiltered list. */
 async function searchAllProviders(query: string): Promise<NormalizedGif[]> {
     const providers = activeProviders();
     if (!providers.length || !query.trim()) return [];
@@ -138,260 +126,6 @@ async function searchAllProviders(query: string): Promise<NormalizedGif[]> {
         else console.error("[MultiGifSource] Provider failed:", r.reason);
     }
     return out;
-}
-
-const SEARCH_URL_FRAGMENT = "/gifs/search";
-
-function extractQuery(urlStr: string): string | null {
-    try {
-        return new URL(urlStr, location.origin).searchParams.get("q");
-    } catch {
-        return null;
-    }
-}
-
-/** Builds a Discord-shaped result object for a foreign GIF by copying a real result's field names. */
-function mimicShape(template: any, gif: NormalizedGif) {
-    const clone = { ...template };
-    for (const key of Object.keys(clone)) {
-        const lower = key.toLowerCase();
-        if (lower.includes("url") && !lower.includes("preview")) clone[key] = gif.url;
-        else if (lower === "src") clone[key] = gif.src;
-        else if (lower === "width") clone[key] = gif.width;
-        else if (lower === "height") clone[key] = gif.height;
-        else if (lower === "format") clone[key] = gif.format ?? clone[key];
-        else if (lower === "title") clone[key] = gif.title ?? clone[key];
-        else if (lower === "id") clone[key] = `multigif-${Math.random().toString(36).slice(2)}`;
-    }
-    return clone;
-}
-
-async function mergeExtraProviders(query: string, nativeResults: any[]): Promise<any[]> {
-    if (!nativeResults?.length || !query) return nativeResults;
-    const providers = activeProviders();
-    if (!providers.length) return nativeResults;
-
-    const template = nativeResults[0];
-    const limit = settings.store.resultsPerProvider;
-    const settled = await Promise.allSettled(providers.map(fn => fn(query, limit)));
-
-    const extras: any[] = [];
-    for (const r of settled) {
-        if (r.status === "fulfilled") {
-            extras.push(...r.value.map(gif => mimicShape(template, gif)));
-        } else {
-            console.error("[MultiGifSource] Provider failed:", r.reason);
-        }
-    }
-
-    return [...nativeResults, ...extras];
-}
-
-/** Walks the parsed response looking for the array of GIF result objects. */
-function findResultArray(json: any): any[] | null {
-    if (Array.isArray(json)) return json;
-    if (json && typeof json === "object") {
-        for (const key of ["results", "gifs", "data", "items"]) {
-            if (Array.isArray(json[key])) return json[key];
-        }
-    }
-    return null;
-}
-
-function patchResultArrayInPlace(json: any, newArray: any[]) {
-    if (Array.isArray(json)) {
-        json.length = 0;
-        json.push(...newArray);
-        return json;
-    }
-    for (const key of ["results", "gifs", "data", "items"]) {
-        if (Array.isArray(json[key])) {
-            json[key] = newArray;
-            return json;
-        }
-    }
-    return json;
-}
-
-// --- XHR patching -----------------------------------------------------
-// IMPORTANT: we patch XMLHttpRequest.prototype in place rather than
-// replacing window.XMLHttpRequest with a subclass. Swapping out the
-// global constructor broke Vencord's own startup (instanceof checks
-// and/or the build's native-class-extension handling didn't like it),
-// so instead we do exactly what the original plugin did with fetch:
-// wrap a handful of existing methods, and every other request in the
-// client (the overwhelming majority) is completely unaffected.
-
-function findAccessor(proto: any, name: string): PropertyDescriptor | null {
-    let p = proto;
-    while (p) {
-        const d = Object.getOwnPropertyDescriptor(p, name);
-        if (d) return d;
-        p = Object.getPrototypeOf(p);
-    }
-    return null;
-}
-
-interface VeilXHRState {
-    query: string | null;
-    pending: Array<() => void>;
-    mergeStarted: boolean;
-    patchedText: string | null;
-    patchedObj: any;
-}
-
-const veilState = new WeakMap<XMLHttpRequest, VeilXHRState>();
-
-function getState(xhr: XMLHttpRequest): VeilXHRState {
-    let s = veilState.get(xhr);
-    if (!s) {
-        s = { query: null, pending: [], mergeStarted: false, patchedText: null, patchedObj: undefined };
-        veilState.set(xhr, s);
-    }
-    return s;
-}
-
-function veilWrap(xhr: XMLHttpRequest, type: "load" | "readystatechange", listener: any) {
-    return function (this: any, ev: Event) {
-        const s = getState(xhr);
-        if (type === "readystatechange" && xhr.readyState !== 4) {
-            return listener.call(this, ev);
-        }
-        s.pending.push(() => listener.call(this, ev));
-        veilMaybeMerge(xhr);
-    };
-}
-
-function veilFlush(xhr: XMLHttpRequest) {
-    const s = getState(xhr);
-    const calls = s.pending;
-    s.pending = [];
-    for (const call of calls) call();
-}
-
-function veilMaybeMerge(xhr: XMLHttpRequest) {
-    const s = getState(xhr);
-    if (s.mergeStarted) return;
-    s.mergeStarted = true;
-
-    if (!s.query || xhr.status < 200 || xhr.status >= 300) {
-        return veilFlush(xhr);
-    }
-
-    (async () => {
-        try {
-            const type = xhr.responseType;
-            let json: any;
-            if (type === "" || type === "text") {
-                json = JSON.parse(origResponseTextDesc.get!.call(xhr));
-            } else if (type === "json") {
-                json = origResponseDesc.get!.call(xhr);
-            } else {
-                // arraybuffer/blob/document — not our shape, leave untouched
-                return;
-            }
-
-            const nativeArray = findResultArray(json);
-            if (!nativeArray) return;
-
-            const merged = await mergeExtraProviders(s.query!, nativeArray);
-            const patched = patchResultArrayInPlace(json, merged);
-
-            if (type === "json") s.patchedObj = patched;
-            else s.patchedText = JSON.stringify(patched);
-        } catch (e) {
-            console.error("[MultiGifSource] Failed to merge providers, passing through native response:", e);
-        } finally {
-            veilFlush(xhr);
-        }
-    })();
-}
-
-let origOpen: typeof XMLHttpRequest.prototype.open;
-let origAddEventListener: typeof XMLHttpRequest.prototype.addEventListener;
-let origOnloadDesc: PropertyDescriptor;
-let origOnreadystatechangeDesc: PropertyDescriptor;
-let origResponseDesc: PropertyDescriptor;
-let origResponseTextDesc: PropertyDescriptor;
-
-function installXHRPatch() {
-    origOpen = XMLHttpRequest.prototype.open;
-    origAddEventListener = XMLHttpRequest.prototype.addEventListener;
-    origOnloadDesc = findAccessor(XMLHttpRequest.prototype, "onload")!;
-    origOnreadystatechangeDesc = findAccessor(XMLHttpRequest.prototype, "onreadystatechange")!;
-    origResponseDesc = findAccessor(XMLHttpRequest.prototype, "response")!;
-    origResponseTextDesc = findAccessor(XMLHttpRequest.prototype, "responseText")!;
-
-    XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: any[]) {
-        const s = getState(this);
-        s.query = null;
-        s.pending = [];
-        s.mergeStarted = false;
-        s.patchedText = null;
-        s.patchedObj = undefined;
-        try {
-            const urlStr = url.toString();
-            if (settings.store.enablePickerIntercept && urlStr.includes(SEARCH_URL_FRAGMENT)) {
-                s.query = extractQuery(urlStr);
-            }
-        } catch { /* ignore */ }
-        // @ts-ignore — variadic open() overloads
-        return origOpen.apply(this, [method, url, ...rest]);
-    };
-
-    XMLHttpRequest.prototype.addEventListener = function (this: XMLHttpRequest, type: string, listener: any, options?: any) {
-        const s = getState(this);
-        if (s.query && listener && (type === "readystatechange" || type === "load" || type === "loadend")) {
-            return origAddEventListener.call(this, type, veilWrap(this, type === "readystatechange" ? "readystatechange" : "load", listener), options);
-        }
-        return origAddEventListener.call(this, type, listener, options);
-    };
-
-    Object.defineProperty(XMLHttpRequest.prototype, "onload", {
-        configurable: true,
-        get(this: XMLHttpRequest) { return origOnloadDesc.get!.call(this); },
-        set(this: XMLHttpRequest, fn: any) {
-            const s = getState(this);
-            origOnloadDesc.set!.call(this, (s.query && fn) ? veilWrap(this, "load", fn) : fn);
-        },
-    });
-
-    Object.defineProperty(XMLHttpRequest.prototype, "onreadystatechange", {
-        configurable: true,
-        get(this: XMLHttpRequest) { return origOnreadystatechangeDesc.get!.call(this); },
-        set(this: XMLHttpRequest, fn: any) {
-            const s = getState(this);
-            origOnreadystatechangeDesc.set!.call(this, (s.query && fn) ? veilWrap(this, "readystatechange", fn) : fn);
-        },
-    });
-
-    Object.defineProperty(XMLHttpRequest.prototype, "response", {
-        configurable: true,
-        get(this: XMLHttpRequest) {
-            const s = getState(this);
-            if (s.patchedObj !== undefined) return s.patchedObj;
-            if (s.patchedText !== null) return s.patchedText;
-            return origResponseDesc.get!.call(this);
-        },
-    });
-
-    Object.defineProperty(XMLHttpRequest.prototype, "responseText", {
-        configurable: true,
-        get(this: XMLHttpRequest) {
-            const s = getState(this);
-            return s.patchedText ?? origResponseTextDesc.get!.call(this);
-        },
-    });
-}
-
-function uninstallXHRPatch() {
-    if (!origOpen) return;
-    XMLHttpRequest.prototype.open = origOpen;
-    XMLHttpRequest.prototype.addEventListener = origAddEventListener;
-    Object.defineProperty(XMLHttpRequest.prototype, "onload", origOnloadDesc);
-    Object.defineProperty(XMLHttpRequest.prototype, "onreadystatechange", origOnreadystatechangeDesc);
-    Object.defineProperty(XMLHttpRequest.prototype, "response", origResponseDesc);
-    Object.defineProperty(XMLHttpRequest.prototype, "responseText", origResponseTextDesc);
 }
 
 function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initialQuery: string; }) {
@@ -472,7 +206,7 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
 
 export default definePlugin({
     name: "MultiGifSource",
-    description: "Adds results from other GIF providers (Giphy, Tenor, etc.) alongside Discord's native Tenor search, plus a /multi-gif command that searches them directly without going through Discord's picker at all.",
+    description: "Search GIFs across Giphy, Tenor, etc. directly with /multi-gif — bypasses Discord's own picker and filtering entirely.",
     authors: [VeilDevs.Zarak],
     settings,
     dependencies: ["CommandsAPI"],
@@ -496,12 +230,4 @@ export default definePlugin({
             },
         },
     ],
-
-    start() {
-        installXHRPatch();
-    },
-
-    stop() {
-        uninstallXHRPatch();
-    },
 });
