@@ -19,7 +19,7 @@ interface RedditPost {
 }
 
 async function searchSubreddit(subreddit: string, query: string): Promise<RedditPost[]> {
-    const url = `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&sort=relevance&limit=15`;
+    const url = `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&sort=relevance&limit=15`;
     const res = await fetch(url, {
         headers: { "User-Agent": "VeilDiscordMod/1.0" },
     });
