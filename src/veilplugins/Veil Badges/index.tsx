@@ -3,14 +3,7 @@ import { VeilDevs } from "@utils/constants";
 
 const { Webpack } = window.Vencord;
 
-export default definePlugin({
-    name: "Veil Badges",
-    description: "Custom Badges Added Via Veil. Join -> https://discord.gg/Y33UjmdsER",
-    tags: ["Fun", "Veil"],
-    authors: [VeilDevs.Zarak]
-   
-})
-export default class CustomBadges {
+class CustomBadges {
   badgeData = {};
   BADGE_DATA_URL = 'https://raw.githubusercontent.com/Zarak199076/a/refs/heads/main/badges.json';
   REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -23,6 +16,27 @@ export default class CustomBadges {
   async onLoad() {
     // Nothing needed here
   }
+
+  async onStart() {
+    // ... rest of your methods
+  }
+
+  // ... rest of your class
+}
+
+export default definePlugin({
+    name: "Veil Badges",
+    description: "Custom Badges Added Via Veil. Join -> https://discord.gg/Y33UjmdsER",
+    tags: ["Fun", "Veil"],
+    authors: [VeilDevs.Zarak],
+    start() {
+      const instance = new CustomBadges();
+      instance.onStart();
+    },
+    stop() {
+      // Handle cleanup
+    }
+})
 
   async onStart() {
     console.log('[CustomBadges] Plugin started.');
