@@ -2,21 +2,32 @@
  * Veil, a Discord client mod
  * MultiGifSource — adds results from other GIF providers alongside
  * Discord's native Tenor search, by intercepting the /gifs/search
- * network response rather than patching the (obfuscated, unstable)
- * picker component itself.
+ * network response, PLUS a standalone /multi-gif command that
+ * searches providers directly and never touches Discord's picker
+ * or its result filtering at all.
  *
- * Discord's GIF picker issues this request via XMLHttpRequest, not
- * fetch, so we subclass XMLHttpRequest. Because merging in extra
- * providers is async and XHR completion events are synchronous,
- * we have to buffer the "done" event (load/readystatechange@4) for
- * any listener Discord attaches, run the merge, patch the response
- * getters, and only then release the buffered calls — otherwise
- * Discord's code would read the original, unmerged body.
+ * Discord's GIF picker issues its search via XMLHttpRequest, not
+ * fetch, so the passive interceptor subclasses XMLHttpRequest.
+ * Because merging in extra providers is async and XHR completion
+ * events are synchronous, we buffer the "done" event for any
+ * listener Discord attaches, run the merge, patch the response
+ * getters, and only then release the buffered calls.
+ *
+ * The /multi-gif command is a separate, independent path: it never
+ * goes near Discord's request/response cycle, so whatever Discord's
+ * own filtering does (that was tripping up another plugin) simply
+ * doesn't apply to it.
  */
 
+import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
 import { definePluginSettings } from "@api/Settings";
 import { VeilDevs } from "@utils/constants";
+import { insertTextIntoChatInputBox } from "@utils/discord";
+import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
+import { React } from "@webpack/common";
+
+const h = React.createElement;
 
 const settings = definePluginSettings({
     enableGiphy: {
@@ -31,7 +42,7 @@ const settings = definePluginSettings({
     },
     enableTenor: {
         type: OptionType.BOOLEAN,
-        description: "Include a second Tenor pass alongside Discord's built-in one (useful if you want a different limit/filter than Discord's own query)",
+        description: "Include results from Tenor",
         default: false,
     },
     tenorApiKey: {
@@ -41,8 +52,13 @@ const settings = definePluginSettings({
     },
     resultsPerProvider: {
         type: OptionType.NUMBER,
-        description: "How many results to pull from each extra provider per search",
+        description: "How many results to pull from each provider per search",
         default: 15,
+    },
+    enablePickerIntercept: {
+        type: OptionType.BOOLEAN,
+        description: "Also inject extra results into Discord's native GIF picker (disable this if it's the thing causing crashes elsewhere — /multi-gif works independently of this setting)",
+        default: true,
     },
 });
 
@@ -104,6 +120,22 @@ function activeProviders() {
     if (settings.store.enableGiphy) list.push(ALL_PROVIDERS.giphy);
     if (settings.store.enableTenor) list.push(ALL_PROVIDERS.tenor);
     return list;
+}
+
+/** Used by /multi-gif: hits every enabled provider directly and returns the flat, unfiltered list. */
+async function searchAllProviders(query: string): Promise<NormalizedGif[]> {
+    const providers = activeProviders();
+    if (!providers.length || !query.trim()) return [];
+
+    const limit = settings.store.resultsPerProvider;
+    const settled = await Promise.allSettled(providers.map(fn => fn(query, limit)));
+
+    const out: NormalizedGif[] = [];
+    for (const r of settled) {
+        if (r.status === "fulfilled") out.push(...r.value);
+        else console.error("[MultiGifSource] Provider failed:", r.reason);
+    }
+    return out;
 }
 
 const SEARCH_URL_FRAGMENT = "/gifs/search";
@@ -190,7 +222,9 @@ class VeilPatchedXHR extends XMLHttpRequest {
 
     open(method: string, url: string | URL, ...rest: any[]) {
         const urlStr = url.toString();
-        this._veilQuery = urlStr.includes(SEARCH_URL_FRAGMENT) ? extractQuery(urlStr) : null;
+        this._veilQuery = (settings.store.enablePickerIntercept && urlStr.includes(SEARCH_URL_FRAGMENT))
+            ? extractQuery(urlStr)
+            : null;
         // @ts-ignore — variadic open() overloads
         return super.open(method, url, ...rest);
     }
@@ -281,11 +315,108 @@ class VeilPatchedXHR extends XMLHttpRequest {
     }
 }
 
+function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initialQuery: string; }) {
+    const [query, setQuery] = React.useState(initialQuery);
+    const [pending, setPending] = React.useState(true);
+    const [results, setResults] = React.useState<NormalizedGif[]>([]);
+    const [error, setError] = React.useState<string | null>(null);
+
+    const runSearch = async (q: string) => {
+        setPending(true);
+        setError(null);
+        try {
+            setResults(await searchAllProviders(q));
+        } catch (e) {
+            setError(String(e));
+        } finally {
+            setPending(false);
+        }
+    };
+
+    React.useEffect(() => { runSearch(initialQuery); }, []);
+
+    return h(ModalRoot, { ...modalProps, size: ModalSize.LARGE },
+        h(ModalHeader, null,
+            h("input", {
+                type: "text",
+                value: query,
+                onChange: (e: any) => setQuery(e.target.value),
+                onKeyDown: (e: any) => { if (e.key === "Enter") runSearch(query); },
+                placeholder: "Search GIFs…",
+                autoFocus: true,
+                style: {
+                    flex: 1,
+                    background: "var(--input-background)",
+                    color: "var(--text-normal)",
+                    border: "none",
+                    borderRadius: 4,
+                    padding: "8px 10px",
+                },
+            }),
+            h(ModalCloseButton, { onClick: modalProps.onClose })
+        ),
+        h(ModalContent, { style: { padding: 16 } },
+            pending
+                ? h("div", null, "Searching…")
+                : error
+                    ? h("div", { style: { color: "var(--text-danger)" } }, error)
+                    : !results.length
+                        ? h("div", null, "No results — check that at least one provider is enabled in plugin settings.")
+                        : h("div", {
+                            style: {
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                                gap: 8,
+                            },
+                        }, results.map((gif, i) =>
+                            h("img", {
+                                key: `${gif.url}-${i}`,
+                                src: gif.src || gif.url,
+                                title: gif.title ?? "",
+                                loading: "lazy",
+                                style: {
+                                    width: "100%",
+                                    aspectRatio: "1 / 1",
+                                    objectFit: "cover",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                },
+                                onClick: () => {
+                                    insertTextIntoChatInputBox(gif.url + " ");
+                                    modalProps.onClose();
+                                },
+                            })
+                        ))
+        )
+    );
+}
+
 export default definePlugin({
     name: "MultiGifSource",
-    description: "Adds results from other GIF providers (Giphy, Tenor, etc.) alongside Discord's native Tenor search.",
-    authors: [VeilDevs.Zarak],
+    description: "Adds results from other GIF providers (Giphy, Tenor, etc.) alongside Discord's native Tenor search, plus a /multi-gif command that searches them directly without going through Discord's picker at all.",
+    authors: [VeilDevs.Zarak], // replace with your own entry
     settings,
+    dependencies: ["CommandsAPI"],
+
+    commands: [
+        {
+            name: "multi-gif",
+            description: "Search GIFs across your configured providers directly — bypasses Discord's picker and its filtering entirely",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                {
+                    name: "query",
+                    description: "What to search for",
+                    type: ApplicationCommandOptionType.STRING,
+                    required: true,
+                },
+            ],
+            execute: async (opts, _ctx) => {
+                const query = findOption(opts, "query", "");
+                openModal(modalProps => h(GifPickerModal, { modalProps, initialQuery: query }));
+            },
+        },
+    ],
 
     start() {
         origXHR = window.XMLHttpRequest;
