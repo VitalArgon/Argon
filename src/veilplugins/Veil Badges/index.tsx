@@ -8,6 +8,7 @@ export default definePlugin({
     description: "Custom Badges Added Via Veil. Join -> https://discord.gg/Y33UjmdsER",
     tags: ["Fun", "Veil"],
     authors: [VeilDevs.Zarak]
+    
 }
 export default class CustomBadges {
   badgeData = {};
