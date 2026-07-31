@@ -1,13 +1,18 @@
 import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
+import { sendMessage } from "@utils/discord";
 import { findByPropsLazy } from "@webpack";
 
-// Dynamically locate Discord's internal message routing engine
+// sendBotMessage shows a local-only "Clyde" message — used for errors
+// only. Actually sending the GIF uses Vencord's sendMessage wrapper
+// below, not this — raw MessageActions.sendMessage requires a fully
+// constructed message object (nonce, etc.) that isn't meant to be
+// built by hand.
 const MessageActions = findByPropsLazy("sendBotMessage", "receiveMessage");
 
 // Set this to your deployed Railway URL, e.g. "https://giff-proxy-production.up.railway.app"
-const PROXY_BASE_URL = "https://giff-production.up.railway.app";
+const PROXY_BASE_URL = "https://giff.production.railway.app";
 
 async function findGif(query: string): Promise<string | null> {
     const res = await fetch(`${PROXY_BASE_URL}/giff?q=${encodeURIComponent(query)}`);
@@ -19,7 +24,7 @@ async function findGif(query: string): Promise<string | null> {
 
 export default definePlugin({
     name: "giff",
-    description: "/giff <query> — pulls a GIF from curated SFW subreddits via Reddit's public search API",
+    description: "/giff <query> — pulls a GIF from Openverse's public Creative Commons search API",
     authors: [VeilDevs.Zarak],
     dependencies: ["CommandsAPI"],
 
@@ -42,19 +47,15 @@ export default definePlugin({
 
                 findGif(searchWord).then(gifUrl => {
                     if (!gifUrl) {
-                        MessageActions.receiveMessage(channel.id, {
-                            id: "err-" + Date.now(),
+                        MessageActions.sendBotMessage(channel.id, {
                             content: "❌ No GIFs found for that search.",
-                            author: { id: "1", username: "Clyde", discriminator: "0000", avatar: "clyde" },
                         });
                     } else {
-                        MessageActions.sendMessage(channel.id, { content: gifUrl });
+                        sendMessage(channel.id, { content: gifUrl });
                     }
                 }).catch(err => {
-                    MessageActions.receiveMessage(channel.id, {
-                        id: "err-" + Date.now(),
+                    MessageActions.sendBotMessage(channel.id, {
                         content: `❌ Search failed: ${String(err)}`,
-                        author: { id: "1", username: "Clyde", discriminator: "0000", avatar: "clyde" },
                     });
                 });
             },
