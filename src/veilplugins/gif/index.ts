@@ -2,7 +2,6 @@ import { definePlugin } from "@modules/plugin";
 import { VeilDevs } from "@utils/constants";
 import { registerCommand } from "@api/Commands";
 import { ApplicationCommandOptionType } from "@api/Commands/types";
-import { Finder } from "@modules";
 
 // Dynamically locate Discord's internal message routing engine
 const MessageActions = Finder.byProps("sendBotMessage", "receiveMessage");
