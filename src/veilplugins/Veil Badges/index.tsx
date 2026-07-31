@@ -145,12 +145,12 @@ class CustomBadges {
           const el = node as Element;
 
           // Look for badge containers that were just added
-          const badgeContainers = el.querySelectorAll?.(BADGE_CONTAINER_SELECTOR) || [];
+          let containers: Element[] = Array.from(el.querySelectorAll?.(BADGE_CONTAINER_SELECTOR) || []);
           if (el.matches?.(BADGE_CONTAINER_SELECTOR)) {
-            badgeContainers = [el, ...Array.from(badgeContainers)];
+            containers = [el, ...containers];
           }
 
-          badgeContainers.forEach((container: any) => {
+          containers.forEach((container) => {
             this.tryInjectBadges(container);
           });
         });
