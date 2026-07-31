@@ -1,7 +1,7 @@
 /*
  * Veil, a Discord client mod
  * MultiGifSource — a /multi-gif command that searches GIF providers
- * (Giphy, Tenor, etc.) directly and shows the results in a picker
+ * (Giphy, Klipy, etc.) directly and shows the results in a picker
  * modal. Deliberately doesn't touch Discord's own GIF picker or its
  * network requests at all, so none of Discord's own result filtering
  * (which was crashing a different plugin) applies here.
@@ -33,18 +33,18 @@ const settings = definePluginSettings({
     },
     giphyApiKey: {
         type: OptionType.STRING,
-        description: "Giphy API key — get a free one at developers.giphy.com. The default below is Giphy's shared public beta key, heavily rate-limited across everyone using it.",
-        default: "igMFNVaY7MnU1kGfnT37xzhtvqhuJbVL",
+        description: "Giphy API key — get a free one at developers.giphy.com (choose 'API', not 'SDK', when creating the app).",
+        default: "",
     },
-    enableTenor: {
+    enableKlipy: {
         type: OptionType.BOOLEAN,
-        description: "Include results from Tenor",
+        description: "Include results from Klipy (free, no usage costs — get a key at klipy.com/developers)",
         default: false,
     },
-    tenorApiKey: {
+    klipyApiKey: {
         type: OptionType.STRING,
-        description: "Tenor API key — get a free one at tenor.com/gifapi. The default below is Google's shared public test key, heavily rate-limited across everyone using it.",
-        default: "LIVDSRZULELA",
+        description: "Klipy API key — get one at klipy.com/developers.",
+        default: "",
     },
     resultsPerProvider: {
         type: OptionType.NUMBER,
@@ -63,9 +63,10 @@ interface NormalizedGif {
 }
 
 async function fetchGiphy(query: string, limit: number): Promise<NormalizedGif[]> {
-    const key = settings.store.giphyApiKey || "dc6zaTOxFJmzC";
+    const key = settings.store.giphyApiKey;
+    if (!key) return [];
     const res = await fetch(
-        `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&rating=r`
+        `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&rating=pg-13`
     );
     if (!res.ok) throw new Error(`Giphy HTTP ${res.status}`);
     const data = await res.json();
@@ -79,37 +80,46 @@ async function fetchGiphy(query: string, limit: number): Promise<NormalizedGif[]
     }));
 }
 
-async function fetchTenor(query: string, limit: number): Promise<NormalizedGif[]> {
-    const key = settings.store.tenorApiKey || "LIVDSRZULELA";
+async function fetchKlipy(query: string, limit: number): Promise<NormalizedGif[]> {
+    const key = settings.store.klipyApiKey;
+    if (!key) return [];
     const res = await fetch(
-        `https://tenor.googleapis.com/v2/search?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&media_filter=gif`
+        `https://api.klipy.com/api/v1/${encodeURIComponent(key)}/gifs/search?q=${encodeURIComponent(query)}&per_page=${Math.min(Math.max(limit, 8), 50)}`
     );
-    if (!res.ok) throw new Error(`Tenor HTTP ${res.status}`);
-    const data = await res.json();
-    return (data.results ?? []).map((g: any) => {
-        const media = g.media_formats?.gif ?? g.media_formats?.mediumgif ?? g.media_formats?.tinygif;
+    if (!res.ok) throw new Error(`Klipy HTTP ${res.status}`);
+    const json = await res.json();
+    const items = json?.data?.data ?? [];
+    return items.map((g: any) => {
+        // Klipy exposes GIF variants under a `files` object; the exact
+        // sub-key names aren't in their public docs (JS-rendered page),
+        // so this tries the most likely shapes. If results come back
+        // empty, console.log(g) here once you have a working key to see
+        // the real field names and adjust.
+        const files = g.files ?? {};
+        const variant = files.gif ?? files.hd ?? files.md ?? files.sm ?? files.original ?? {};
+        const url = variant.url ?? variant.src ?? g.url;
         return {
-            url: media?.url ?? g.itemurl,
-            src: media?.url,
-            width: Number(media?.dims?.[0]) || 0,
-            height: Number(media?.dims?.[1]) || 0,
+            url,
+            src: url,
+            width: Number(variant.width) || 0,
+            height: Number(variant.height) || 0,
             format: "gif",
-            title: g.content_description,
+            title: g.title,
         };
-    });
+    }).filter((g: NormalizedGif) => !!g.url);
 }
 
 // Add more providers here as you find ones you like — same shape as
-// fetchGiphy/fetchTenor: (query, limit) => Promise<NormalizedGif[]>
+// fetchGiphy/fetchKlipy: (query, limit) => Promise<NormalizedGif[]>
 const ALL_PROVIDERS: Record<string, (query: string, limit: number) => Promise<NormalizedGif[]>> = {
     giphy: fetchGiphy,
-    tenor: fetchTenor,
+    klipy: fetchKlipy,
 };
 
 function activeProviders() {
     const list: Array<(q: string, l: number) => Promise<NormalizedGif[]>> = [];
     if (settings.store.enableGiphy) list.push(ALL_PROVIDERS.giphy);
-    if (settings.store.enableTenor) list.push(ALL_PROVIDERS.tenor);
+    if (settings.store.enableKlipy) list.push(ALL_PROVIDERS.klipy);
     return list;
 }
 
@@ -174,7 +184,7 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
                 : error
                     ? h("div", { style: { color: "var(--text-danger)" } }, error)
                     : !results.length
-                        ? h("div", null, "No results — check that at least one provider is enabled in plugin settings.")
+                        ? h("div", null, "No results — check that at least one provider is enabled and has a valid API key in plugin settings.")
                         : h("div", {
                             style: {
                                 display: "grid",
@@ -206,8 +216,8 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
 
 export default definePlugin({
     name: "MultiGifSource",
-    description: "Search GIFs across Giphy, Tenor, etc. directly with /multi-gif — bypasses Discord's own picker and filtering entirely.",
-    authors: [VeilDevs.Zarak],
+    description: "Search GIFs across Giphy, Klipy, etc. directly with /multi-gif — bypasses Discord's own picker and filtering entirely.",
+    authors: [VeilDevs.Zarak], // replace with your own entry
     settings,
     dependencies: ["CommandsAPI"],
 
