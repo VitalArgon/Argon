@@ -17,7 +17,7 @@ const WEBPACK = VENCORD?.Webpack;
 
 // Note: use the raw path to the badges.json file in the repo (adjust if your badges.json lives elsewhere)
 const DEFAULT_BADGE_DATA_URL =
-  "https://raw.githubusercontent.com/Zarak199076/Veil/main/badges.json";
+  "https://raw.githubusercontent.com/Zarak199076/a/main/badges.json";
 
 type Badge = {
   id: string;
