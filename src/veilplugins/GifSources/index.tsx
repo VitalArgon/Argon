@@ -34,7 +34,7 @@ const settings = definePluginSettings({
     giphyApiKey: {
         type: OptionType.STRING,
         description: "Giphy API key — get a free one at developers.giphy.com. The default below is Giphy's shared public beta key, heavily rate-limited across everyone using it.",
-        default: "dc6zaTOxFJmzC",
+        default: "igMFNVaY7MnU1kGfnT37xzhtvqhuJbVL",
     },
     enableTenor: {
         type: OptionType.BOOLEAN,
