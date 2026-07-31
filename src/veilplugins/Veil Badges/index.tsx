@@ -23,7 +23,7 @@ type Badge = {
 
 class CustomBadges {
   private badgeData: Map<string, Badge[]> = new Map();
-  private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/Veil/main/badges.json";
+  private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/main/badges.json";
   private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
   private BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
