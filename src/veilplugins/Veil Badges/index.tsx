@@ -12,9 +12,6 @@ import { VeilDevs } from "@utils/constants";
  * - Injects once per profile load
  */
 
-const BADGE_CONTAINER_SELECTOR = '[class*="profileBadges"]';
-const BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
-
 type Badge = {
   id: string;
   description?: string;
@@ -144,24 +141,48 @@ class CustomBadges {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
           const el = node as Element;
 
-          // Look for badge containers that were just added
-          let containers: Element[] = Array.from(el.querySelectorAll?.(BADGE_CONTAINER_SELECTOR) || []);
-          if (el.matches?.(BADGE_CONTAINER_SELECTOR)) {
-            containers = [el, ...containers];
+          // Log all significant additions to understand DOM structure
+          if (el.className && typeof el.className === "string") {
+            if (el.className.includes("user") || el.className.includes("profile") || el.className.includes("badge")) {
+              console.debug("[CustomBadges] Added node with class:", el.className);
+            }
           }
 
-          containers.forEach((container) => {
-            this.tryInjectBadges(container);
-          });
+          // Search more broadly for elements that might contain profile info
+          this.scanForProfiles(el);
         });
       }
     });
 
     try {
       this.observer.observe(document.documentElement, { childList: true, subtree: true });
+      console.log("[CustomBadges] Profile observer started");
     } catch (e) {
       console.warn("[CustomBadges] observer.observe failed:", e);
       this.observer = null;
+    }
+  }
+
+  private scanForProfiles(el: Element) {
+    try {
+      // Look for profile header or user card elements
+      const profileElements = el.querySelectorAll?.('[class*="userProfile"], [class*="userCard"], [data-test-id*="user"]') || [];
+      
+      if (profileElements.length > 0) {
+        console.debug("[CustomBadges] Found", profileElements.length, "profile elements");
+      }
+
+      profileElements.forEach((profile) => {
+        this.tryInjectBadges(profile);
+      });
+
+      // Also check if the element itself is a profile
+      if (el.className && (String(el.className).includes("userProfile") || String(el.className).includes("userCard"))) {
+        console.debug("[CustomBadges] Found profile element:", el.className);
+        this.tryInjectBadges(el);
+      }
+    } catch (e) {
+      console.debug("[CustomBadges] scanForProfiles error:", e);
     }
   }
 
@@ -169,17 +190,25 @@ class CustomBadges {
     try {
       // Try to extract user ID from nearby elements or data attributes
       const userId = this.extractUserIdFromContainer(container);
-      if (!userId) return;
+      if (!userId) {
+        console.debug("[CustomBadges] Could not extract userId from container");
+        return;
+      }
 
       // Skip if already injected for this profile instance
-      const containerKey = `${userId}-${container.innerHTML.length}`;
-      if (this.injectedProfiles.has(containerKey)) return;
+      const containerKey = `${userId}-${container.innerHTML.substring(0, 100)}`;
+      if (this.injectedProfiles.has(containerKey)) {
+        return;
+      }
 
       const badges = this.badgeData.get(userId);
-      if (!badges || badges.length === 0) return;
+      if (!badges || badges.length === 0) {
+        console.debug("[CustomBadges] No badges for user", userId);
+        return;
+      }
 
       this.injectedProfiles.add(containerKey);
-      console.log("[CustomBadges] Attempting to inject badges for user", userId);
+      console.log("[CustomBadges] Injecting badges for user", userId);
 
       // Try to find or create badge elements
       this.injectBadgeElements(container, badges, userId);
@@ -192,21 +221,30 @@ class CustomBadges {
     try {
       // Try to find userId in data attributes
       let el: Element | null = container;
-      while (el && el !== document.body) {
+      let depth = 0;
+      while (el && el !== document.body && depth < 10) {
         const userId = 
           el.getAttribute?.("data-user-id") ||
           el.getAttribute?.("userid") ||
+          el.getAttribute?.("data-userid") ||
           (el as any).dataset?.userId ||
           null;
-        if (userId) return userId;
+        if (userId) {
+          console.debug("[CustomBadges] Found userId via attribute:", userId);
+          return userId;
+        }
         el = el.parentElement;
+        depth++;
       }
 
       // Try to extract from text content or nearby elements
       const userLink = container.querySelector?.('a[href*="/users/"]');
       if (userLink) {
         const match = userLink.href.match(/\/users\/(\d+)/);
-        if (match) return match[1];
+        if (match) {
+          console.debug("[CustomBadges] Found userId via link:", match[1]);
+          return match[1];
+        }
       }
 
       return null;
@@ -222,16 +260,17 @@ class CustomBadges {
       const customBadgeContainer = document.createElement("div");
       customBadgeContainer.className = "veil-custom-badges";
       customBadgeContainer.style.display = "flex";
-      customBadgeContainer.style.gap = "4px";
+      customBadgeContainer.style.gap = "6px";
       customBadgeContainer.style.alignItems = "center";
+      customBadgeContainer.style.marginLeft = "8px";
 
       for (const badge of badges) {
         const badgeImg = document.createElement("img");
         badgeImg.src = badge.icon;
         badgeImg.alt = badge.description || badge.id;
         badgeImg.title = badge.description || badge.id;
-        badgeImg.style.width = "20px";
-        badgeImg.style.height = "20px";
+        badgeImg.style.width = "24px";
+        badgeImg.style.height = "24px";
         badgeImg.style.objectFit = "contain";
         badgeImg.style.cursor = badge.link && badge.link !== "#" ? "pointer" : "default";
 
@@ -242,12 +281,31 @@ class CustomBadges {
         customBadgeContainer.appendChild(badgeImg);
       }
 
-      // Try to append to existing badge container or after the username
-      const existingBadges = container.querySelector('[class*="badges"]');
-      if (existingBadges && existingBadges.parentElement) {
-        existingBadges.parentElement.insertBefore(customBadgeContainer, existingBadges.nextSibling);
-      } else {
+      // Try to find a good insertion point
+      let inserted = false;
+
+      // Look for existing badge container
+      const existingBadgeContainer = container.querySelector('[class*="badge"]');
+      if (existingBadgeContainer?.parentElement) {
+        existingBadgeContainer.parentElement.insertBefore(customBadgeContainer, existingBadgeContainer.nextSibling);
+        console.debug("[CustomBadges] Inserted after existing badges");
+        inserted = true;
+      }
+
+      // Look for username element
+      if (!inserted) {
+        const usernameEl = container.querySelector('[class*="username"], [class*="name"]');
+        if (usernameEl?.parentElement) {
+          usernameEl.parentElement.appendChild(customBadgeContainer);
+          console.debug("[CustomBadges] Inserted after username");
+          inserted = true;
+        }
+      }
+
+      // Fall back to appending to container
+      if (!inserted) {
         container.appendChild(customBadgeContainer);
+        console.debug("[CustomBadges] Appended to container");
       }
 
       console.debug("[CustomBadges] Injected badge elements for", userId, "->", badges.map((x) => x.id));
