@@ -2,22 +2,17 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 
 /**
- * Improved Custom Badges plugin
+ * Veil Badges plugin — improved, robust version
  *
- * Main improvements:
- * - Fixed class/method placement and plugin lifecycle so stop() fully cleans up
- * - Validation for badge JSON
- * - Restores original store methods on stop()
- * - Prevents duplicate processing of images
- * - Better logging and guards for window.Vencord/Webpack
+ * Fixes:
+ * - Correct raw GitHub badges.json URL + fallback
+ * - Robust Webpack store discovery (waitFor/findModule/findByProps + retry)
+ * - Proper start/stop lifecycle with cleanup and unpatching
+ * - Safer image fixer (marks processed images)
  */
 
-const VENCORD = (window as any)?.Vencord;
-const WEBPACK = VENCORD?.Webpack;
-
-// Note: use the raw path to the badges.json file in the repo (adjust if your badges.json lives elsewhere)
-const DEFAULT_BADGE_DATA_URL =
-  "https://raw.githubusercontent.com/Zarak199076/a/main/badges.json";
+const VENCORD = (window as any).Vencord || (window as any).vencord || null;
+const WEBPACK = VENCORD?.Webpack || VENCORD?.webpack || null;
 
 type Badge = {
   id: string;
@@ -27,63 +22,62 @@ type Badge = {
 };
 
 class CustomBadges {
-  private badgeData = new Map<string, Badge[]>();
-  private BADGE_DATA_URL = DEFAULT_BADGE_DATA_URL;
+  private badgeData: Map<string, Badge[]> = new Map();
+  private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/Veil/main/badges.json";
+  private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
   private BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
   private observer: MutationObserver | null = null;
   private intervalId: number | null = null;
+  private retryPatchId: number | null = null;
   private originalGetUserProfile: Function | null = null;
   private abortController: AbortController | null = null;
 
   constructor() {}
 
   async onLoad() {
-    // nothing required during load
+    // no-op for now
   }
 
   async onStart() {
-    console.log("[CustomBadges] starting plugin");
-    if (!WEBPACK || typeof WEBPACK.waitFor !== "function") {
-      console.warn("[CustomBadges] Webpack.waitFor not available; plugin may not work");
-    }
-
+    console.log("[CustomBadges] Plugin started.");
     this.startImageFixerObserver();
 
-    // initial load (safe-call)
     await this.loadBadgeData();
 
-    // patch (registers waitFor; patch may happen async)
     const registered = this.patchProfileStore();
     console.log("[CustomBadges] Patch listener registered:", registered);
 
-    // periodic refresh
-    this.intervalId = window.setInterval(
-      () => void this.loadBadgeData(),
-      this.REFRESH_INTERVAL_MS
-    );
+    // refresh periodically
+    this.intervalId = window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
   }
 
   onStop() {
-    console.log("[CustomBadges] stopping plugin");
+    console.log("[CustomBadges] Plugin stopped.");
 
-    // stop observer
+    // disconnect observer
     if (this.observer) {
       try {
         this.observer.disconnect();
       } catch (e) {
-        console.error("[CustomBadges] error disconnecting observer:", e);
+        console.warn("[CustomBadges] observer.disconnect error:", e);
       }
       this.observer = null;
     }
 
-    // stop interval
+    // clear refresh interval
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
 
-    // abort any pending fetch
+    // clear retry interval (if set)
+    if (this.retryPatchId !== null) {
+      clearInterval(this.retryPatchId);
+      this.retryPatchId = null;
+    }
+
+    // abort any inflight fetch
     if (this.abortController) {
       try {
         this.abortController.abort();
@@ -91,43 +85,47 @@ class CustomBadges {
       this.abortController = null;
     }
 
-    // attempt to unpatch restore original store method if present
+    // attempt to restore original store if patched
     try {
       this.unpatchProfileStore();
     } catch (e) {
-      console.error("[CustomBadges] error while unpatching:", e);
+      console.warn("[CustomBadges] unpatchProfileStore error:", e);
     }
 
-    // clear in-memory data
+    // clear data
     this.badgeData.clear();
   }
 
-  // Fetch and validate badge JSON
+  // Load badges.json with fallback handling
   async loadBadgeData() {
-    // avoid overlapping loads
+    // abort previous if necessary
     if (this.abortController) {
-      this.abortController.abort();
+      try {
+        this.abortController.abort();
+      } catch {}
     }
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
 
     try {
-      const res = await fetch(this.BADGE_DATA_URL, {
-        cache: "no-store",
-        signal,
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-
+      const res = await fetch(this.BADGE_DATA_URL, { cache: "no-store", signal });
+      if (!res.ok) {
+        if (res.status === 404 && this.FALLBACK_BADGE_URL) {
+          console.warn("[CustomBadges] Primary badges.json not found (404), trying fallback.");
+          const res2 = await fetch(this.FALLBACK_BADGE_URL, { cache: "no-store", signal });
+          if (!res2.ok) throw new Error("Fallback HTTP " + res2.status);
+          const json2 = await res2.json();
+          this.setBadgeDataFromJSON(json2);
+          console.log("[CustomBadges] Loaded badge data (fallback) for", this.badgeData.size, "users");
+          return;
+        }
+        throw new Error("HTTP " + res.status);
+      }
       const json = await res.json();
       this.setBadgeDataFromJSON(json);
-      console.log(
-        "[CustomBadges] Loaded badge data for",
-        this.badgeData.size,
-        "users"
-      );
-    } catch (e) {
-      if ((e as any)?.name === "AbortError") {
-        // expected on rapid reloads; ignore
+      console.log("[CustomBadges] Loaded badge data for", this.badgeData.size, "users");
+    } catch (e: any) {
+      if (e?.name === "AbortError") {
         console.debug("[CustomBadges] loadBadgeData aborted");
       } else {
         console.error("[CustomBadges] Failed to load badge data:", e);
@@ -138,49 +136,35 @@ class CustomBadges {
   }
 
   private setBadgeDataFromJSON(raw: any) {
-    // Expecting an object mapping userId -> array of Badge
-    try {
-      this.badgeData.clear();
-      if (!raw || typeof raw !== "object") {
-        console.warn("[CustomBadges] badge JSON is not an object");
-        return;
+    this.badgeData.clear();
+    if (!raw || typeof raw !== "object") return;
+    for (const [userId, arr] of Object.entries(raw)) {
+      if (!Array.isArray(arr)) continue;
+      const parsed: Badge[] = [];
+      for (const item of arr) {
+        if (!item || typeof item !== "object") continue;
+        const id = String(item.id ?? item.badgeId ?? "");
+        const icon = String(item.icon ?? "");
+        if (!id || !icon) continue;
+        if (!this.isValidIconUrl(icon)) continue;
+        parsed.push({
+          id,
+          description: item.description ? String(item.description) : undefined,
+          icon,
+          link: item.link ? String(item.link) : undefined,
+        });
       }
-
-      for (const [userId, arr] of Object.entries(raw)) {
-        if (!Array.isArray(arr)) continue;
-        const parsed: Badge[] = [];
-        for (const item of arr) {
-          if (!item || typeof item !== "object") continue;
-          const id = String(item.id || item.badgeId || item.name || "");
-          const icon = String(item.icon || "");
-          if (!id || !icon) continue;
-          // sanitize icon URL: allow http(s) or data: URIs
-          if (!this.isValidIconUrl(icon)) continue;
-
-          parsed.push({
-            id,
-            description: item.description ? String(item.description) : undefined,
-            icon,
-            link: item.link ? String(item.link) : undefined,
-          });
-        }
-        if (parsed.length) {
-          this.badgeData.set(String(userId), parsed);
-        }
-      }
-    } catch (e) {
-      console.error("[CustomBadges] Error parsing badge JSON:", e);
+      if (parsed.length) this.badgeData.set(String(userId), parsed);
     }
   }
 
-  private isValidIconUrl(url: string) {
-    return /^(https?:\/\/|data:)/i.test(url);
+  private isValidIconUrl(u: string) {
+    return /^(https?:\/\/|data:)/i.test(u);
   }
 
-  // Fix wrapped/encoded images inserted by previous plugin behavior
+  // Fix image srcs inserted by older wrappers; mark processed to avoid repeats
   private tryFixImage(img: HTMLImageElement) {
     try {
-      // avoid reprocessing
       if (!img || img.dataset?.veilBadgeFixed === "1") return;
 
       const src = img.getAttribute("src") || "";
@@ -190,9 +174,8 @@ class CustomBadges {
         src.includes("/badge-icons/data:")
       ) {
         const m =
-          src.match(
-            /\/badge-icons\/(.+?)(?:\.(?:png|webp|jpg|jpeg|gif|svg))(?:\?|$)/i
-          ) || src.match(/\/badge-icons\/(.+)$/i);
+          src.match(/\/badge-icons\/(.+?)(?:\.(?:png|webp|jpg|jpeg|gif|svg))(?:\?|$)/i) ||
+          src.match(/\/badge-icons\/(.+)$/i);
         if (!m) return;
 
         let raw = m[1];
@@ -202,36 +185,33 @@ class CustomBadges {
         raw = raw.replace(/%2F/gi, "/");
 
         if (/^(https?:|data:)/.test(raw)) {
-          img.setAttribute("referrerPolicy", "no-referrer");
-          // set nice defaults (these attributes might not always be writable in some environments)
+          try {
+            img.setAttribute("referrerPolicy", "no-referrer");
+          } catch {}
           try {
             img.loading = "eager";
           } catch {}
           try {
-            // decoding is not yet widely supported on some older environments; guard it
             (img as any).decoding = "async";
           } catch {}
           img.src = raw;
-          // mark processed to avoid re-processing
           img.dataset.veilBadgeFixed = "1";
         }
       }
     } catch (e) {
-      // nothing fatal here
+      // swallow image fixes errors
     }
   }
 
   private startImageFixerObserver() {
-    // fix existing images
     try {
       document.querySelectorAll(this.BADGE_IMG_SELECTOR).forEach((el) => {
         if (el instanceof HTMLImageElement) this.tryFixImage(el);
       });
     } catch (e) {
-      console.warn("[CustomBadges] startImageFixerObserver init error:", e);
+      console.warn("[CustomBadges] init image fixer error:", e);
     }
 
-    // create observer if not already created
     if (this.observer) return;
 
     this.observer = new MutationObserver((mutations) => {
@@ -239,48 +219,39 @@ class CustomBadges {
         mut.addedNodes.forEach((node) => {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
           const el = node as Element;
-          if (el.matches?.(this.BADGE_IMG_SELECTOR)) {
-            if (el instanceof HTMLImageElement) this.tryFixImage(el);
-          }
-          el.querySelectorAll?.(this.BADGE_IMG_SELECTOR).forEach((child) => {
-            if (child instanceof HTMLImageElement) this.tryFixImage(child);
-          });
+          try {
+            if (el.matches?.(this.BADGE_IMG_SELECTOR) && el instanceof HTMLImageElement) this.tryFixImage(el as HTMLImageElement);
+            el.querySelectorAll?.(this.BADGE_IMG_SELECTOR).forEach((child) => {
+              if (child instanceof HTMLImageElement) this.tryFixImage(child);
+            });
+          } catch {}
         });
       }
     });
 
     try {
-      this.observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
+      this.observer.observe(document.documentElement, { childList: true, subtree: true });
     } catch (e) {
-      console.warn("[CustomBadges] observer failed to observe:", e);
+      console.warn("[CustomBadges] observer.observe failed:", e);
       this.observer = null;
     }
   }
 
-  // Patch the profile store to inject custom badges
+  // Patch the profile store's getUserProfile to inject badges
   private applyPatch(store: any) {
     if (!store || typeof store.getUserProfile !== "function") return;
+    if ((store as any).__customBadgesPatched) return;
 
-    // if we've already saved original, assume patched
-    if (this.originalGetUserProfile) return;
-
-    this.originalGetUserProfile = store.getUserProfile;
+    const orig = store.getUserProfile;
+    this.originalGetUserProfile = orig;
 
     const self = this;
     store.getUserProfile = function patchedGetUserProfile(...args: any[]) {
       try {
-        const profile = self.originalGetUserProfile!.apply(this, args);
-        // userId may be passed directly or as object; normalize
-        let userId: string | undefined = undefined;
-        if (typeof args[0] === "string" || typeof args[0] === "number") {
-          userId = String(args[0]);
-        } else if (args[0] && typeof args[0] === "object") {
-          // sometimes these functions accept an object with id property
-          userId = String((args[0] as any).id ?? "");
-        }
+        const profile = orig.apply(this, args);
+        let userId: string | undefined;
+        if (typeof args[0] === "string" || typeof args[0] === "number") userId = String(args[0]);
+        else if (args[0] && typeof args[0] === "object") userId = String((args[0] as any).id ?? "");
 
         if (!profile || !userId) return profile;
 
@@ -288,10 +259,8 @@ class CustomBadges {
         if (!badges || badges.length === 0) return profile;
 
         profile.badges = Array.isArray(profile.badges) ? profile.badges : [];
-
         for (const b of badges) {
           if (!profile.badges.some((x: any) => x?.id === b.id)) {
-            // inject clone to avoid accidental mutation of original store/badge map
             profile.badges.unshift({
               id: b.id,
               description: b.description,
@@ -300,13 +269,11 @@ class CustomBadges {
             });
           }
         }
-
         return profile;
       } catch (e) {
         console.error("[CustomBadges] error in patched getUserProfile:", e);
-        // fallback to original if something goes wrong
         try {
-          return self.originalGetUserProfile!.apply(this, args);
+          return orig.apply(this, args);
         } catch {
           return undefined;
         }
@@ -318,65 +285,125 @@ class CustomBadges {
   }
 
   private unpatchProfileStore() {
-    // find a candidate store and restore original method if we have it
     if (!this.originalGetUserProfile) return;
-
     try {
-      // attempt to locate the same store we patched
       const filter = (m: any) =>
         m && typeof m.getUserProfile === "function" && typeof m.getGuildMemberProfile === "function";
 
-      // If Webpack.waitFor is present we can try to find the store
-      if (WEBPACK && typeof WEBPACK.findModule === "function") {
+      // try to find the store synchronously and restore
+      let store: any = null;
+      try {
+        if (WEBPACK && typeof WEBPACK.findModule === "function") store = WEBPACK.findModule(filter);
+        if (!store && WEBPACK && typeof WEBPACK.findByProps === "function") store = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile");
+      } catch {}
+
+      if (store && store.getUserProfile && this.originalGetUserProfile) {
         try {
-          const store = WEBPACK.findModule(filter);
-          if (store && this.originalGetUserProfile) {
-            store.getUserProfile = this.originalGetUserProfile;
-            delete (store as any).__customBadgesPatched;
-            console.log("[CustomBadges] Restored original getUserProfile on store");
-          }
-        } catch {
-          // ignore and continue to try other restoration approaches
+          store.getUserProfile = this.originalGetUserProfile;
+          delete (store as any).__customBadgesPatched;
+          console.log("[CustomBadges] Restored original getUserProfile on store");
+        } catch (e) {
+          console.warn("[CustomBadges] Failed to restore original getUserProfile:", e);
         }
       }
 
-      // Clear our saved original reference so we don't attempt to restore multiple times later
       this.originalGetUserProfile = null;
     } catch (e) {
-      console.warn("[CustomBadges] unpatchProfileStore had an error:", e);
+      console.warn("[CustomBadges] unpatch error:", e);
     }
   }
 
+  // Robust patch find: waitFor -> findModule -> findByProps -> short retry loop
   patchProfileStore() {
     try {
       const filter = (m: any) =>
         m && typeof m.getUserProfile === "function" && typeof m.getGuildMemberProfile === "function";
 
-      if (!WEBPACK || typeof WEBPACK.waitFor !== "function") {
-        console.warn("[CustomBadges] Webpack.waitFor unavailable; using findModule if present");
-        if (WEBPACK && typeof WEBPACK.findModule === "function") {
-          try {
-            const store = WEBPACK.findModule(filter);
-            if (store) this.applyPatch(store);
-            return Boolean(store);
-          } catch (e) {
-            console.error("[CustomBadges] findModule threw:", e);
-            return false;
+      const trySyncFind = (): any => {
+        try {
+          if (!WEBPACK) return null;
+          if (typeof WEBPACK.findModule === "function") {
+            try {
+              const s = WEBPACK.findModule(filter);
+              if (s) return s;
+            } catch {}
           }
+          if (typeof WEBPACK.findByProps === "function") {
+            try {
+              const s = WEBPACK.findByProps("getUserProfile", "getGuildMemberProfile");
+              if (s) return s;
+            } catch {}
+          }
+          // other helper names
+          if (typeof WEBPACK.findModuleByProps === "function") {
+            try {
+              const s = WEBPACK.findModuleByProps(["getUserProfile", "getGuildMemberProfile"]);
+              if (s) return s;
+            } catch {}
+          }
+        } catch (e) {
+          console.debug("[CustomBadges] sync find threw:", e);
         }
-        return false;
+        return null;
+      };
+
+      // If async waitFor exists, prefer it
+      if (WEBPACK && typeof WEBPACK.waitFor === "function") {
+        try {
+          WEBPACK.waitFor(filter, (store: any) => {
+            try {
+              this.applyPatch(store);
+            } catch (e) {
+              console.error("[CustomBadges] Failed to apply patch once store was found:", e);
+            }
+          });
+          return true;
+        } catch (e) {
+          console.warn("[CustomBadges] Webpack.waitFor threw; falling back:", e);
+        }
       }
 
-      // register patching handler (store may appear asynchronously)
-      WEBPACK.waitFor(filter, (store: any) => {
+      // Try sync find once
+      const store = trySyncFind();
+      if (store) {
         try {
           this.applyPatch(store);
-        } catch (err) {
-          console.error("[CustomBadges] Failed to apply patch once store was found:", err);
+        } catch (e) {
+          console.error("[CustomBadges] applyPatch threw:", e);
         }
-      });
+        return true;
+      }
 
-      return true;
+      // Retry loop: short-lived to give environment time to load modules
+      console.warn("[CustomBadges] Webpack.waitFor not available; starting short retry loop to find profile store.");
+      let tries = 0;
+      const maxTries = 25;
+      const intervalMs = 1500;
+      this.retryPatchId = window.setInterval(() => {
+        tries++;
+        const s = trySyncFind();
+        if (s) {
+          try {
+            this.applyPatch(s);
+            if (this.retryPatchId !== null) {
+              clearInterval(this.retryPatchId);
+              this.retryPatchId = null;
+            }
+          } catch (e) {
+            console.error("[CustomBadges] Failed to apply patch during retry:", e);
+          }
+          return;
+        }
+        if (tries >= maxTries) {
+          if (this.retryPatchId !== null) {
+            clearInterval(this.retryPatchId);
+            this.retryPatchId = null;
+          }
+          console.warn("[CustomBadges] Could not locate profile store after retries; plugin may not function.");
+        }
+      }, intervalMs) as unknown as number;
+
+      return false;
     } catch (e) {
       console.error("[CustomBadges] patchProfileStore threw:", e);
       return false;
@@ -384,10 +411,6 @@ class CustomBadges {
   }
 }
 
-/**
- * Plugin export
- * Keep single instance reference so stop() can clean up the same instance the start() created.
- */
 let instance: CustomBadges | null = null;
 
 export default definePlugin({
@@ -397,7 +420,7 @@ export default definePlugin({
   authors: [VeilDevs.Zarak],
   start() {
     if (!instance) instance = new CustomBadges();
-    instance.onStart();
+    void instance.onStart();
   },
   stop() {
     if (!instance) return;
