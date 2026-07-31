@@ -19,17 +19,19 @@ function VeilTag() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 2,
-                height: 15,
+                position: "relative",
+                top: -1,
                 backgroundColor: "#a259ff",
                 color: "#ffffff",
                 borderRadius: 3,
-                padding: "0 3px",
+                padding: "1px 4px 0",
                 marginLeft: 4,
                 fontSize: 10,
-                fontWeight: 700,
+                fontWeight: 600,
                 lineHeight: "12px",
+                letterSpacing: "0.02em",
                 textTransform: "uppercase",
-                verticalAlign: "middle",
+                whiteSpace: "nowrap",
             }}
         >
             <VeilIcon width={10} height={10} />
