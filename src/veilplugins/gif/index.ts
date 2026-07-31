@@ -1,8 +1,10 @@
 import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
+import { findByPropsLazy } from "@webpack";
+
 // Dynamically locate Discord's internal message routing engine
-const MessageActions = Finder.byProps("sendBotMessage", "receiveMessage");
+const MessageActions = findByPropsLazy("sendBotMessage", "receiveMessage");
 
 // Subreddits to search — all SFW-moderated GIF communities.
 // Add more here if you want, but stick to subs that actively
@@ -60,11 +62,13 @@ export default definePlugin({
     name: "giff",
     description: "/giff <query> — pulls a GIF from curated SFW subreddits via Reddit's public search API",
     authors: [VeilDevs.Zarak],
+    dependencies: ["CommandsAPI"],
 
-    start() {
-        registerCommand({
+    commands: [
+        {
             name: "giff",
             description: "Send a GIF matching a search term",
+            inputType: ApplicationCommandInputType.BUILT_IN,
             options: [
                 {
                     name: "query",
@@ -73,8 +77,9 @@ export default definePlugin({
                     required: true,
                 },
             ],
-            async execute(args, { channel }) {
-                const searchWord = args[0].value;
+            execute: async (opts, ctx) => {
+                const searchWord = findOption(opts, "query", "");
+                const channel = ctx.channel;
 
                 findGif(searchWord).then(gifUrl => {
                     if (!gifUrl) {
@@ -93,11 +98,7 @@ export default definePlugin({
                         author: { id: "1", username: "Clyde", discriminator: "0000", avatar: "clyde" },
                     });
                 });
-
-                return {};
             },
-        });
-    },
-
-    stop() {},
+        },
+    ],
 });
