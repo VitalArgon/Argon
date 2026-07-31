@@ -2,14 +2,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 
 /**
- * Veil Badges plugin — injects badges by observing profile renders in the DOM
- *
- * Behavior:
- * - Loads badges.json (with fallback)
- * - Observes when profiles are rendered in the DOM
- * - Finds the user ID from the rendered profile
- * - Directly mutates the badge elements with custom badge data
- * - Injects once per profile load
+ * Veil Badges plugin — scans for profiles periodically and injects badges
  */
 
 type Badge = {
@@ -25,8 +18,7 @@ class CustomBadges {
   private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/refs/heads/main/badges.json";
   private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-  private observer: MutationObserver | null = null;
-  private intervalId: number | null = null;
+  private scanIntervalId: number | null = null;
   private abortController: AbortController | null = null;
 
   constructor() {}
@@ -36,25 +28,20 @@ class CustomBadges {
   async onStart() {
     console.log("[CustomBadges] Plugin started.");
     await this.loadBadgeData();
-    this.startProfileObserver();
-    this.intervalId = window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
+    
+    // Scan for profiles every 500ms
+    this.scanIntervalId = window.setInterval(() => this.scanAllProfiles(), 500) as unknown as number;
+    
+    // Reload badge data every 5 minutes
+    window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
   }
 
   onStop() {
     console.log("[CustomBadges] Plugin stopped.");
 
-    if (this.observer) {
-      try {
-        this.observer.disconnect();
-      } catch (e) {
-        console.warn("[CustomBadges] observer.disconnect error:", e);
-      }
-      this.observer = null;
-    }
-
-    if (this.intervalId !== null) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+    if (this.scanIntervalId !== null) {
+      clearInterval(this.scanIntervalId);
+      this.scanIntervalId = null;
     }
 
     if (this.abortController) {
@@ -132,57 +119,29 @@ class CustomBadges {
     return /^(https?:\/\/|data:)/i.test(u);
   }
 
-  private startProfileObserver() {
-    if (this.observer) return;
-
-    this.observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType !== Node.ELEMENT_NODE) return;
-          const el = node as Element;
-
-          // Log all significant additions to understand DOM structure
-          if (el.className && typeof el.className === "string") {
-            if (el.className.includes("user") || el.className.includes("profile") || el.className.includes("badge")) {
-              console.debug("[CustomBadges] Added node with class:", el.className);
-            }
-          }
-
-          // Search more broadly for elements that might contain profile info
-          this.scanForProfiles(el);
-        });
-      }
-    });
-
+  private scanAllProfiles() {
     try {
-      this.observer.observe(document.documentElement, { childList: true, subtree: true });
-      console.log("[CustomBadges] Profile observer started");
-    } catch (e) {
-      console.warn("[CustomBadges] observer.observe failed:", e);
-      this.observer = null;
-    }
-  }
+      // Look for all possible profile containers
+      const selectors = [
+        '[class*="userProfile"]',
+        '[class*="userCard"]',
+        '[class*="profileBadges"]',
+        '[data-test-id*="user-profile"]',
+        '[data-test-id*="user-card"]',
+        '.header-2Y0yW9',  // Discord user profile header
+        '[class*="Popout"]', // For user popouts
+      ];
 
-  private scanForProfiles(el: Element) {
-    try {
-      // Look for profile header or user card elements
-      const profileElements = el.querySelectorAll?.('[class*="userProfile"], [class*="userCard"], [data-test-id*="user"]') || [];
-      
-      if (profileElements.length > 0) {
-        console.debug("[CustomBadges] Found", profileElements.length, "profile elements");
-      }
-
-      profileElements.forEach((profile) => {
-        this.tryInjectBadges(profile);
-      });
-
-      // Also check if the element itself is a profile
-      if (el.className && (String(el.className).includes("userProfile") || String(el.className).includes("userCard"))) {
-        console.debug("[CustomBadges] Found profile element:", el.className);
-        this.tryInjectBadges(el);
+      for (const selector of selectors) {
+        try {
+          const elements = document.querySelectorAll(selector);
+          elements.forEach((el) => this.tryInjectBadges(el));
+        } catch (e) {
+          // Ignore invalid selectors
+        }
       }
     } catch (e) {
-      console.debug("[CustomBadges] scanForProfiles error:", e);
+      console.debug("[CustomBadges] scanAllProfiles error:", e);
     }
   }
 
@@ -191,19 +150,19 @@ class CustomBadges {
       // Try to extract user ID from nearby elements or data attributes
       const userId = this.extractUserIdFromContainer(container);
       if (!userId) {
-        console.debug("[CustomBadges] Could not extract userId from container");
         return;
       }
 
-      // Skip if already injected for this profile instance
-      const containerKey = `${userId}-${container.innerHTML.substring(0, 100)}`;
+      // Create a unique key for this profile render
+      const innerText = container.textContent?.substring(0, 100) || "";
+      const containerKey = `${userId}-${innerText}`;
+      
       if (this.injectedProfiles.has(containerKey)) {
         return;
       }
 
       const badges = this.badgeData.get(userId);
       if (!badges || badges.length === 0) {
-        console.debug("[CustomBadges] No badges for user", userId);
         return;
       }
 
@@ -213,16 +172,16 @@ class CustomBadges {
       // Try to find or create badge elements
       this.injectBadgeElements(container, badges, userId);
     } catch (e) {
-      console.error("[CustomBadges] tryInjectBadges error:", e);
+      console.debug("[CustomBadges] tryInjectBadges error:", e);
     }
   }
 
   private extractUserIdFromContainer(container: Element): string | null {
     try {
-      // Try to find userId in data attributes
+      // Try to find userId in data attributes by searching up the tree
       let el: Element | null = container;
       let depth = 0;
-      while (el && el !== document.body && depth < 10) {
+      while (el && el !== document.body && depth < 15) {
         const userId = 
           el.getAttribute?.("data-user-id") ||
           el.getAttribute?.("userid") ||
@@ -230,32 +189,44 @@ class CustomBadges {
           (el as any).dataset?.userId ||
           null;
         if (userId) {
-          console.debug("[CustomBadges] Found userId via attribute:", userId);
           return userId;
         }
         el = el.parentElement;
         depth++;
       }
 
-      // Try to extract from text content or nearby elements
+      // Try to extract from links
       const userLink = container.querySelector?.('a[href*="/users/"]');
       if (userLink) {
         const match = userLink.href.match(/\/users\/(\d+)/);
         if (match) {
-          console.debug("[CustomBadges] Found userId via link:", match[1]);
           return match[1];
+        }
+      }
+
+      // Try to find in the entire page if container has profile-like content
+      if (container.textContent && (container.textContent.includes("@") || container.textContent.length > 100)) {
+        // Look for user ID in any data attributes on the container or its children
+        const allElements = container.querySelectorAll?.("[data-user-id]") || [];
+        if (allElements.length > 0) {
+          const userId = (allElements[0] as any).getAttribute?.("data-user-id");
+          if (userId) return userId;
         }
       }
 
       return null;
     } catch (e) {
-      console.debug("[CustomBadges] extractUserIdFromContainer error:", e);
       return null;
     }
   }
 
   private injectBadgeElements(container: Element, badges: Badge[], userId: string) {
     try {
+      // Check if badges already exist in this container
+      if (container.querySelector(".veil-custom-badges")) {
+        return;
+      }
+
       // Create a container for custom badges
       const customBadgeContainer = document.createElement("div");
       customBadgeContainer.className = "veil-custom-badges";
@@ -281,23 +252,33 @@ class CustomBadges {
         customBadgeContainer.appendChild(badgeImg);
       }
 
-      // Try to find a good insertion point
+      // Try to find a good insertion point - look for existing badges or username area
       let inserted = false;
 
       // Look for existing badge container
       const existingBadgeContainer = container.querySelector('[class*="badge"]');
       if (existingBadgeContainer?.parentElement) {
         existingBadgeContainer.parentElement.insertBefore(customBadgeContainer, existingBadgeContainer.nextSibling);
-        console.debug("[CustomBadges] Inserted after existing badges");
         inserted = true;
       }
 
-      // Look for username element
+      // Look for username or name element
       if (!inserted) {
-        const usernameEl = container.querySelector('[class*="username"], [class*="name"]');
-        if (usernameEl?.parentElement) {
-          usernameEl.parentElement.appendChild(customBadgeContainer);
-          console.debug("[CustomBadges] Inserted after username");
+        const nameElements = container.querySelectorAll?.('[class*="username"], [class*="name"], [class*="nick"]') || [];
+        if (nameElements.length > 0) {
+          const nameEl = nameElements[0];
+          if (nameEl?.parentElement) {
+            nameEl.parentElement.appendChild(customBadgeContainer);
+            inserted = true;
+          }
+        }
+      }
+
+      // Try to append to first direct child container
+      if (!inserted) {
+        const firstChild = container.firstElementChild;
+        if (firstChild) {
+          firstChild.appendChild(customBadgeContainer);
           inserted = true;
         }
       }
@@ -305,10 +286,9 @@ class CustomBadges {
       // Fall back to appending to container
       if (!inserted) {
         container.appendChild(customBadgeContainer);
-        console.debug("[CustomBadges] Appended to container");
       }
 
-      console.debug("[CustomBadges] Injected badge elements for", userId, "->", badges.map((x) => x.id));
+      console.debug("[CustomBadges] Injected badges for user", userId, "->", badges.map((x) => x.id));
     } catch (e) {
       console.error("[CustomBadges] injectBadgeElements error:", e);
     }
