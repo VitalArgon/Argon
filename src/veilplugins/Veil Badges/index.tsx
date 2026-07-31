@@ -39,6 +39,8 @@ class CustomBadges {
   private intervalId: number | null = null;
   private retryPatchId: number | null = null;
   private abortController: AbortController | null = null;
+  private userStore: any = null;
+  private profileStore: any = null;
 
   // track patched stores so we can restore originals on stop
   private patchedStores: Array<{ store: any; originals: Record<string, Function> }> = [];
@@ -96,6 +98,8 @@ class CustomBadges {
 
     this.badgeData.clear();
     this.injectedUsers.clear();
+    this.userStore = null;
+    this.profileStore = null;
   }
 
   private async loadBadgeData() {
@@ -236,6 +240,21 @@ class CustomBadges {
     }
   }
 
+  private invalidateCache(userId: string) {
+    try {
+      if (this.profileStore?.clearCache) {
+        this.profileStore.clearCache(userId);
+        console.debug("[CustomBadges] Cleared cache for user", userId);
+      }
+      if (this.userStore?.getUser) {
+        // Touch the user to potentially trigger re-fetches
+        this.userStore.getUser(userId);
+      }
+    } catch (e) {
+      console.debug("[CustomBadges] Cache invalidation error:", e);
+    }
+  }
+
   private applyPatch(store: any) {
     if (!store) return;
     if ((store as any).__customBadgesPatched) return;
@@ -244,6 +263,7 @@ class CustomBadges {
     const originals: Record<string, Function> = {};
 
     const self = this;
+    self.profileStore = store; // Store reference for cache invalidation
 
     const safeInject = (args: IArguments | any[], profile: any) => {
       try {
@@ -296,6 +316,10 @@ class CustomBadges {
         try {
           console.debug("[CustomBadges] injected badges for", userId, "->", badges.map((x) => x.id));
         } catch {}
+        
+        // Force cache invalidation after injection
+        setTimeout(() => self.invalidateCache(userId), 0);
+        
         return cloned;
       } catch (e) {
         console.error("[CustomBadges] error injecting badges:", e);
