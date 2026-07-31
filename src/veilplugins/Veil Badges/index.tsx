@@ -5,7 +5,7 @@ const { Webpack } = window.Vencord;
 
 export default definePlugin({
     name: "Veil Badges",
-    description: "Custom Badges Added Via Veil.",
+    description: "Custom Badges Added Via Veil. Join -> https://discord.gg/Y33UjmdsER",
     tags: ["Fun", "Veil"],
     authors: [VeilDevs.Zarak]
 
