@@ -39,8 +39,8 @@ function DevPluginsButton({ user }: { user: User; }) {
 }
 
 export default definePlugin({
-    name: "DevPluginsButton",
-    description: "Shows a profile button linking to a dev's authored plugins, for anyone listed in Devs/VeilDevs/EquicordDevs",
+    name: "PluginAuthors",
+    description: "Shows a profile button linking to a user's authored plugins. (user needs to be in a devs list)",
     authors: [VeilDevs.Zarak], // but add me to your devs list
     dependencies: ["ProfileCollectionsAPI"],
 
