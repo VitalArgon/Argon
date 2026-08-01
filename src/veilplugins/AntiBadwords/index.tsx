@@ -79,7 +79,6 @@ const hardVersion = e => {
 export default definePlugin({
     name: "AntiBadWords",
     description: "Use Roblox chat filter directly in Discord!",
-    authors: [Devs.fox3000foxy],
     dependencies: ["UserSettingsAPI"],
     settings,
     start: () => {
