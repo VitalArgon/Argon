@@ -32,7 +32,7 @@ function processAll(root: ParentNode) {
 let observer: MutationObserver | null = null;
 
 export default definePlugin({
-    name: "Dashless",
+    name: "SpacedOut",
     description: "Replaces hyphens with spaces in channel names.",
     authors: [VeilDevs.Zarak],
 
