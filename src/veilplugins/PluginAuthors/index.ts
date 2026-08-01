@@ -1,9 +1,8 @@
 import definePlugin from "@utils/types";
-import { Devs, VeilDevs, EquicordDevs } from "@utils/constants"; // add/change this if you take this plugin
+import { Devs, VeilDevs, EquicordDevs } from "@utils/constants"; // Change this if you want to take this plugin
 import { React } from "@webpack/common";
-import Plugins from "~plugins";
-
-import { openContributorModal as openExistingDevModal } from "@components/PluginSettings/ContributorModal";
+import { User } from "@vencord/discord-types";
+import { openContributorModal } from "@components/settings/tabs/plugins/ContributorModal";
 
 function h(...args: Parameters<typeof React.createElement>) {
     return React.createElement(...args);
@@ -14,23 +13,19 @@ interface DevEntry {
     name: string;
 }
 
-const DEV_SOURCES: Record<string, Record<string, DevEntry>> = { Devs, VeilDevs, EquicordDevs }; // Change this too though
+const DEV_SOURCES: Record<string, Record<string, DevEntry>> = { Devs, VeilDevs, EquicordDevs }; // And change this
 
-function findDevEntry(userId: string): DevEntry | null {
-    for (const source of Object.values(DEV_SOURCES)) {
-        for (const entry of Object.values(source)) {
-            if (String(entry.id) === userId) return entry;
-        }
-    }
-    return null;
+function isDev(userId: string): boolean {
+    return Object.values(DEV_SOURCES).some(source =>
+        Object.values(source).some(entry => String(entry.id) === userId)
+    );
 }
 
-function DevPluginsButton({ userId }: { userId: string; }) {
-    const dev = findDevEntry(userId);
-    if (!dev) return null;
+function DevPluginsButton({ user }: { user: User; }) {
+    if (!isDev(user.id)) return null;
 
     return h("button", {
-        onClick: () => openExistingDevModal(dev),
+        onClick: () => openContributorModal(user),
         style: {
             background: "var(--button-secondary-background)",
             color: "var(--text-normal)",
@@ -44,9 +39,9 @@ function DevPluginsButton({ userId }: { userId: string; }) {
 }
 
 export default definePlugin({
-    name: "PluginAuthors",
-    description: "Shows a profile button linking to a user's authored plugins. (Have to be listed in a Devs list)",
-    authors: [VeilDevs.Zarak], // just add me into your devs list if you use this
+    name: "DevPluginsButton",
+    description: "Shows a profile button linking to a dev's authored plugins, for anyone listed in Devs/VeilDevs/EquicordDevs",
+    authors: [VeilDevs.Zarak], // but add me to your devs list
 
     patches: [
         {
