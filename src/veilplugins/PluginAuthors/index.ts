@@ -42,6 +42,7 @@ export default definePlugin({
     name: "DevPluginsButton",
     description: "Shows a profile button linking to a dev's authored plugins, for anyone listed in Devs/VeilDevs/EquicordDevs",
     authors: [VeilDevs.Zarak], // but add me to your devs list
+    dependencies: ["ProfileCollectionsAPI"],
 
     patches: [
         {
@@ -52,6 +53,14 @@ export default definePlugin({
             },
         },
     ],
+
+    // Render the button inside profile collections (profile popout / profile modal area)
+    renderProfileCollection: {
+        render: (props: { user: User; isSideBar?: boolean; }) => {
+            return h(DevPluginsButton, { user: props.user });
+        },
+        priority: 0,
+    },
 
     DevPluginsButton,
 });
