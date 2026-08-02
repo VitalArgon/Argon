@@ -315,27 +315,87 @@ function buildPluginCardSpan(rawName: string) {
     nameEl.className = "rf-plugin-card-name";
     nameEl.textContent = plugin.name;
 
-    // Determine plugin source (Equicord / Vencord / Veil) from PluginMeta.folderName
-    const pluginMeta = PluginMeta[plugin.name];
-    let sourceIconName: string | null = null;
-    if (pluginMeta?.folderName?.startsWith("src/equicordplugins/")) sourceIconName = "equicord";
-    else if (pluginMeta?.folderName?.startsWith("src/plugins/")) sourceIconName = "vencord";
-    else if (pluginMeta?.folderName?.startsWith("src/veilplugins/")) sourceIconName = "veil";
+    // Use same source images as PluginCard.tsx for pixel match
+    const pluginInfo = [
+        {
+            condition: plugin.isModified ?? false,
+            src: "https://equicord.org/assets/icons/equicord/modified.png",
+            alt: "Modified",
+            title: "Modified Vencord Plugin"
+        },
+        {
+            condition: PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
+            src: "https://equicord.org/assets/favicon.png",
+            alt: "Equicord",
+            title: "Equicord Plugin"
+        },
+        {
+            condition: PluginMeta[plugin.name]?.folderName?.startsWith("src/plugins/"),
+            src: "https://equicord.org/assets/icons/vencord/icon-light.png",
+            alt: "Vencord",
+            title: "Vencord Plugin"
+        },
+        {
+            condition: PluginMeta[plugin.name]?.folderName?.startsWith("src/veilplugins/"),
+            src: "https://raw.githubusercontent.com/Zarak199076/Veil/main/browser/icon.png",
+            alt: "Veil",
+            title: "Veil Plugin"
+        },
+        {
+            condition: PluginMeta[plugin.name]?.userPlugin ?? false,
+            src: "https://equicord.org/assets/icons/misc/userplugin.png",
+            alt: "User",
+            title: "User Plugin"
+        }
+    ];
 
-    const sourceIconWrap = document.createElement("span");
-    sourceIconWrap.className = "rf-plugin-card-source-icon";
-    if (sourceIconName) renderIconInto(sourceIconWrap, sourceIconName);
+    const pluginDetails = pluginInfo.find(p => p.condition);
 
+    const sourceImg = pluginDetails ? document.createElement("img") : null;
+    if (sourceImg && pluginDetails) {
+        sourceImg.src = pluginDetails.src;
+        sourceImg.alt = pluginDetails.alt;
+        sourceImg.title = pluginDetails.title;
+        sourceImg.className = "rf-plugin-card-source-img";
+    }
+
+    // Title group: icon, name + source image
     const titleGroup = document.createElement("div");
     titleGroup.className = "rf-plugin-card-title-group";
-    titleGroup.append(iconWrap, sourceIconWrap, nameEl);
+    titleGroup.append(iconWrap);
 
-    const statusPill = document.createElement("span");
+    const titleTextWrap = document.createElement("div");
+    titleTextWrap.className = "rf-plugin-card-text";
+    titleTextWrap.appendChild(nameEl);
+
+    if (sourceImg) titleTextWrap.appendChild(sourceImg);
+    titleGroup.appendChild(titleTextWrap);
+
+    // Info button (opens full PluginCard modal)
+    const infoBtn = document.createElement("button");
+    infoBtn.className = "rf-plugin-card-info-button";
+    infoBtn.title = pluginDetails?.title ?? "Plugin info";
+    infoBtn.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openPluginCardModal(plugin);
+    });
+    // render CogWheel icon inside button
+    renderIconInto(infoBtn, "CogWheel");
+
+    // read-only toggle to visually match the real PluginCard (right side)
     const enabled = !!plugin.started || !!plugin.enabled;
-    statusPill.className = `rf-plugin-card-status ${enabled ? "rf-plugin-card-status-on" : "rf-plugin-card-status-off"}`;
-    statusPill.textContent = enabled ? "Enabled" : "Disabled";
+    const toggle = document.createElement("span");
+    toggle.className = `rf-toggle ${enabled ? "rf-toggle-on" : "rf-toggle-off"}`;
+    const knob = document.createElement("span");
+    knob.className = "rf-toggle-knob";
+    toggle.appendChild(knob);
 
-    header.append(titleGroup, statusPill);
+    const rightGroup = document.createElement("div");
+    rightGroup.className = "rf-plugin-card-right";
+    rightGroup.append(toggle, infoBtn);
+
+    header.append(titleGroup, rightGroup);
 
     const desc = document.createElement("div");
     desc.className = "rf-plugin-card-desc";
@@ -459,13 +519,17 @@ function injectStyles() {
         .rf-plugin-card-body{padding:11px 14px;flex:1;min-width:0;}
         .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;}
         .rf-plugin-card-title-group{display:flex;align-items:center;gap:7px;min-width:0;}
-        .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;}
-        .rf-plugin-card-source-icon{display:inline-flex;align-items:center;margin-left:4px;color:var(--interactive-icon-default);flex-shrink:0;}
+        .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:rgba(162,89,255,0.08);}
+        .rf-plugin-card-text{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;}
+        .rf-plugin-card-source-img{width:18px;height:18px;margin-left:6px;border-radius:4px;}
         .rf-plugin-card-name{font-weight:700;color:#f2f3f5;font-size:14px;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-        .rf-plugin-card-status{font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 8px;border-radius:20px;flex-shrink:0;}
-        .rf-plugin-card-status-on{background:rgba(59,165,93,.16);color:#3BA55D;box-shadow:inset 0 0 0 1px rgba(59,165,93,.35);}
-        .rf-plugin-card-status-off{background:rgba(148,155,164,.14);color:#949BA4;box-shadow:inset 0 0 0 1px rgba(148,155,164,.3);}
-        .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;line-height:1.45;margin-top:5px;}
+        .rf-plugin-card-right{display:flex;align-items:center;gap:8px;}
+        .rf-plugin-card-info-button{background:transparent;border:none;padding:6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--interactive-icon-default);}
+        .rf-toggle{display:inline-block;width:44px;height:24px;border-radius:999px;background:rgba(148,155,164,0.16);position:relative;}
+        .rf-toggle.rf-toggle-on{background:linear-gradient(90deg,#A259FF,#6C3FBF);}
+        .rf-toggle-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .08s ease;box-shadow:0 1px 2px rgba(0,0,0,0.3);}
+        .rf-toggle.rf-toggle-on .rf-toggle-knob{left:23px;}
+        .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;line-height:1.45;margin-top:8px;}
         .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:8px;font-weight:500;}
     `;
     document.head.appendChild(style);
