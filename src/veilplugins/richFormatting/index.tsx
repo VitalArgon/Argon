@@ -5,7 +5,7 @@ import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { React, Modal, openModal } from "@webpack/common";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
-import Plugins from "~plugins";
+import Plugins, { PluginMeta } from "~plugins";
 
 const PROCESSED_ATTR = "data-rf-processed";
 
@@ -298,32 +298,48 @@ function buildPluginCardSpan(rawName: string) {
         openPluginCardModal(plugin);
     });
 
+    const accent = document.createElement("div");
+    accent.className = "rf-plugin-card-accent";
+
+    const body = document.createElement("div");
+    body.className = "rf-plugin-card-body";
+
     const header = document.createElement("div");
     header.className = "rf-plugin-card-header";
+
+    const iconWrap = document.createElement("span");
+    iconWrap.className = "rf-plugin-card-icon";
+    renderIconInto(iconWrap, "plugin");
 
     const nameEl = document.createElement("span");
     nameEl.className = "rf-plugin-card-name";
     nameEl.textContent = plugin.name;
+
+    const titleGroup = document.createElement("div");
+    titleGroup.className = "rf-plugin-card-title-group";
+    titleGroup.append(iconWrap, nameEl);
 
     const statusPill = document.createElement("span");
     const enabled = !!plugin.started || !!plugin.enabled;
     statusPill.className = `rf-plugin-card-status ${enabled ? "rf-plugin-card-status-on" : "rf-plugin-card-status-off"}`;
     statusPill.textContent = enabled ? "Enabled" : "Disabled";
 
-    header.append(nameEl, statusPill);
+    header.append(titleGroup, statusPill);
 
     const desc = document.createElement("div");
     desc.className = "rf-plugin-card-desc";
     desc.textContent = plugin.description ?? "";
 
-    card.append(header, desc);
+    body.append(header, desc);
 
     if (Array.isArray(plugin.authors) && plugin.authors.length) {
         const authorsEl = document.createElement("div");
         authorsEl.className = "rf-plugin-card-authors";
-        authorsEl.textContent = "By " + plugin.authors.map((a: any) => a.name).filter(Boolean).join(", ");
-        card.appendChild(authorsEl);
+        authorsEl.textContent = plugin.authors.map((a: any) => a.name).filter(Boolean).join(" · ");
+        body.appendChild(authorsEl);
     }
+
+    card.append(accent, body);
 
     return card;
 }
@@ -425,15 +441,20 @@ function injectStyles() {
         .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
         .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
         .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
-        .rf-plugin-card{display:block;background:#2b2d31;border:1px solid #3f4147;border-radius:8px;padding:10px 12px;margin:4px 0;max-width:420px;cursor:pointer;text-align:left;}
-        .rf-plugin-card:hover{border-color:#5865F2;}
-        .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-        .rf-plugin-card-name{font-weight:600;color:#f2f3f5;font-size:14px;}
-        .rf-plugin-card-status{font-size:11px;font-weight:600;padding:1px 8px;border-radius:8px;}
-        .rf-plugin-card-status-on{background:#3BA55D;color:#fff;}
-        .rf-plugin-card-status-off{background:#4e5058;color:#dbdee1;}
-        .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;margin-top:4px;}
-        .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:6px;}
+        .rf-plugin-card{display:flex;align-items:stretch;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;max-width:420px;cursor:pointer;text-align:left;overflow:hidden;transition:border-color .15s ease,transform .1s ease;}
+        .rf-plugin-card:hover{border-color:#A259FF;transform:translateY(-1px);}
+        .rf-plugin-card:active{transform:translateY(0);}
+        .rf-plugin-card-accent{width:4px;flex-shrink:0;background:linear-gradient(180deg,#A259FF,#6C3FBF);}
+        .rf-plugin-card-body{padding:11px 14px;flex:1;min-width:0;}
+        .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+        .rf-plugin-card-title-group{display:flex;align-items:center;gap:7px;min-width:0;}
+        .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;}
+        .rf-plugin-card-name{font-weight:700;color:#f2f3f5;font-size:14px;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .rf-plugin-card-status{font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 8px;border-radius:20px;flex-shrink:0;}
+        .rf-plugin-card-status-on{background:rgba(59,165,93,.16);color:#3BA55D;box-shadow:inset 0 0 0 1px rgba(59,165,93,.35);}
+        .rf-plugin-card-status-off{background:rgba(148,155,164,.14);color:#949BA4;box-shadow:inset 0 0 0 1px rgba(148,155,164,.3);}
+        .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;line-height:1.45;margin-top:5px;}
+        .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:8px;font-weight:500;}
     `;
     document.head.appendChild(style);
 }
@@ -493,6 +514,9 @@ export default definePlugin({
     ],
 
     start() {
+        // TEMP DEBUG — remove after checking console output.
+        console.log("[RichFormatting DEBUG] PluginMeta sample:", PluginMeta["RichFormatting"]);
+        console.log("[RichFormatting DEBUG] PluginMeta full object:", PluginMeta);
         injectStyles();
 
         if (settings.store.logIconsOnStart) {
