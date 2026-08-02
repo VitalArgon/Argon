@@ -299,7 +299,6 @@ function buildPluginCardSpan(rawName: string) {
     if (sourceImg) titleTextWrap.appendChild(sourceImg);
     titleGroup.appendChild(titleTextWrap);
 
-    // Info button (opens full PluginCard modal)
     const infoBtn = document.createElement("button");
     infoBtn.className = "rf-plugin-card-info-button";
     infoBtn.title = pluginDetails?.title ?? "Plugin info";
@@ -341,6 +340,14 @@ function buildPluginCardSpan(rawName: string) {
     return card;
 }
 
+function buildColoredText(hex: string, text: string) {
+    const span = document.createElement("span");
+    const normalized = hex.startsWith("#") ? hex : `#${hex}`;
+    span.style.color = normalized;
+    span.textContent = text;
+    return span;
+}
+
 const TOKEN_RE = new RegExp(
     [
         String.raw`\{\{btn:([^|}]+)\|(https?:\/\/[^\s}]+)\}\}`,        
@@ -350,12 +357,13 @@ const TOKEN_RE = new RegExp(
         String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,                    
         String.raw`\{\{icon:([a-zA-Z0-9_]+)\}\}`,
         String.raw`\{\{plugin:"?([^"}]+?)"?\}\}`,
+        String.raw`\{\{colored:(#?[0-9a-fA-F]{3,8}):([^}]*)\}\}`,
     ].join("|"),
     "g"
 );
 
 const BLOCK_FOLD_RE = /:::fold\s+([^\n]+)\n([\s\S]*?):::/g;
-const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|\{\{plugin:|:::fold/;
+const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|\{\{plugin:|\{\{colored:|:::fold/;
 
 function processInlineIntoFragment(text: string) {
     const frag = document.createDocumentFragment();
@@ -375,6 +383,7 @@ function processInlineIntoFragment(text: string) {
         else if (match[8] !== undefined) frag.appendChild(buildFold(match[8], match[9]));
         else if (match[10] !== undefined) frag.appendChild(buildIconSpan(match[10]));
         else if (match[11] !== undefined) frag.appendChild(buildPluginCardSpan(match[11]));
+        else if (match[12] !== undefined) frag.appendChild(buildColoredText(match[12], match[13]));
 
         lastIndex = tokenRe.lastIndex;
 
@@ -472,6 +481,7 @@ function buildHelpText() {
         `**Icon:** \`${zw}icon:name}}\``,
         `Available icon names: ${iconNames}`,
         `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
+        `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
     ].join("\n");
 };
 
