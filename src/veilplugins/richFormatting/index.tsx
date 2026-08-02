@@ -2,7 +2,8 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
-import { React, ReactDOM } from "@webpack/common";
+import { React } from "@webpack/common";
+import { findByPropsLazy } from "@webpack";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
 import Plugins from "~plugins";
@@ -247,11 +248,17 @@ function buildIconSpan(name: string) {
     return span;
 }
 
+// @webpack/common's ReactDOM re-export was missing createRoot on this
+// build (threw "createRoot is not a function") — finding the real
+// module directly, same fix as the Finder/MessageActions issue
+// earlier in this project.
+const ReactDOM = findByPropsLazy("createRoot", "findDOMNode");
+
 // Roots created for plugin-card embeds, tracked so we can unmount
 // them cleanly in stop() rather than leaking React trees when
 // Discord's own virtualization removes the underlying message DOM
 // out from under us.
-const pluginCardRoots = new Set<ReturnType<typeof ReactDOM.createRoot>>();
+const pluginCardRoots = new Set<any>();
 
 function findPluginByName(rawName: string) {
     const name = rawName.trim().replace(/^"(.*)"$/, "$1");
