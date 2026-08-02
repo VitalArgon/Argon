@@ -2,8 +2,10 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
-import { React } from "@webpack/common";
+import { React, ReactDOM } from "@webpack/common";
 import * as Icons from "@components/Icons";
+import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
+import Plugins from "~plugins";
 
 const PROCESSED_ATTR = "data-rf-processed";
 
@@ -245,6 +247,53 @@ function buildIconSpan(name: string) {
     return span;
 }
 
+// Roots created for plugin-card embeds, tracked so we can unmount
+// them cleanly in stop() rather than leaking React trees when
+// Discord's own virtualization removes the underlying message DOM
+// out from under us.
+const pluginCardRoots = new Set<ReturnType<typeof ReactDOM.createRoot>>();
+
+function findPluginByName(rawName: string) {
+    const name = rawName.trim().replace(/^"(.*)"$/, "$1");
+    return Plugins[name] ?? Object.values(Plugins).find(p => p.name.toLowerCase() === name.toLowerCase());
+}
+
+function buildPluginCardSpan(rawName: string) {
+    const container = document.createElement("div");
+    container.className = "rf-plugin-card";
+
+    const plugin = findPluginByName(rawName);
+    if (!plugin) {
+        container.textContent = `[plugin not found: ${rawName}]`;
+        container.classList.add("rf-icon-missing");
+        return container;
+    }
+
+    // PluginCard is a real interactive component (toggle, settings
+    // button, etc.) and very likely uses hooks internally — unlike
+    // the icon SVGs, it can't be safely converted via reactNodeToDom
+    // (that manually invokes function components outside React's
+    // render cycle, which breaks hooks and event handlers). Mounting
+    // a real root here keeps it fully functional.
+    try {
+        const root = ReactDOM.createRoot(container);
+        root.render(
+            React.createElement(PluginCard, {
+                plugin,
+                disabled: plugin.required ?? false,
+                onRestartNeeded: () => {},
+            })
+        );
+        pluginCardRoots.add(root);
+    } catch (e) {
+        container.textContent = `[plugin card render failed: ${rawName}]`;
+        container.classList.add("rf-icon-missing");
+        console.error("[RichFormatting] plugin card render failed for", rawName, e);
+    }
+
+    return container;
+}
+
 const TOKEN_RE = new RegExp(
     [
         String.raw`\{\{btn:([^|}]+)\|(https?:\/\/[^\s}]+)\}\}`,        
@@ -252,13 +301,14 @@ const TOKEN_RE = new RegExp(
         String.raw`\{\{badge:(red|green|blue|yellow|gray)\|([^}]+)\}\}`, 
         String.raw`\{\{progress:(\d{1,3})\}\}`,                        
         String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,                    
-        String.raw`\{\{icon:([a-zA-Z0-9_]+)\}\}`,                      
+        String.raw`\{\{icon:([a-zA-Z0-9_]+)\}\}`,
+        String.raw`\{\{plugin:"?([^"}]+?)"?\}\}`,
     ].join("|"),
     "g"
 );
 
 const BLOCK_FOLD_RE = /:::fold\s+([^\n]+)\n([\s\S]*?):::/g;
-const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|:::fold/;
+const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|\{\{plugin:|:::fold/;
 
 function processInlineIntoFragment(text: string) {
     const frag = document.createDocumentFragment();
@@ -277,6 +327,7 @@ function processInlineIntoFragment(text: string) {
         else if (match[7] !== undefined) frag.appendChild(buildProgress(parseInt(match[7], 10)));
         else if (match[8] !== undefined) frag.appendChild(buildFold(match[8], match[9]));
         else if (match[10] !== undefined) frag.appendChild(buildIconSpan(match[10]));
+        else if (match[11] !== undefined) frag.appendChild(buildPluginCardSpan(match[11]));
 
         lastIndex = tokenRe.lastIndex;
 
@@ -340,6 +391,7 @@ function injectStyles() {
         .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
         .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
         .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
+        .rf-plugin-card{margin:4px 0;max-width:420px;}
     `;
     document.head.appendChild(style);
 }
@@ -364,6 +416,7 @@ function buildHelpText() {
         "```",
         `**Icon:** \`${zw}icon:name}}\``,
         `Available icon names: ${iconNames}`,
+        `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
     ].join("\n");
 };
 
@@ -379,7 +432,7 @@ let observer: MutationObserver | null = null;
 
 export default definePlugin({
     name: "RichFormatting",
-    description: "Type-to-render buttons, badges, progress bars, collapsible folds, and inline Discord icons in messages (client-side only).",
+    description: "Type-to-render buttons, badges, progress bars, collapsible folds, inline Discord icons, and embedded plugin cards in messages (client-side only).",
     tags: ["Utility", "Veil", "Fun"],
     authors: [VeilDevs.Zarak],
     settings,
@@ -423,5 +476,7 @@ export default definePlugin({
         observer = null;
         document.getElementById(STYLE_ID)?.remove();
         document.querySelectorAll(`[${PROCESSED_ATTR}]`).forEach(el => el.removeAttribute(PROCESSED_ATTR));
+        pluginCardRoots.forEach(root => root.unmount());
+        pluginCardRoots.clear();
     },
 });
