@@ -280,18 +280,52 @@ function buildPluginCardSpan(rawName: string) {
         return span;
     }
 
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "rf-plugin-chip";
-    chip.textContent = plugin.name;
-    chip.title = plugin.description ?? "";
-    chip.addEventListener("click", e => {
+    // Static preview, built with plain DOM the same way icons are —
+    // this is what actually appears embedded inline in the message.
+    // It's read-only: the enabled/disabled pill just reflects current
+    // state, it isn't a working toggle (that would mean anyone's
+    // pasted message could flip a plugin on/off in your client, which
+    // isn't something a chat message should be able to do anyway).
+    // Clicking it opens the real interactive PluginCard in a modal
+    // (proven working via the same Modal/openModal path
+    // ContributorModal.tsx uses) for actually toggling things.
+    const card = document.createElement("div");
+    card.className = "rf-plugin-card";
+    card.title = "Click for full plugin settings";
+    card.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
         openPluginCardModal(plugin);
     });
 
-    return chip;
+    const header = document.createElement("div");
+    header.className = "rf-plugin-card-header";
+
+    const nameEl = document.createElement("span");
+    nameEl.className = "rf-plugin-card-name";
+    nameEl.textContent = plugin.name;
+
+    const statusPill = document.createElement("span");
+    const enabled = !!plugin.started || !!plugin.enabled;
+    statusPill.className = `rf-plugin-card-status ${enabled ? "rf-plugin-card-status-on" : "rf-plugin-card-status-off"}`;
+    statusPill.textContent = enabled ? "Enabled" : "Disabled";
+
+    header.append(nameEl, statusPill);
+
+    const desc = document.createElement("div");
+    desc.className = "rf-plugin-card-desc";
+    desc.textContent = plugin.description ?? "";
+
+    card.append(header, desc);
+
+    if (Array.isArray(plugin.authors) && plugin.authors.length) {
+        const authorsEl = document.createElement("div");
+        authorsEl.className = "rf-plugin-card-authors";
+        authorsEl.textContent = "By " + plugin.authors.map((a: any) => a.name).filter(Boolean).join(", ");
+        card.appendChild(authorsEl);
+    }
+
+    return card;
 }
 
 const TOKEN_RE = new RegExp(
@@ -391,8 +425,15 @@ function injectStyles() {
         .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
         .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
         .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
-        .rf-plugin-chip{background:#2b2d31;color:#dbdee1;border:1px solid #3f4147;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;margin:0 2px;}
-        .rf-plugin-chip:hover{background:#35373c;border-color:#5865F2;}
+        .rf-plugin-card{display:block;background:#2b2d31;border:1px solid #3f4147;border-radius:8px;padding:10px 12px;margin:4px 0;max-width:420px;cursor:pointer;text-align:left;}
+        .rf-plugin-card:hover{border-color:#5865F2;}
+        .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+        .rf-plugin-card-name{font-weight:600;color:#f2f3f5;font-size:14px;}
+        .rf-plugin-card-status{font-size:11px;font-weight:600;padding:1px 8px;border-radius:8px;}
+        .rf-plugin-card-status-on{background:#3BA55D;color:#fff;}
+        .rf-plugin-card-status-off{background:#4e5058;color:#dbdee1;}
+        .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;margin-top:4px;}
+        .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:6px;}
     `;
     document.head.appendChild(style);
 }
