@@ -1,10 +1,6 @@
 import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 
-/**
- * Veil Badges Plugin, Injects Badges Into The User Profile When Viewing Said Profile.
- */
-
 type Badge = {
   id: string;
   description?: string;
@@ -35,7 +31,6 @@ class CustomBadges {
 
     await this.loadBadgeData();
 
-    // Try to patch immediately and register for future stores
     this.patchProfileStore();
 
     this.intervalId = window.setInterval(() => void this.loadBadgeData(), this.REFRESH_INTERVAL_MS);
