@@ -13,7 +13,6 @@ const BADGE_IMG_SELECTOR = 'img[src*="/badge-icons/"]';
 class CustomBadges {
   private badgeData: Map<string, Badge[]> = new Map();
   private BADGE_DATA_URL = "https://raw.githubusercontent.com/Zarak199076/a/refs/heads/main/badges.json";
-  private FALLBACK_BADGE_URL = "https://badges.vencord.dev/badges.json";
   private REFRESH_INTERVAL_MS = 5 * 60 * 1000;
   private observer: MutationObserver | null = null;
   private intervalId: number | null = null;
@@ -26,7 +25,6 @@ class CustomBadges {
   async onLoad() {}
 
   async onStart() {
-    console.log("[CustomBadges] Plugin started.");
     this.startImageFixerObserver();
 
     await this.loadBadgeData();
@@ -37,23 +35,16 @@ class CustomBadges {
   }
 
   onStop() {
-    console.log("[CustomBadges] Plugin stopped.");
-
     if (this.patchedStore && this.originalGetUserProfile) {
       try {
         this.patchedStore.getUserProfile = this.originalGetUserProfile;
-        console.log("[CustomBadges] Restored original getUserProfile");
-      } catch (e) {
-        console.warn("[CustomBadges] Failed to restore getUserProfile:", e);
-      }
+      } catch (e) {}
     }
 
     if (this.observer) {
       try {
         this.observer.disconnect();
-      } catch (e) {
-        console.warn("[CustomBadges] observer.disconnect error:", e);
-      }
+      } catch (e) {}
       this.observer = null;
     }
 
@@ -84,25 +75,14 @@ class CustomBadges {
     try {
       const res = await fetch(this.BADGE_DATA_URL, { cache: "no-store", signal });
       if (!res.ok) {
-        if (res.status === 404 && this.FALLBACK_BADGE_URL) {
-          console.warn("[CustomBadges] Primary badges.json not found (404), trying fallback.");
-          const res2 = await fetch(this.FALLBACK_BADGE_URL, { cache: "no-store", signal });
-          if (!res2.ok) throw new Error("Fallback HTTP " + res2.status);
-          const json2 = await res2.json();
-          this.setBadgeDataFromJSON(json2);
-          console.log("[CustomBadges] Loaded badge data (fallback) for", this.badgeData.size, "users");
-          return;
-        }
         throw new Error("HTTP " + res.status);
       }
       const json = await res.json();
       this.setBadgeDataFromJSON(json);
-      console.log("[CustomBadges] Loaded badge data for", this.badgeData.size, "users");
     } catch (e: any) {
+      // swallow errors except abort
       if (e?.name === "AbortError") {
-        console.debug("[CustomBadges] loadBadgeData aborted");
       } else {
-        console.error("[CustomBadges] Failed to load badge data:", e);
       }
     } finally {
       this.abortController = null;
@@ -180,9 +160,7 @@ class CustomBadges {
       document.querySelectorAll(BADGE_IMG_SELECTOR).forEach((el) => {
         if (el instanceof HTMLImageElement) this.tryFixImage(el);
       });
-    } catch (e) {
-      console.warn("[CustomBadges] init image fixer error:", e);
-    }
+    } catch (e) {}
 
     if (this.observer) return;
 
@@ -204,7 +182,6 @@ class CustomBadges {
     try {
       this.observer.observe(document.documentElement, { childList: true, subtree: true });
     } catch (e) {
-      console.warn("[CustomBadges] observer.observe failed:", e);
       this.observer = null;
     }
   }
@@ -213,7 +190,6 @@ class CustomBadges {
     try {
       const Vencord = (window as any).Vencord || (window as any).vencord;
       if (!Vencord?.Webpack) {
-        console.warn("[CustomBadges] Vencord.Webpack not available yet");
         return;
       }
 
@@ -226,27 +202,21 @@ class CustomBadges {
         Vencord.Webpack.waitFor(filter, (store: any) => {
           try {
             this.applyPatch(store);
-          } catch (e) {
-            console.error("[CustomBadges] Failed to apply patch:", e);
-          }
+          } catch (e) {}
         });
-        console.log("[CustomBadges] Registered patch listener with waitFor");
       } else if (typeof Vencord.Webpack.findStore === "function") {
         const store = Vencord.Webpack.findStore(filter);
         if (store) {
           this.applyPatch(store);
         }
       }
-    } catch (e) {
-      console.error("[CustomBadges] patchProfileStore error:", e);
-    }
+    } catch (e) {}
   }
 
   private applyPatch(store: any) {
     try {
       if (!store) return;
       if (store.__customBadgesPatched) {
-        console.log("[CustomBadges] Store already patched");
         return;
       }
 
@@ -280,10 +250,7 @@ class CustomBadges {
       };
 
       store.__customBadgesPatched = true;
-      console.log("[CustomBadges] Patch applied successfully");
-    } catch (e) {
-      console.error("[CustomBadges] applyPatch error:", e);
-    }
+    } catch (e) {}
   }
 }
 
