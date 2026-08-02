@@ -39,7 +39,6 @@ class CustomBadges {
   onStop() {
     console.log("[CustomBadges] Plugin stopped.");
 
-    // Restore original function
     if (this.patchedStore && this.originalGetUserProfile) {
       try {
         this.patchedStore.getUserProfile = this.originalGetUserProfile;
@@ -173,7 +172,6 @@ class CustomBadges {
         }
       }
     } catch (e) {
-      // swallow
     }
   }
 
@@ -224,7 +222,6 @@ class CustomBadges {
         typeof m.getUserProfile === "function" &&
         typeof m.getGuildMemberProfile === "function";
 
-      // Use waitFor to handle both sync and async module loading
       if (typeof Vencord.Webpack.waitFor === "function") {
         Vencord.Webpack.waitFor(filter, (store: any) => {
           try {
@@ -235,7 +232,6 @@ class CustomBadges {
         });
         console.log("[CustomBadges] Registered patch listener with waitFor");
       } else if (typeof Vencord.Webpack.findStore === "function") {
-        // Fallback for older Vencord versions
         const store = Vencord.Webpack.findStore(filter);
         if (store) {
           this.applyPatch(store);
