@@ -1,23 +1,27 @@
 import definePlugin, { OptionType } from "@utils/types";
 import { definePluginSettings } from "@api/Settings";
-import { RestAPI } from "@webpack/common";
 import { FluxDispatcher } from "@webpack/common";
 import { VeilDevs } from "@utils/constants";
+import { Activity } from "@vencord/discord-types";
+import { ActivityFlags } from "@vencord/discord-types/enums";
 
 export const settings = definePluginSettings({
     lyricsPrefix: {
         type: OptionType.STRING,
-        description: "Text prepended to the lyrics status (e.g. '🎶 ')",
+        description: "Text prepended to the lyric line (e.g. '🎶 ')",
         default: "🎶 ",
     },
-    clearOnPause: {
-        type: OptionType.BOOLEAN,
-        description: "Clear the custom status when Spotify playback is paused",
-        default: true,
+    targetField: {
+        type: OptionType.SELECT,
+        description: "Which field of your Spotify activity gets replaced with the current lyric line",
+        options: [
+            { label: "State (usually artist name)", value: "state", default: true },
+            { label: "Details (usually track name)", value: "details" },
+        ],
     },
     syncInterval: {
         type: OptionType.NUMBER,
-        description: "How often to check and sync lyrics position (in ms)",
+        description: "How often to recompute the active lyric line (in ms)",
         default: 150,
     }
 });
@@ -50,12 +54,12 @@ let currentLyrics: LyricLine[] = [];
 let lastPlayerState: PlayerState | null = null;
 let stateReceivedAt = 0;
 let syncTimeoutId: any = null;
-let lastStatusText: string | null = null;
 let isLoopRunning = false;
 
-let lastUpdateSentAt = 0;
-let rateLimitResetTime = 0; // Timestamp when rate limit expires
-const MIN_UPDATE_INTERVAL_MS = 4000; // Safe interval: Discord limits status updates to about once every 4 seconds
+// The line patchActivity reads from on every LocalActivityStore
+// recompute. null means "don't touch the field" — original Spotify
+// activity passes through untouched.
+let currentLyricLine: string | null = null;
 
 function getPrefixSetting(): string {
     try {
@@ -65,11 +69,11 @@ function getPrefixSetting(): string {
     }
 }
 
-function getClearOnPauseSetting(): boolean {
+function getTargetFieldSetting(): "state" | "details" {
     try {
-        return settings.store.clearOnPause ?? true;
+        return settings.store.targetField ?? "state";
     } catch {
-        return true;
+        return "state";
     }
 }
 
@@ -81,83 +85,6 @@ function getSyncIntervalSetting(): number {
     }
 }
 
-function updateDiscordStatus(text: string) {
-    const cleanText = text.substring(0, 128);
-    if (lastStatusText === cleanText) return;
-
-    const now = Date.now();
-    
-    // Check if we are currently rate-limited
-    if (now < rateLimitResetTime) {
-        return;
-    }
-
-    // Rate-limiting check to prevent 429
-    if (now - lastUpdateSentAt < MIN_UPDATE_INTERVAL_MS) {
-        return;
-    }
-
-    lastStatusText = cleanText;
-    lastUpdateSentAt = now;
-
-    console.log("[SpotifyLyricsStatus] Sending PATCH status request:", cleanText);
-
-    try {
-        RestAPI.patch({
-            url: "/users/@me/settings",
-            body: {
-                custom_status: {
-                    text: cleanText,
-                    emoji_id: null,
-                    emoji_name: null,
-                    expires_at: null
-                }
-            }
-        }).then((res: any) => {
-            // Handle successful response or check if rate limited in the payload
-            if (res && res.status === 429) {
-                const retryAfter = res.body?.retry_after || 5;
-                rateLimitResetTime = Date.now() + (retryAfter * 1000) + 1500;
-                console.warn(`[SpotifyLyricsStatus] Rate limited by Discord. Pausing updates for ${retryAfter}s.`);
-            }
-        }).catch((err: any) => {
-            console.error("[SpotifyLyricsStatus] Error patching status:", err);
-            // Handle 429 error responses
-            if (err && (err.status === 429 || err.body?.retry_after)) {
-                const retryAfter = err.body?.retry_after || 30;
-                rateLimitResetTime = Date.now() + (retryAfter * 1000) + 2000; // Add 2s safety buffer
-                console.warn(`[SpotifyLyricsStatus] Rate limited by Discord. Pausing updates for ${retryAfter}s.`);
-            }
-        });
-    } catch (e) {
-        console.error("[SpotifyLyricsStatus] Exception in RestAPI.patch:", e);
-    }
-}
-
-function clearDiscordStatus() {
-    if (lastStatusText === null) return;
-    lastStatusText = null;
-    console.log("[SpotifyLyricsStatus] Clearing status request");
-    
-    // Do not check rate limit when clearing status, we always want to attempt clearing it on pause
-    try {
-        RestAPI.patch({
-            url: "/users/@me/settings",
-            body: {
-                custom_status: null
-            }
-        }).catch((err: any) => {
-            console.error("[SpotifyLyricsStatus] Error clearing status:", err);
-            if (err && err.status === 429) {
-                const retryAfter = err.body?.retry_after || 30;
-                rateLimitResetTime = Date.now() + (retryAfter * 1000) + 2000;
-            }
-        });
-    } catch (e) {
-        console.error("[SpotifyLyricsStatus] Exception in clearing status:", e);
-    }
-}
-
 async function fetchLyrics(track: Track) {
     const artistName = track.artists.map(a => a.name).join(", ");
     const trackName = track.name;
@@ -165,35 +92,35 @@ async function fetchLyrics(track: Track) {
     const durationSec = Math.round(track.duration / 1000);
 
     const exactUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(trackName)}&album_name=${encodeURIComponent(albumName)}&duration=${durationSec}`;
-    console.log("[SpotifyLyricsStatus] Fetching exact match:", artistName, "-", trackName);
+    console.log("[LyricStats] Fetching exact match:", artistName, "-", trackName);
 
     try {
         const response = await fetch(exactUrl, {
             headers: {
-                "User-Agent": "VencordSpotifyLyricsStatus (https://github.com/Vendicated/Vencord)"
+                "User-Agent": "VencordLyricStats (https://github.com/Vendicated/Vencord)"
             }
         });
         if (response.ok) {
             const data = await response.json();
             if (data && data.syncedLyrics) {
-                console.log("[SpotifyLyricsStatus] Fetched synced lyrics (exact match).");
+                console.log("[LyricStats] Fetched synced lyrics (exact match).");
                 return data.syncedLyrics;
             }
         }
     } catch (error) {
-        console.warn("[SpotifyLyricsStatus] Exact match failed, falling back to search...", error);
+        console.warn("[LyricStats] Exact match failed, falling back to search...", error);
     }
 
     const cleanTrackName = trackName.replace(/\s*\([^)]*\)/g, "").replace(/\s*\[[^\]]*\]/g, "").trim();
     const firstArtist = track.artists[0]?.name || "";
     const query = `${firstArtist} ${cleanTrackName}`;
     const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-    console.log(`[SpotifyLyricsStatus] Searching lyrics for: "${query}"`);
+    console.log(`[LyricStats] Searching lyrics for: "${query}"`);
 
     try {
         const response = await fetch(searchUrl, {
             headers: {
-                "User-Agent": "VencordSpotifyLyricsStatus (https://github.com/Vendicated/Vencord)"
+                "User-Agent": "VencordLyricStats (https://github.com/Vendicated/Vencord)"
             }
         });
         if (response.ok) {
@@ -201,13 +128,13 @@ async function fetchLyrics(track: Track) {
             if (Array.isArray(results) && results.length > 0) {
                 const match = results.find(r => r.syncedLyrics && Math.abs(r.duration - durationSec) < 15) || results.find(r => r.syncedLyrics);
                 if (match) {
-                    console.log(`[SpotifyLyricsStatus] Found lyrics in search! Match: ${match.artistName} - ${match.trackName}`);
+                    console.log(`[LyricStats] Found lyrics in search! Match: ${match.artistName} - ${match.trackName}`);
                     return match.syncedLyrics;
                 }
             }
         }
     } catch (error) {
-        console.error("[SpotifyLyricsStatus] Error searching lyrics:", error);
+        console.error("[LyricStats] Error searching lyrics:", error);
     }
 
     return null;
@@ -228,7 +155,7 @@ function parseLRC(lrcText: string): LyricLine[] {
         }
     }
 
-    console.log("[SpotifyLyricsStatus] Parsed", lines.length, "lines of lyrics.");
+    console.log("[LyricStats] Parsed", lines.length, "lines of lyrics.");
     return lines.sort((a, b) => a.time - b.time);
 }
 
@@ -255,15 +182,12 @@ function updateLyricsTick() {
                 }
             }
 
-            if (activeLine) {
-                const prefix = getPrefixSetting();
-                updateDiscordStatus(`${prefix}${activeLine}`);
-            } else {
-                clearDiscordStatus();
-            }
+            currentLyricLine = activeLine || null;
+        } else {
+            currentLyricLine = null;
         }
     } catch (e) {
-        console.error("[SpotifyLyricsStatus] Error in updateLyricsTick:", e);
+        console.error("[LyricStats] Error in updateLyricsTick:", e);
     }
 
     if (isLoopRunning) {
@@ -277,13 +201,13 @@ function syncLoopTick() {
 
 async function handleSpotifyPlayerState(state: PlayerState) {
     try {
-        console.log("[SpotifyLyricsStatus] Received player state:", state.track?.name, "isPlaying:", state.isPlaying, "position:", state.position);
+        console.log("[LyricStats] Received player state:", state.track?.name, "isPlaying:", state.isPlaying, "position:", state.position);
         lastPlayerState = state;
         stateReceivedAt = Date.now();
 
         if (!state.track) {
             stopSyncLoop();
-            clearDiscordStatus();
+            currentLyricLine = null;
             lastTrackId = null;
             currentLyrics = [];
             return;
@@ -292,12 +216,12 @@ async function handleSpotifyPlayerState(state: PlayerState) {
         if (state.track.id !== lastTrackId) {
             lastTrackId = state.track.id;
             currentLyrics = [];
-            
+
             const syncedLyrics = await fetchLyrics(state.track);
             if (syncedLyrics) {
                 currentLyrics = parseLRC(syncedLyrics);
             } else {
-                console.log("[SpotifyLyricsStatus] No synced lyrics available for this track.");
+                console.log("[LyricStats] No synced lyrics available for this track.");
             }
         }
 
@@ -306,24 +230,22 @@ async function handleSpotifyPlayerState(state: PlayerState) {
             updateLyricsTick();
         } else {
             stopSyncLoop();
-            if (getClearOnPauseSetting()) {
-                clearDiscordStatus();
-            }
+            currentLyricLine = null;
         }
     } catch (e) {
-        console.error("[SpotifyLyricsStatus] Error in handleSpotifyPlayerState:", e);
+        console.error("[LyricStats] Error in handleSpotifyPlayerState:", e);
     }
 }
 
 function startSyncLoop() {
     if (isLoopRunning) return;
-    console.log("[SpotifyLyricsStatus] Starting sync loop.");
+    console.log("[LyricStats] Starting sync loop.");
     isLoopRunning = true;
     updateLyricsTick();
 }
 
 function stopSyncLoop() {
-    console.log("[SpotifyLyricsStatus] Stopping sync loop.");
+    console.log("[LyricStats] Stopping sync loop.");
     isLoopRunning = false;
     if (syncTimeoutId) {
         clearTimeout(syncTimeoutId);
@@ -331,33 +253,57 @@ function stopSyncLoop() {
     }
 }
 
+function isSpotifyActivity(activity: Activity): boolean {
+    return (activity.flags & (ActivityFlags.SYNC | ActivityFlags.PLAY)) === (ActivityFlags.SYNC | ActivityFlags.PLAY);
+}
+
 export default definePlugin({
     name: "LyricStats",
-    description: "Automatically sets your Discord status to the current line of the song playing on Spotify.",
+    description: "Shows the current line of the song playing on Spotify directly in your Spotify listening activity, instead of your custom status.",
     authors: [VeilDevs.Zarak],
 
     settings,
 
+    patches: [
+        {
+            find: '"LocalActivityStore"',
+            replacement: {
+                match: /\i\(\i\)\{.{0,25}activity:(\i).*?\}=\i;/,
+                replace: "$&$self.patchActivity($1);",
+            }
+        }
+    ],
+
+    patchActivity(activity: Activity) {
+        if (!activity) return;
+        if (!isSpotifyActivity(activity)) return;
+        if (!currentLyricLine) return;
+
+        const field = getTargetFieldSetting();
+        const prefix = getPrefixSetting();
+        (activity as any)[field] = `${prefix}${currentLyricLine}`;
+    },
+
     start() {
-        console.log("[SpotifyLyricsStatus] Plugin started. Subscribing to FluxDispatcher...");
+        console.log("[LyricStats] Plugin started. Subscribing to FluxDispatcher...");
         setTimeout(() => {
             try {
                 FluxDispatcher.subscribe("SPOTIFY_PLAYER_STATE", handleSpotifyPlayerState);
             } catch (e) {
-                console.error("[SpotifyLyricsStatus] Subscribing failed:", e);
+                console.error("[LyricStats] Subscribing failed:", e);
             }
         }, 1000);
     },
 
     stop() {
-        console.log("[SpotifyLyricsStatus] Plugin stopped.");
+        console.log("[LyricStats] Plugin stopped.");
         try {
             FluxDispatcher.unsubscribe("SPOTIFY_PLAYER_STATE", handleSpotifyPlayerState);
         } catch (e) {
-            console.warn("[SpotifyLyricsStatus] Unsubscribing failed:", e);
+            console.warn("[LyricStats] Unsubscribing failed:", e);
         }
         stopSyncLoop();
-        clearDiscordStatus();
+        currentLyricLine = null;
         lastTrackId = null;
         currentLyrics = [];
         lastPlayerState = null;
