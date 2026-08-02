@@ -2,10 +2,19 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
-import { React, Modal, openModal } from "@webpack/common";
+import { React } from "@webpack/common";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
-import Plugins, { PluginMeta } from "~plugins";
+import {
+    h,
+    createStyleInjector,
+    observeMatches,
+    openSimpleModal,
+    findPluginByName,
+    reactNodeToDom,
+    Plugins,
+    PluginMeta,
+} from "../VeilCoreAPI";
 
 const PROCESSED_ATTR = "data-rf-processed";
 
@@ -114,62 +123,6 @@ function getIconComponent(name: string) {
     return Icons[exportName] ?? null;
 }
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-const SVG_ATTR_CAMEL_KEEP = new Set([
-    "viewBox", "preserveAspectRatio", "gradientUnits", "gradientTransform",
-    "patternUnits", "patternContentUnits", "patternTransform", "spreadMethod",
-    "clipPathUnits", "markerUnits", "markerWidth", "markerHeight", "refX", "refY",
-    "attributeName", "attributeType", "repeatCount", "repeatDur", "calcMode",
-    "keyTimes", "keySplines", "keyPoints", "xChannelSelector", "yChannelSelector",
-]);
-
-function svgAttrName(prop: string): string {
-    if (prop === "className") return "class";
-    if (SVG_ATTR_CAMEL_KEEP.has(prop)) return prop;
-    if (/^[a-z-]+$/.test(prop)) return prop; 
-    return prop.replace(/([A-Z])/g, "-$1").toLowerCase();
-}
-
-function reactNodeToDom(node: any): Node | null {
-    if (node === null || node === undefined || typeof node === "boolean") return null;
-    if (typeof node === "string" || typeof node === "number") {
-        return document.createTextNode(String(node));
-    }
-    if (Array.isArray(node)) {
-        const frag = document.createDocumentFragment();
-        node.forEach(child => {
-            const dom = reactNodeToDom(child);
-            if (dom) frag.appendChild(dom);
-        });
-        return frag;
-    }
-    if (typeof node === "object" && "type" in node) {
-        const { type, props } = node as { type: any; props: any };
-
-        if (typeof type === "function") {
-            return reactNodeToDom(type(props ?? {}));
-        }
-
-        if (typeof type === "string") {
-            const el = document.createElementNS(SVG_NS, type);
-            for (const [key, value] of Object.entries(props ?? {})) {
-                if (key === "children" || key === "key" || key === "ref") continue;
-                if (value === undefined || value === null || value === false) continue;
-                if (key === "style" && typeof value === "object") {
-                    Object.assign((el as any).style, value);
-                    continue;
-                }
-                el.setAttribute(svgAttrName(key), String(value));
-            }
-            const childDom = reactNodeToDom(props?.children);
-            if (childDom) el.appendChild(childDom);
-            return el;
-        }
-    }
-    return null;
-}
-
 function renderIconInto(container: HTMLElement, name: string) {
     const IconComponent = getIconComponent(name);
     if (!IconComponent) {
@@ -178,7 +131,7 @@ function renderIconInto(container: HTMLElement, name: string) {
         return;
     }
     try {
-        const element = React.createElement(IconComponent, { size: 16 });
+        const element = h(IconComponent, { size: 16 });
         const dom = reactNodeToDom(element);
         if (!dom) throw new Error("converter produced no DOM output");
         container.appendChild(dom);
@@ -247,27 +200,13 @@ function buildIconSpan(name: string) {
     return span;
 }
 
-function findPluginByName(rawName: string) {
-    const name = rawName.trim().replace(/^"(.*)"$/, "$1");
-    return Plugins[name] ?? Object.values(Plugins).find(p => p.name.toLowerCase() === name.toLowerCase());
-}
-
-// Uses the same Modal/openModal pattern ContributorModal.tsx already
-// uses successfully in this codebase — this mounts into Discord's
-// existing React tree rather than needing us to create a separate
-// root, which sidesteps the createRoot/render lookup problems
-// entirely.
 function openPluginCardModal(plugin: any) {
-    openModal(modalProps =>
-        React.createElement(
-            Modal,
-            { ...modalProps, title: plugin.name },
-            React.createElement(PluginCard, {
-                plugin,
-                disabled: plugin.required ?? false,
-                onRestartNeeded: () => {},
-            })
-        )
+    openSimpleModal(plugin.name, () =>
+        h(PluginCard, {
+            plugin,
+            disabled: plugin.required ?? false,
+            onRestartNeeded: () => {},
+        })
     );
 }
 
@@ -280,15 +219,6 @@ function buildPluginCardSpan(rawName: string) {
         return span;
     }
 
-    // Static preview, built with plain DOM the same way icons are —
-    // this is what actually appears embedded inline in the message.
-    // It's read-only: the enabled/disabled pill just reflects current
-    // state, it isn't a working toggle (that would mean anyone's
-    // pasted message could flip a plugin on/off in your client, which
-    // isn't something a chat message should be able to do anyway).
-    // Clicking it opens the real interactive PluginCard in a modal
-    // (proven working via the same Modal/openModal path
-    // ContributorModal.tsx uses) for actually toggling things.
     const card = document.createElement("div");
     card.className = "rf-plugin-card";
     card.title = "Click for full plugin settings";
@@ -315,7 +245,6 @@ function buildPluginCardSpan(rawName: string) {
     nameEl.className = "rf-plugin-card-name";
     nameEl.textContent = plugin.name;
 
-    // Use same source images as PluginCard.tsx for pixel match
     const pluginInfo = [
         {
             condition: plugin.isModified ?? false,
@@ -359,7 +288,6 @@ function buildPluginCardSpan(rawName: string) {
         sourceImg.className = "rf-plugin-card-source-img";
     }
 
-    // Title group: icon, name + source image
     const titleGroup = document.createElement("div");
     titleGroup.className = "rf-plugin-card-title-group";
     titleGroup.append(iconWrap);
@@ -380,10 +308,8 @@ function buildPluginCardSpan(rawName: string) {
         e.stopPropagation();
         openPluginCardModal(plugin);
     });
-    // render CogWheel icon inside button
     renderIconInto(infoBtn, "CogWheel");
 
-    // read-only toggle to visually match the real PluginCard (right side)
     const enabled = !!plugin.started || !!plugin.enabled;
     const toggle = document.createElement("span");
     toggle.className = `rf-toggle ${enabled ? "rf-toggle-on" : "rf-toggle-off"}`;
@@ -486,16 +412,8 @@ function processMessageContentEl(el: HTMLElement) {
     el.setAttribute(PROCESSED_ATTR, "true");
 }
 
-function scanForMessages(root: ParentNode) {
-    root.querySelectorAll?.('[id^="message-content-"]').forEach(node => processMessageContentEl(node as HTMLElement));
-}
-
 const STYLE_ID = "rf-styles";
-function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = `
+const rfStyles = createStyleInjector(STYLE_ID, `
         .rf-btn { background:#5865F2;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:13px;font-weight:500;cursor:pointer;margin:2px 4px 2px 0; }
         .rf-btn:hover { background:#4752C4; }
         .rf-badge { display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600;margin:0 2px;color:#fff; }
@@ -531,9 +449,7 @@ function injectStyles() {
         .rf-toggle.rf-toggle-on .rf-toggle-knob{left:23px;}
         .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;line-height:1.45;margin-top:8px;}
         .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:8px;font-weight:500;}
-    `;
-    document.head.appendChild(style);
-}
+`);
 
 function buildHelpText() {
     const iconNames = Object.keys(ICON_ALIASES).sort().join(", ");
@@ -567,7 +483,7 @@ const settings = definePluginSettings({
     },
 });
 
-let observer: MutationObserver | null = null;
+let stopObservingMessages: (() => void) | null = null;
 
 export default definePlugin({
     name: "RichFormatting",
@@ -575,7 +491,7 @@ export default definePlugin({
     tags: ["Utility", "Veil", "Fun"],
     authors: [VeilDevs.Zarak],
     settings,
-    dependencies: ["CommandsAPI"],
+    dependencies: ["CommandsAPI", "VeilCoreAPI"],
 
     commands: [
         {
@@ -590,33 +506,22 @@ export default definePlugin({
     ],
 
     start() {
-        // TEMP DEBUG — remove after checking console output.
-        console.log("[RichFormatting DEBUG] PluginMeta sample:", PluginMeta["RichFormatting"]);
-        console.log("[RichFormatting DEBUG] PluginMeta full object:", PluginMeta);
-        injectStyles();
+        rfStyles.inject();
 
         if (settings.store.logIconsOnStart) {
             console.log("[RichFormatting] Available icons in this build:", Object.keys(Icons).sort());
         }
 
-        scanForMessages(document.body);
-        observer = new MutationObserver(mutations => {
-            for (const m of mutations) {
-                m.addedNodes.forEach(node => {
-                    if (node.nodeType !== 1) return;
-                    const el = node as HTMLElement;
-                    if (el.id?.startsWith("message-content-")) processMessageContentEl(el);
-                    else scanForMessages(el);
-                });
-            }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
+        stopObservingMessages = observeMatches(
+            '[id^="message-content-"]',
+            el => processMessageContentEl(el as HTMLElement)
+        );
     },
 
     stop() {
-        observer?.disconnect();
-        observer = null;
-        document.getElementById(STYLE_ID)?.remove();
+        stopObservingMessages?.();
+        stopObservingMessages = null;
+        rfStyles.remove();
         document.querySelectorAll(`[${PROCESSED_ATTR}]`).forEach(el => el.removeAttribute(PROCESSED_ATTR));
     },
 });
