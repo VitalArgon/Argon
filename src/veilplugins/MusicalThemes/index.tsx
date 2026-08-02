@@ -1,7 +1,7 @@
 import { definePluginSettings } from "@api/Settings";
 import { VeilDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { FluxDispatcher } from "@webpack/common";
+import { createStyleInjector, createLogger, subscribeFlux } from "../VeilCoreAPI";
 
 interface Activity {
     type: number;
@@ -44,7 +44,7 @@ const settings = definePluginSettings({
     },
 });
 
-//Color Utilities
+const logger = createLogger("MusicTheme");
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
     r /= 255; g /= 255; b /= 255;
@@ -112,7 +112,6 @@ async function vibrantColorFromUrl(
             const pool = pixels.length ? pixels : skippedPixels;
             if (!pool.length) { reject(new Error("No usable pixels")); return; }
 
-            // k-means
             const centroids: [number, number, number][] = Array.from(
                 { length: k },
                 () => [...pool[Math.floor(Math.random() * pool.length)]] as [number, number, number]
@@ -148,7 +147,6 @@ async function vibrantColorFromUrl(
                 }
             }
 
-
             const clusterStats = Array.from({ length: k }, () => ({ count: 0, score: 0 }));
             for (let i = 0; i < pool.length; i++) {
                 const c = assignments[i];
@@ -169,22 +167,21 @@ async function vibrantColorFromUrl(
         img.onerror = () => reject(new Error("Image load failed"));
     });
 }
+
 const STYLE_ID = "MusicTheme-vencord";
+const styleInjector = createStyleInjector(STYLE_ID, "");
 
 function removeTheme() {
-    document.getElementById(STYLE_ID)?.remove();
+    styleInjector.remove();
 }
 
 function applyTheme(r: number, g: number, b: number) {
     const [h, s, l] = rgbToHsl(r, g, b);
     const duration = settings.store.transitionDuration;
 
-    let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
-    if (!el) {
-        el = document.createElement("style");
-        el.id = STYLE_ID;
-        document.head.appendChild(el);
-    }
+    styleInjector.inject();
+    const el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+    if (!el) return;
 
     el.textContent = `
         .theme-dark, .theme-dark *, .theme-light, .theme-light * {
@@ -208,57 +205,57 @@ function applyTheme(r: number, g: number, b: number) {
 }
 
 let lastSongDetails: string | null = null;
+let unsubPresence: (() => void) | null = null;
+
+function onPresenceChange(dispatch: PresenceDispatch) {
+    const { enableSpotify, enableYouTubeMusic, colorClusters } = settings.store;
+
+    const activity = dispatch.activities?.find(a => {
+        if (a.type !== 2) return false;
+        if (a.name === "Spotify" && enableSpotify) return true;
+        if (a.name === "YouTube Music" && enableYouTubeMusic) return true;
+        return false;
+    });
+
+    if (!activity?.assets?.large_image) {
+        removeTheme();
+        lastSongDetails = null;
+        return;
+    }
+
+    if (activity.details === lastSongDetails) return;
+    lastSongDetails = activity.details ?? null;
+
+    let imageUrl: string;
+    if (activity.name === "Spotify") {
+        imageUrl = activity.assets.large_image.replace("spotify:", "https://i.scdn.co/image/");
+    } else {
+        const parts = activity.assets.large_image.split("/https/");
+        if (!parts[1]) return;
+        imageUrl = "https://" + parts[1];
+    }
+
+    logger.info(`${activity.details} by ${activity.state}`);
+
+    vibrantColorFromUrl(imageUrl, colorClusters)
+        .then(([r, g, b]) => applyTheme(r, g, b))
+        .catch(e => logger.warn(e));
+}
 
 export default definePlugin({
     name: "MusicalThemes",
     description: "Automatically changes Discord's theme colors based on the currently playing song's album artwork. Works with Spotify and YouTube Music.",
     authors: [VeilDevs.Zarak],
+    dependencies: ["VeilCoreAPI"],
     settings,
 
-    onPresenceChange(dispatch: PresenceDispatch) {
-        const { enableSpotify, enableYouTubeMusic, colorClusters } = settings.store;
-
-        const activity = dispatch.activities?.find(a => {
-            if (a.type !== 2) return false;
-            if (a.name === "Spotify" && enableSpotify) return true;
-            if (a.name === "YouTube Music" && enableYouTubeMusic) return true;
-            return false;
-        });
-
-        if (!activity?.assets?.large_image) {
-            removeTheme();
-            lastSongDetails = null;
-            return;
-        }
-
-
-        if (activity.details === lastSongDetails) return;
-        lastSongDetails = activity.details ?? null;
-
-        let imageUrl: string;
-        if (activity.name === "Spotify") {
-            imageUrl = activity.assets.large_image.replace("spotify:", "https://i.scdn.co/image/");
-        } else {
-
-            const parts = activity.assets.large_image.split("/https/");
-            if (!parts[1]) return;
-            imageUrl = "https://" + parts[1];
-        }
-
-        console.log(`[MusicTheme] ${activity.details} by ${activity.state}`);
-
-        vibrantColorFromUrl(imageUrl, colorClusters)
-            .then(([r, g, b]) => applyTheme(r, g, b))
-            .catch(e => console.warn("[MusicTheme]", e));
-    },
-
     start() {
-        this._handler = this.onPresenceChange.bind(this);
-        FluxDispatcher.subscribe("SELF_PRESENCE_STORE_UPDATE", this._handler);
+        unsubPresence = subscribeFlux("SELF_PRESENCE_STORE_UPDATE", onPresenceChange);
     },
 
     stop() {
-        FluxDispatcher.unsubscribe("SELF_PRESENCE_STORE_UPDATE", this._handler);
+        unsubPresence?.();
+        unsubPresence = null;
         removeTheme();
         lastSongDetails = null;
     },
