@@ -2,7 +2,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
-import { React, ReactDOM } from "@webpack/common";
+import { React, Modal, openModal } from "@webpack/common";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
 import Plugins from "~plugins";
@@ -247,58 +247,51 @@ function buildIconSpan(name: string) {
     return span;
 }
 
-// @webpack/common's ReactDOM object resolves fine but has no
-// createRoot on this build (multiple attempts to find a separate
-// module exporting createRoot came back empty too — likely
-// tree-shaken since Discord's own code may not call it directly
-// here). Falling back to the classic render/unmountComponentAtNode
-// API instead, which this object is much more likely to actually
-// have.
-//
-// Containers tracked here so we can unmount them cleanly in stop()
-// rather than leaking React trees when Discord's own virtualization
-// removes the underlying message DOM out from under us.
-const pluginCardContainers = new Set<HTMLElement>();
-
 function findPluginByName(rawName: string) {
     const name = rawName.trim().replace(/^"(.*)"$/, "$1");
     return Plugins[name] ?? Object.values(Plugins).find(p => p.name.toLowerCase() === name.toLowerCase());
 }
 
-function buildPluginCardSpan(rawName: string) {
-    const container = document.createElement("div");
-    container.className = "rf-plugin-card";
-
-    const plugin = findPluginByName(rawName);
-    if (!plugin) {
-        container.textContent = `[plugin not found: ${rawName}]`;
-        container.classList.add("rf-icon-missing");
-        return container;
-    }
-
-    // PluginCard is a real interactive component (toggle, settings
-    // button, etc.) and very likely uses hooks internally — unlike
-    // the icon SVGs, it can't be safely converted via reactNodeToDom
-    // (that manually invokes function components outside React's
-    // render cycle, which breaks hooks and event handlers). Mounting
-    // a real root here keeps it fully functional.
-    try {
-        ReactDOM.render(
+// Uses the same Modal/openModal pattern ContributorModal.tsx already
+// uses successfully in this codebase — this mounts into Discord's
+// existing React tree rather than needing us to create a separate
+// root, which sidesteps the createRoot/render lookup problems
+// entirely.
+function openPluginCardModal(plugin: any) {
+    openModal(modalProps =>
+        React.createElement(
+            Modal,
+            { ...modalProps, title: plugin.name },
             React.createElement(PluginCard, {
                 plugin,
                 disabled: plugin.required ?? false,
                 onRestartNeeded: () => {},
-            }),
-            container
-        );
-        pluginCardContainers.add(container);
-    } catch (e) {
-        container.textContent = `[plugin card render failed: ${rawName}]`;
-        container.classList.add("rf-icon-missing");
-        console.error("[RichFormatting] plugin card render failed for", rawName, e);
+            })
+        )
+    );
+}
+
+function buildPluginCardSpan(rawName: string) {
+    const plugin = findPluginByName(rawName);
+    if (!plugin) {
+        const span = document.createElement("span");
+        span.textContent = `[plugin not found: ${rawName}]`;
+        span.className = "rf-icon-missing";
+        return span;
     }
 
-    return container;
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "rf-plugin-chip";
+    chip.textContent = plugin.name;
+    chip.title = plugin.description ?? "";
+    chip.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openPluginCardModal(plugin);
+    });
+
+    return chip;
 }
 
 const TOKEN_RE = new RegExp(
@@ -398,7 +391,8 @@ function injectStyles() {
         .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
         .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
         .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
-        .rf-plugin-card{margin:4px 0;max-width:420px;}
+        .rf-plugin-chip{background:#2b2d31;color:#dbdee1;border:1px solid #3f4147;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:600;cursor:pointer;margin:0 2px;}
+        .rf-plugin-chip:hover{background:#35373c;border-color:#5865F2;}
     `;
     document.head.appendChild(style);
 }
@@ -483,13 +477,5 @@ export default definePlugin({
         observer = null;
         document.getElementById(STYLE_ID)?.remove();
         document.querySelectorAll(`[${PROCESSED_ATTR}]`).forEach(el => el.removeAttribute(PROCESSED_ATTR));
-        pluginCardContainers.forEach(container => {
-            try {
-                ReactDOM.unmountComponentAtNode(container);
-            } catch (e) {
-                console.error("[RichFormatting] failed to unmount plugin card", e);
-            }
-        });
-        pluginCardContainers.clear();
     },
 });
