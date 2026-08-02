@@ -5,7 +5,6 @@ import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { React } from "@webpack/common";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
-// Adjust this path if VeilCoreAPI lives somewhere else in your tree.
 import {
     h,
     createStyleInjector,
@@ -124,10 +123,6 @@ function getIconComponent(name: string) {
     return Icons[exportName] ?? null;
 }
 
-// reactNodeToDom, svgAttrName, SVG_NS, and SVG_ATTR_CAMEL_KEEP used to
-// be defined here — now imported from VeilCoreAPI, since they're the
-// exact same converter other plugins need too.
-
 function renderIconInto(container: HTMLElement, name: string) {
     const IconComponent = getIconComponent(name);
     if (!IconComponent) {
@@ -146,10 +141,21 @@ function renderIconInto(container: HTMLElement, name: string) {
     }
 }
 
-function buildButton(label: string, action: { type: "link" | "copy"; value: string }) {
+function normalizeHex(hex: string | undefined): string | null {
+    if (!hex) return null;
+    const clean = hex.trim().replace(/^#/, "");
+    if (!/^(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)) return null;
+    return `#${clean}`;
+}
+
+function buildButton(label: string, action: { type: "link" | "copy"; value: string }, hex?: string) {
     const btn = document.createElement("button");
     btn.textContent = label;
     btn.className = "rf-btn";
+
+    const color = normalizeHex(hex);
+    if (color) btn.style.backgroundColor = color;
+
     btn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
@@ -205,14 +211,7 @@ function buildIconSpan(name: string) {
     return span;
 }
 
-// findPluginByName used to be defined here — now imported from
-// VeilCoreAPI, same lookup logic (exact match, falling back to
-// case-insensitive name match).
-
 function openPluginCardModal(plugin: any) {
-    // Uses VeilCoreAPI's openSimpleModal instead of calling
-    // Modal/openModal directly — same underlying pattern, just
-    // centralized.
     openSimpleModal(plugin.name, () =>
         h(PluginCard, {
             plugin,
@@ -311,7 +310,6 @@ function buildPluginCardSpan(rawName: string) {
     if (sourceImg) titleTextWrap.appendChild(sourceImg);
     titleGroup.appendChild(titleTextWrap);
 
-    // Info button (opens full PluginCard modal)
     const infoBtn = document.createElement("button");
     infoBtn.className = "rf-plugin-card-info-button";
     infoBtn.title = pluginDetails?.title ?? "Plugin info";
@@ -361,11 +359,6 @@ function buildColoredText(hex: string, text: string) {
     return span;
 }
 
-// Parses lines like:
-//   {{veildown}} = {{btn:Download Veil|https://github.com/Zarak199076/Veil}}
-// into a name -> expansion map. Blank lines and lines that don't
-// match the pattern are skipped silently rather than erroring, so a
-// stray typo in ext.txt doesn't break the whole plugin.
 function parseShortcuts(raw: string): Map<string, string> {
     const map = new Map<string, string>();
     const lineRe = /^\{\{([a-zA-Z0-9_]+)\}\}\s*=\s*(.+)$/;
@@ -379,10 +372,7 @@ function parseShortcuts(raw: string): Map<string, string> {
     return map;
 }
 
-// Same pattern as Veil Badges — fetch a raw file straight from
-// GitHub rather than reading local disk, so editing ext.txt in the
-// repo takes effect on next load without a rebuild.
-const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
+const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt"; //CHANGE THIS IF YOU TAKE THIS (or don't, ill add any fo your things if you dm me)
 
 let shortcuts = new Map<string, string>();
 
@@ -398,10 +388,6 @@ async function loadShortcuts() {
     }
 }
 
-// Expands {{shortcutName}} occurrences into their defined expansion
-// text before normal token processing runs. Only matches bare
-// {{word}} (no colon), so it never collides with real tokens like
-// {{btn:...}} or {{icon:...}}.
 function expandShortcuts(text: string): string {
     if (!shortcuts.size) return text;
     return text.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (full, name) =>
@@ -411,11 +397,11 @@ function expandShortcuts(text: string): string {
 
 const TOKEN_RE = new RegExp(
     [
-        String.raw`\{\{btn:([^|}]+)\|(https?:\/\/[^\s}]+)\}\}`,        
-        String.raw`\{\{btn:([^|}]+)\|copy:([^}]+)\}\}`,                
-        String.raw`\{\{badge:(red|green|blue|yellow|gray)\|([^}]+)\}\}`, 
-        String.raw`\{\{progress:(\d{1,3})\}\}`,                        
-        String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,                    
+        String.raw`\{\{btn:([^|}]+)\|(https?:\/\/[^\s|}]+)(?:\|([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
+        String.raw`\{\{btn:([^|}]+)\|copy:([^}]+?)(?:\|([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
+        String.raw`\{\{badge:(red|green|blue|yellow|gray)\|([^}]+)\}\}`,
+        String.raw`\{\{progress:(\d{1,3})\}\}`,
+        String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,
         String.raw`\{\{icon:([a-zA-Z0-9_]+)\}\}`,
         String.raw`\{\{plugin:"?([^"}]+?)"?\}\}`,
         String.raw`\{\{colored:(#?[0-9a-fA-F]{3,8}):([^}]*)\}\}`,
@@ -437,14 +423,14 @@ function processInlineIntoFragment(text: string) {
         if (match.index > lastIndex) {
             frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
         }
-        if (match[1] !== undefined) frag.appendChild(buildButton(match[1], { type: "link", value: match[2] }));
-        else if (match[3] !== undefined) frag.appendChild(buildButton(match[3], { type: "copy", value: match[4] }));
-        else if (match[5] !== undefined) frag.appendChild(buildBadge(match[5], match[6]));
-        else if (match[7] !== undefined) frag.appendChild(buildProgress(parseInt(match[7], 10)));
-        else if (match[8] !== undefined) frag.appendChild(buildFold(match[8], match[9]));
-        else if (match[10] !== undefined) frag.appendChild(buildIconSpan(match[10]));
-        else if (match[11] !== undefined) frag.appendChild(buildPluginCardSpan(match[11]));
-        else if (match[12] !== undefined) frag.appendChild(buildColoredText(match[12], match[13]));
+        if (match[1] !== undefined) frag.appendChild(buildButton(match[1], { type: "link", value: match[2] }, match[3]));
+        else if (match[4] !== undefined) frag.appendChild(buildButton(match[4], { type: "copy", value: match[5] }, match[6]));
+        else if (match[7] !== undefined) frag.appendChild(buildBadge(match[7], match[8]));
+        else if (match[9] !== undefined) frag.appendChild(buildProgress(parseInt(match[9], 10)));
+        else if (match[10] !== undefined) frag.appendChild(buildFold(match[10], match[11]));
+        else if (match[12] !== undefined) frag.appendChild(buildIconSpan(match[12]));
+        else if (match[13] !== undefined) frag.appendChild(buildPluginCardSpan(match[13]));
+        else if (match[14] !== undefined) frag.appendChild(buildColoredText(match[14], match[15]));
 
         lastIndex = tokenRe.lastIndex;
 
@@ -483,14 +469,10 @@ function processMessageContentEl(el: HTMLElement) {
     el.setAttribute(PROCESSED_ATTR, "true");
 }
 
-// scanForMessages used to be defined here — its logic (initial scan +
-// re-scan on new nodes) is now exactly what VeilCoreAPI's
-// observeMatches does generically, used directly in start() below.
-
 const STYLE_ID = "rf-styles";
 const rfStyles = createStyleInjector(STYLE_ID, `
         .rf-btn { background:#5865F2;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:13px;font-weight:500;cursor:pointer;margin:2px 4px 2px 0; }
-        .rf-btn:hover { background:#4752C4; }
+        .rf-btn:hover { filter:brightness(0.88); }
         .rf-badge { display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600;margin:0 2px;color:#fff; }
         .rf-badge-red{background:#ED4245;} .rf-badge-green{background:#3BA55D;} .rf-badge-blue{background:#5865F2;}
         .rf-badge-yellow{background:#FAA61A;color:#1a1a1a;} .rf-badge-gray{background:#747F8D;}
@@ -533,8 +515,8 @@ function buildHelpText() {
     return [
         "**RichFormatting syntax reference** (only renders for you, client-side)",
         "",
-        `**Button (opens link):** \`${zw}btn:Label|https://example.com}}\``,
-        `**Button (copies text):** \`${zw}btn:Label|copy:some text}}\``,
+        `**Button (opens link):** \`${zw}btn:Label|https://example.com}}\` — add \`|hexcode\` for a custom color, e.g. \`${zw}btn:Label|https://example.com|FF5555}}\``,
+        `**Button (copies text):** \`${zw}btn:Label|copy:some text}}\` — same optional \`|hexcode\` at the end`,
         `**Badge:** \`${zw}badge:red|Urgent}}\` — colors: red, green, blue, yellow, gray`,
         `**Progress bar:** \`${zw}progress:65}}\``,
         `**Inline fold:** \`${zw}fold:Title|hidden text}}\``,
