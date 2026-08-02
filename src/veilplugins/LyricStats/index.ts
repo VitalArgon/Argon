@@ -276,12 +276,17 @@ export default definePlugin({
 
     patchActivity(activity: Activity) {
         if (!activity) return;
+
+        console.log("[LyricStats] patchActivity called:", activity.name, "flags:", activity.flags, "isSpotify:", isSpotifyActivity(activity), "currentLyricLine:", currentLyricLine);
+
         if (!isSpotifyActivity(activity)) return;
         if (!currentLyricLine) return;
 
         const field = getTargetFieldSetting();
         const prefix = getPrefixSetting();
         (activity as any)[field] = `${prefix}${currentLyricLine}`;
+
+        console.log("[LyricStats] wrote to", field, ":", (activity as any)[field]);
     },
 
     start() {
