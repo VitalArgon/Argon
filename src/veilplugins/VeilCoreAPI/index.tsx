@@ -1,7 +1,15 @@
+// not adding notes because if you're snooping through this you should be able to al least guess what it does
 import definePlugin from "@utils/types";
 import { VeilDevs, Devs, EquicordDevs } from "@utils/constants";
-import { React, Modal, openModal } from "@webpack/common";
+import {
+    React, Modal, openModal, showToast,
+    FluxDispatcher, UserStore, ChannelStore, GuildStore,
+    SelectedChannelStore, GuildMemberStore,
+} from "@webpack/common";
 import Plugins, { PluginMeta } from "~plugins";
+import { Logger } from "@utils/Logger";
+import { addContextMenuPatch, removeContextMenuPatch, findGroupChildrenByChildId } from "@api/ContextMenu";
+import { addPreSendListener, removePreSendListener, addPreEditListener, removePreEditListener } from "@api/MessageEvents";
 
 export function h(...args: Parameters<typeof React.createElement>) {
     return React.createElement(...args);
@@ -118,7 +126,7 @@ export function reactNodeToDom(node: any): Node | null {
         const { type, props } = node as { type: any; props: any };
 
         if (typeof type === "function") {
-           return reactNodeToDom(type(props ?? {}));
+            return reactNodeToDom(type(props ?? {}));
         }
 
         if (typeof type === "string") {
@@ -140,9 +148,42 @@ export function reactNodeToDom(node: any): Node | null {
     return null;
 }
 
+export function createLogger(name: string, color = "#A259FF") {
+    return new Logger(name, color);
+}
+
+export { showToast };
+
+export function notifyRestartNeeded() {
+    showToast("Restart to apply changes!");
+}
+
+export function copyToClipboard(text: string, toastMessage = "Copied!") {
+    navigator.clipboard.writeText(text).then(() => showToast(toastMessage));
+}
+
+export { UserStore, ChannelStore, GuildStore, SelectedChannelStore, GuildMemberStore };
+
+export function subscribeFlux(event: string, handler: (payload: any) => void) {
+    FluxDispatcher.subscribe(event, handler);
+    return () => FluxDispatcher.unsubscribe(event, handler);
+}
+
+export { addContextMenuPatch, removeContextMenuPatch, findGroupChildrenByChildId };
+export { addPreSendListener, removePreSendListener, addPreEditListener, removePreEditListener };
+
+export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    return ((...args: any[]) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+    }) as T;
+}
+
 export default definePlugin({
     name: "VeilCoreAPI",
-    description: "Shared helpers for building Veil plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering). Other plugins depend on this via dependencies: [\"VeilCoreAPI\"].",
+    description: "Shared helpers for building Veil plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, message interception). Other plugins depend on this via dependencies: [\"VeilCoreAPI\"].",
     authors: [VeilDevs.Zarak],
     required: true,
+    dependencies: ["ContextMenuAPI", "MessageEventsAPI"],
 });
