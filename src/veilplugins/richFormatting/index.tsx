@@ -5,6 +5,7 @@ import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { React } from "@webpack/common";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
+// Adjust this path if VeilCoreAPI lives somewhere else in your tree.
 import {
     h,
     createStyleInjector,
@@ -123,6 +124,10 @@ function getIconComponent(name: string) {
     return Icons[exportName] ?? null;
 }
 
+// reactNodeToDom, svgAttrName, SVG_NS, and SVG_ATTR_CAMEL_KEEP used to
+// be defined here — now imported from VeilCoreAPI, since they're the
+// exact same converter other plugins need too.
+
 function renderIconInto(container: HTMLElement, name: string) {
     const IconComponent = getIconComponent(name);
     if (!IconComponent) {
@@ -200,7 +205,14 @@ function buildIconSpan(name: string) {
     return span;
 }
 
+// findPluginByName used to be defined here — now imported from
+// VeilCoreAPI, same lookup logic (exact match, falling back to
+// case-insensitive name match).
+
 function openPluginCardModal(plugin: any) {
+    // Uses VeilCoreAPI's openSimpleModal instead of calling
+    // Modal/openModal directly — same underlying pattern, just
+    // centralized.
     openSimpleModal(plugin.name, () =>
         h(PluginCard, {
             plugin,
@@ -299,6 +311,7 @@ function buildPluginCardSpan(rawName: string) {
     if (sourceImg) titleTextWrap.appendChild(sourceImg);
     titleGroup.appendChild(titleTextWrap);
 
+    // Info button (opens full PluginCard modal)
     const infoBtn = document.createElement("button");
     infoBtn.className = "rf-plugin-card-info-button";
     infoBtn.title = pluginDetails?.title ?? "Plugin info";
@@ -348,6 +361,54 @@ function buildColoredText(hex: string, text: string) {
     return span;
 }
 
+// Parses lines like:
+//   {{veildown}} = {{btn:Download Veil|https://github.com/Zarak199076/Veil}}
+// into a name -> expansion map. Blank lines and lines that don't
+// match the pattern are skipped silently rather than erroring, so a
+// stray typo in ext.txt doesn't break the whole plugin.
+function parseShortcuts(raw: string): Map<string, string> {
+    const map = new Map<string, string>();
+    const lineRe = /^\{\{([a-zA-Z0-9_]+)\}\}\s*=\s*(.+)$/;
+    for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const match = trimmed.match(lineRe);
+        if (!match) continue;
+        map.set(match[1], match[2].trim());
+    }
+    return map;
+}
+
+// Same pattern as Veil Badges — fetch a raw file straight from
+// GitHub rather than reading local disk, so editing ext.txt in the
+// repo takes effect on next load without a rebuild.
+const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
+
+let shortcuts = new Map<string, string>();
+
+async function loadShortcuts() {
+    try {
+        const res = await fetch(SHORTCUTS_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.text();
+        shortcuts = parseShortcuts(raw);
+        console.log(`[RichFormatting] loaded ${shortcuts.size} shortcut(s) from ext.txt`);
+    } catch (e) {
+        console.error("[RichFormatting] failed to load ext.txt shortcuts:", e);
+    }
+}
+
+// Expands {{shortcutName}} occurrences into their defined expansion
+// text before normal token processing runs. Only matches bare
+// {{word}} (no colon), so it never collides with real tokens like
+// {{btn:...}} or {{icon:...}}.
+function expandShortcuts(text: string): string {
+    if (!shortcuts.size) return text;
+    return text.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (full, name) =>
+        shortcuts.has(name) ? shortcuts.get(name)! : full
+    );
+}
+
 const TOKEN_RE = new RegExp(
     [
         String.raw`\{\{btn:([^|}]+)\|(https?:\/\/[^\s}]+)\}\}`,        
@@ -395,7 +456,8 @@ function processInlineIntoFragment(text: string) {
 
 function processMessageContentEl(el: HTMLElement) {
     if (!el || el.getAttribute(PROCESSED_ATTR) === "true") return;
-    const original = el.textContent ?? "";
+    const raw = el.textContent ?? "";
+    const original = expandShortcuts(raw);
     if (!ANY_SYNTAX_RE.test(original)) {
         el.setAttribute(PROCESSED_ATTR, "true");
         return;
@@ -420,6 +482,10 @@ function processMessageContentEl(el: HTMLElement) {
     el.appendChild(newFrag);
     el.setAttribute(PROCESSED_ATTR, "true");
 }
+
+// scanForMessages used to be defined here — its logic (initial scan +
+// re-scan on new nodes) is now exactly what VeilCoreAPI's
+// observeMatches does generically, used directly in start() below.
 
 const STYLE_ID = "rf-styles";
 const rfStyles = createStyleInjector(STYLE_ID, `
@@ -482,6 +548,8 @@ function buildHelpText() {
         `Available icon names: ${iconNames}`,
         `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
         `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
+        "",
+        `**Shortcuts** (defined in ext.txt): ${shortcuts.size ? [...shortcuts.keys()].map(k => `\`{{${k}}}\``).join(", ") : "none loaded"}`,
     ].join("\n");
 };
 
@@ -513,6 +581,17 @@ export default definePlugin({
                 sendBotMessage(ctx.channel.id, { content: buildHelpText() });
             },
         },
+        {
+            name: "richformat-reload-shortcuts",
+            description: "Re-fetch ext.txt shortcuts from GitHub without restarting Discord",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            execute: async (_opts, ctx) => {
+                await loadShortcuts();
+                sendBotMessage(ctx.channel.id, {
+                    content: `Reloaded — ${shortcuts.size} shortcut(s) loaded.`,
+                });
+            },
+        },
     ],
 
     start() {
@@ -521,6 +600,8 @@ export default definePlugin({
         if (settings.store.logIconsOnStart) {
             console.log("[RichFormatting] Available icons in this build:", Object.keys(Icons).sort());
         }
+
+        loadShortcuts();
 
         stopObservingMessages = observeMatches(
             '[id^="message-content-"]',
