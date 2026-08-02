@@ -2,8 +2,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { VeilDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
-import { React } from "@webpack/common";
-import { findByPropsLazy } from "@webpack";
+import { React, ReactDOM } from "@webpack/common";
 import * as Icons from "@components/Icons";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
 import Plugins from "~plugins";
@@ -248,17 +247,18 @@ function buildIconSpan(name: string) {
     return span;
 }
 
-// @webpack/common's ReactDOM re-export was missing createRoot on this
-// build (threw "createRoot is not a function") — finding the real
-// module directly, same fix as the Finder/MessageActions issue
-// earlier in this project.
-const ReactDOM = findByPropsLazy("createRoot", "hydrateRoot");
-
-// Roots created for plugin-card embeds, tracked so we can unmount
-// them cleanly in stop() rather than leaking React trees when
-// Discord's own virtualization removes the underlying message DOM
-// out from under us.
-const pluginCardRoots = new Set<any>();
+// @webpack/common's ReactDOM object resolves fine but has no
+// createRoot on this build (multiple attempts to find a separate
+// module exporting createRoot came back empty too — likely
+// tree-shaken since Discord's own code may not call it directly
+// here). Falling back to the classic render/unmountComponentAtNode
+// API instead, which this object is much more likely to actually
+// have.
+//
+// Containers tracked here so we can unmount them cleanly in stop()
+// rather than leaking React trees when Discord's own virtualization
+// removes the underlying message DOM out from under us.
+const pluginCardContainers = new Set<HTMLElement>();
 
 function findPluginByName(rawName: string) {
     const name = rawName.trim().replace(/^"(.*)"$/, "$1");
@@ -283,15 +283,15 @@ function buildPluginCardSpan(rawName: string) {
     // render cycle, which breaks hooks and event handlers). Mounting
     // a real root here keeps it fully functional.
     try {
-        const root = ReactDOM.createRoot(container);
-        root.render(
+        ReactDOM.render(
             React.createElement(PluginCard, {
                 plugin,
                 disabled: plugin.required ?? false,
                 onRestartNeeded: () => {},
-            })
+            }),
+            container
         );
-        pluginCardRoots.add(root);
+        pluginCardContainers.add(container);
     } catch (e) {
         container.textContent = `[plugin card render failed: ${rawName}]`;
         container.classList.add("rf-icon-missing");
@@ -483,7 +483,13 @@ export default definePlugin({
         observer = null;
         document.getElementById(STYLE_ID)?.remove();
         document.querySelectorAll(`[${PROCESSED_ATTR}]`).forEach(el => el.removeAttribute(PROCESSED_ATTR));
-        pluginCardRoots.forEach(root => root.unmount());
-        pluginCardRoots.clear();
+        pluginCardContainers.forEach(container => {
+            try {
+                ReactDOM.unmountComponentAtNode(container);
+            } catch (e) {
+                console.error("[RichFormatting] failed to unmount plugin card", e);
+            }
+        });
+        pluginCardContainers.clear();
     },
 });
