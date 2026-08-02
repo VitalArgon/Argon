@@ -315,9 +315,20 @@ function buildPluginCardSpan(rawName: string) {
     nameEl.className = "rf-plugin-card-name";
     nameEl.textContent = plugin.name;
 
+    // Determine plugin source (Equicord / Vencord / Veil) from PluginMeta.folderName
+    const pluginMeta = PluginMeta[plugin.name];
+    let sourceIconName: string | null = null;
+    if (pluginMeta?.folderName?.startsWith("src/equicordplugins/")) sourceIconName = "equicord";
+    else if (pluginMeta?.folderName?.startsWith("src/plugins/")) sourceIconName = "vencord";
+    else if (pluginMeta?.folderName?.startsWith("src/veilplugins/")) sourceIconName = "veil";
+
+    const sourceIconWrap = document.createElement("span");
+    sourceIconWrap.className = "rf-plugin-card-source-icon";
+    if (sourceIconName) renderIconInto(sourceIconWrap, sourceIconName);
+
     const titleGroup = document.createElement("div");
     titleGroup.className = "rf-plugin-card-title-group";
-    titleGroup.append(iconWrap, nameEl);
+    titleGroup.append(iconWrap, sourceIconWrap, nameEl);
 
     const statusPill = document.createElement("span");
     const enabled = !!plugin.started || !!plugin.enabled;
@@ -441,7 +452,7 @@ function injectStyles() {
         .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
         .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
         .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
-        .rf-plugin-card{display:flex;align-items:stretch;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;max-width:420px;cursor:pointer;text-align:left;overflow:hidden;transition:border-color .15s ease,transform .1s ease;}
+        .rf-plugin-card{display:flex;align-items:stretch;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;max-width:420px;cursor:pointer;text-align:left;overflow:hidden;transition:transform .08s ease,border-color .08s ease;}
         .rf-plugin-card:hover{border-color:#A259FF;transform:translateY(-1px);}
         .rf-plugin-card:active{transform:translateY(0);}
         .rf-plugin-card-accent{width:4px;flex-shrink:0;background:linear-gradient(180deg,#A259FF,#6C3FBF);}
@@ -449,6 +460,7 @@ function injectStyles() {
         .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;}
         .rf-plugin-card-title-group{display:flex;align-items:center;gap:7px;min-width:0;}
         .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;}
+        .rf-plugin-card-source-icon{display:inline-flex;align-items:center;margin-left:4px;color:var(--interactive-icon-default);flex-shrink:0;}
         .rf-plugin-card-name{font-weight:700;color:#f2f3f5;font-size:14px;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
         .rf-plugin-card-status{font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 8px;border-radius:20px;flex-shrink:0;}
         .rf-plugin-card-status-on{background:rgba(59,165,93,.16);color:#3BA55D;box-shadow:inset 0 0 0 1px rgba(59,165,93,.35);}
