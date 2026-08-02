@@ -3,7 +3,6 @@ import { definePluginSettings } from "@api/Settings";
 import { FluxDispatcher } from "@webpack/common";
 import { VeilDevs } from "@utils/constants";
 import { Activity } from "@vencord/discord-types";
-import { ActivityFlags } from "@vencord/discord-types/enums";
 
 export const settings = definePluginSettings({
     lyricsPrefix: {
@@ -253,10 +252,6 @@ function stopSyncLoop() {
     }
 }
 
-function isSpotifyActivity(activity: Activity): boolean {
-    return (activity.flags & (ActivityFlags.SYNC | ActivityFlags.PLAY)) === (ActivityFlags.SYNC | ActivityFlags.PLAY);
-}
-
 export default definePlugin({
     name: "LyricStats",
     description: "Shows the current line of the song playing on Spotify directly in your Spotify listening activity, instead of your custom status.",
@@ -268,8 +263,8 @@ export default definePlugin({
         {
             find: '"LocalActivityStore"',
             replacement: {
-                match: /\i\(\i\)\{.{0,25}activity:(\i).*?\}=\i;/,
-                replace: "$&$self.patchActivity($1);",
+                match: /let (\i)=(\i)\.(\i)\.getActivity\(\);null!=\1&&/,
+                replace: "let $1=$2.$3.getActivity();$self.patchActivity($1);null!=$1&&",
             }
         }
     ],
@@ -277,9 +272,8 @@ export default definePlugin({
     patchActivity(activity: Activity) {
         if (!activity) return;
 
-        console.log("[LyricStats] patchActivity called:", activity.name, "flags:", activity.flags, "isSpotify:", isSpotifyActivity(activity), "currentLyricLine:", currentLyricLine);
+        console.log("[LyricStats] patchActivity called, currentLyricLine:", currentLyricLine);
 
-        if (!isSpotifyActivity(activity)) return;
         if (!currentLyricLine) return;
 
         const field = getTargetFieldSetting();
