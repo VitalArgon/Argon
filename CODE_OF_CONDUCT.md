@@ -15,6 +15,7 @@ As such, we expect you to treat everyone with respect and contribute to an open 
 - Use offensive or derogatory language.
 - Troll or spam.
 - Personally attack or harass others.
+- Use AI, please don't use AI in the creation of a plugin. Please.
 
 Repetitive violations of these guidelines might get your access to the repository restricted.
 
