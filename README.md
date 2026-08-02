@@ -10,10 +10,11 @@ Veil is not a cord, or a wire, or a line, or a cable.
 
 ## Disclaimer
 
-Discord is trademark of Discord Inc., and solely mentioned for the sake of descriptivity.
+1. Discord is trademark of Discord Inc., and solely mentioned for the sake of descriptivity.
 Mentioning it does not imply any affiliation with or endorsement by Discord Inc.
 Vencord is not connected to Veil and as such, all donation links go to Vendicated's donation link.
 
+2. If you plan on taking any plugins then take VeilCoreAPI aswell, some of them will require it.
 <details>
 <summary>Using Veil violates Discord's terms of service</summary>
 
