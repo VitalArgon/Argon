@@ -22,6 +22,11 @@ export const settings = definePluginSettings({
         type: OptionType.NUMBER,
         description: "How often to recompute the active lyric line (in ms)",
         default: 150,
+    },
+    presenceRefreshInterval: {
+        type: OptionType.NUMBER,
+        description: "How often to force Discord to resend your Spotify presence so the lyric line actually updates (ms). Lower = more responsive but spams presence updates more.",
+        default: 2000,
     }
 });
 
@@ -51,9 +56,12 @@ interface LyricLine {
 let lastTrackId: string | null = null;
 let currentLyrics: LyricLine[] = [];
 let lastPlayerState: PlayerState | null = null;
+let lastRawPayload: any = null;
 let stateReceivedAt = 0;
 let syncTimeoutId: any = null;
 let isLoopRunning = false;
+let presenceTimeoutId: any = null;
+let isPresenceLoopRunning = false;
 
 // The line patchActivity reads from on every LocalActivityStore
 // recompute. null means "don't touch the field" — original Spotify
@@ -81,6 +89,14 @@ function getSyncIntervalSetting(): number {
         return settings.store.syncInterval ?? 150;
     } catch {
         return 150;
+    }
+}
+
+function getPresenceRefreshIntervalSetting(): number {
+    try {
+        return settings.store.presenceRefreshInterval ?? 2000;
+    } catch {
+        return 2000;
     }
 }
 
@@ -198,14 +214,53 @@ function syncLoopTick() {
     updateLyricsTick();
 }
 
+function pingSpotifyStore() {
+    if (!lastRawPayload) return;
+    try {
+        FluxDispatcher.dispatch({
+            ...lastRawPayload,
+            type: "SPOTIFY_PLAYER_STATE",
+            position: getCurrentPosition(),
+        });
+    } catch (e) {
+        console.error("[LyricStats] Error re-dispatching SPOTIFY_PLAYER_STATE:", e);
+    }
+}
+
+function presenceLoopTick() {
+    if (!isPresenceLoopRunning) return;
+    pingSpotifyStore();
+    if (isPresenceLoopRunning) {
+        presenceTimeoutId = setTimeout(presenceLoopTick, getPresenceRefreshIntervalSetting());
+    }
+}
+
+function startPresenceLoop() {
+    if (isPresenceLoopRunning) return;
+    console.log("[LyricStats] Starting presence refresh loop.");
+    isPresenceLoopRunning = true;
+    presenceLoopTick();
+}
+
+function stopPresenceLoop() {
+    console.log("[LyricStats] Stopping presence refresh loop.");
+    isPresenceLoopRunning = false;
+    if (presenceTimeoutId) {
+        clearTimeout(presenceTimeoutId);
+        presenceTimeoutId = null;
+    }
+}
+
 async function handleSpotifyPlayerState(state: PlayerState) {
     try {
         console.log("[LyricStats] Received player state:", state.track?.name, "isPlaying:", state.isPlaying, "position:", state.position);
         lastPlayerState = state;
+        lastRawPayload = state;
         stateReceivedAt = Date.now();
 
         if (!state.track) {
             stopSyncLoop();
+            stopPresenceLoop();
             currentLyricLine = null;
             lastTrackId = null;
             currentLyrics = [];
@@ -226,9 +281,11 @@ async function handleSpotifyPlayerState(state: PlayerState) {
 
         if (state.isPlaying) {
             startSyncLoop();
+            startPresenceLoop();
             updateLyricsTick();
         } else {
             stopSyncLoop();
+            stopPresenceLoop();
             currentLyricLine = null;
         }
     } catch (e) {
@@ -302,6 +359,7 @@ export default definePlugin({
             console.warn("[LyricStats] Unsubscribing failed:", e);
         }
         stopSyncLoop();
+        stopPresenceLoop();
         currentLyricLine = null;
         lastTrackId = null;
         currentLyrics = [];
