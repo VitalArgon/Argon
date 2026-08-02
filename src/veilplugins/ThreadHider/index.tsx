@@ -26,7 +26,7 @@ function injectStyles() {
 
 export default definePlugin({
     name: "ThreadHider",
-    tags : ["Veil"]
+    tags: ["Veil"],
     description: "Hides channel threads and shows them upon hovering over the channel",
     authors: [VeilDevs.Zarak],
 
