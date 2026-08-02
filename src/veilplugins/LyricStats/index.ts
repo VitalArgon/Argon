@@ -88,7 +88,7 @@ function getSyncIntervalSetting(): number {
     try {
         return settings.store.syncInterval ?? 150;
     } catch {
-        return 150;
+        return 50;
     }
 }
 
@@ -96,7 +96,7 @@ function getPresenceRefreshIntervalSetting(): number {
     try {
         return settings.store.presenceRefreshInterval ?? 2000;
     } catch {
-        return 2000;
+        return 50;
     }
 }
 
