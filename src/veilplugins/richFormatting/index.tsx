@@ -252,7 +252,7 @@ function buildIconSpan(name: string) {
 // build (threw "createRoot is not a function") — finding the real
 // module directly, same fix as the Finder/MessageActions issue
 // earlier in this project.
-const ReactDOM = findByPropsLazy("createRoot", "findDOMNode");
+const ReactDOM = findByPropsLazy("createRoot", "hydrateRoot");
 
 // Roots created for plugin-card embeds, tracked so we can unmount
 // them cleanly in stop() rather than leaking React trees when
