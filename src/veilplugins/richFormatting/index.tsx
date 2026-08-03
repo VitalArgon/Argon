@@ -425,6 +425,16 @@ const TOKEN_RE = new RegExp(
 const BLOCK_FOLD_RE = /:::fold\s+([^\n]+)\n([\s\S]*?):::/g;
 const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|\{\{plugin:|\{\{colored:|:::fold/;
 
+const HEADING_LINE_RE = /^(--#|\+#)[ \t]+(.*)$/;
+const HEADING_LINE_ANY_RE = /^(?:--#|\+#)[ \t]+/m;
+
+function buildHeadingLine(tier: "small" | "big", text: string) {
+    const div = document.createElement("div");
+    div.className = tier === "small" ? "rf-heading-small" : "rf-heading-big";
+    div.appendChild(processInlineIntoFragment(text));
+    return div;
+}
+
 function processInlineIntoFragment(text: string) {
     const frag = document.createDocumentFragment();
     let lastIndex = 0;
@@ -453,6 +463,32 @@ function processInlineIntoFragment(text: string) {
     return frag;
 }
 
+function processLinesIntoFragment(text: string) {
+    const frag = document.createDocumentFragment();
+    const lines = text.split("\n");
+    let plainBuffer: string[] = [];
+
+    const flushPlain = () => {
+        if (plainBuffer.length === 0) return;
+        frag.appendChild(processInlineIntoFragment(plainBuffer.join("\n")));
+        plainBuffer = [];
+    };
+
+    for (const line of lines) {
+        const match = line.match(HEADING_LINE_RE);
+        if (match) {
+            flushPlain();
+            const tier = match[1] === "--#" ? "small" : "big";
+            frag.appendChild(buildHeadingLine(tier, match[2]));
+        } else {
+            plainBuffer.push(line);
+        }
+    }
+    flushPlain();
+
+    return frag;
+}
+
 function shouldSkipElement(el: Element): boolean {
     if (el.tagName === "CODE" || el.tagName === "PRE") return true;
     const className = (el as HTMLElement).className;
@@ -471,17 +507,17 @@ function processTextNode(node: Text) {
         let lastIndex = 0;
         let match: RegExpExecArray | null;
         while ((match = blockFoldRe.exec(expanded)) !== null) {
-            if (match.index > lastIndex) newFrag.appendChild(processInlineIntoFragment(expanded.slice(lastIndex, match.index)));
+            if (match.index > lastIndex) newFrag.appendChild(processLinesIntoFragment(expanded.slice(lastIndex, match.index)));
             newFrag.appendChild(buildFold(match[1].trim(), match[2].trim()));
             lastIndex = blockFoldRe.lastIndex;
         }
-        if (lastIndex < expanded.length) newFrag.appendChild(processInlineIntoFragment(expanded.slice(lastIndex)));
+        if (lastIndex < expanded.length) newFrag.appendChild(processLinesIntoFragment(expanded.slice(lastIndex)));
         node.replaceWith(newFrag);
         return;
     }
 
-    if (ANY_SYNTAX_RE.test(expanded)) {
-        node.replaceWith(processInlineIntoFragment(expanded));
+    if (ANY_SYNTAX_RE.test(expanded) || HEADING_LINE_ANY_RE.test(expanded)) {
+        node.replaceWith(processLinesIntoFragment(expanded));
     } else if (expanded !== raw) {
         node.textContent = expanded;
     }
@@ -504,7 +540,7 @@ function processMessageContentEl(el: HTMLElement) {
     if (!el || el.getAttribute(PROCESSED_ATTR) === "true") return;
 
     const quickCheck = expandShortcuts(el.textContent ?? "");
-    if (!ANY_SYNTAX_RE.test(quickCheck)) {
+    if (!ANY_SYNTAX_RE.test(quickCheck) && !HEADING_LINE_ANY_RE.test(quickCheck)) {
         el.setAttribute(PROCESSED_ATTR, "true");
         return;
     }
@@ -550,6 +586,8 @@ const rfStyles = createStyleInjector(STYLE_ID, `
         .rf-toggle.rf-toggle-on .rf-toggle-knob{left:23px;}
         .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;line-height:1.45;margin-top:8px;}
         .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:8px;font-weight:500;}
+        .rf-heading-small{font-size:0.65em;line-height:1.3;color:var(--text-muted,#80848e);}
+        .rf-heading-big{font-size:2em;line-height:1.25;font-weight:700;color:var(--header-primary,#f2f3f5);}
 `);
 
 function buildHelpText() {
@@ -574,6 +612,10 @@ function buildHelpText() {
         `Available icon names: ${iconNames}`,
         `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
         `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
+        "",
+        "**Extra heading tiers** (own line, need a space after the marker):",
+        "`--# text` — smaller than Discord's own `-# ` subtext",
+        "`+# text` — bigger than Discord's own `# ` heading",
         "",
         `**Shortcuts** (defined in ext.txt): ${shortcuts.size ? [...shortcuts.keys()].map(k => `\`{{${k}}}\``).join(", ") : "none loaded"}`,
     ].join("\n");
