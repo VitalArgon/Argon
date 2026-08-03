@@ -69,3 +69,14 @@ export function initGuildPluginManager() {
         handleGuildAvailable((guild as any).id);
     }
 }
+
+let subscriptions: (() => void)[] = [];
+
+export function stopGuildPluginManager() {
+    // unsubscribe from FluxDispatcher and deactivate any currently-running
+    // guild plugins — mirrors the subscribe calls already made in
+    // initGuildPluginManager()
+    for (const pluginId of Object.keys(GuildPlugins)) {
+        deactivate(pluginId);
+    }
+}
