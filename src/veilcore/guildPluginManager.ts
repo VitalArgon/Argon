@@ -1,7 +1,5 @@
-// src/veilcore/guildPluginManager.ts
-
 import { FluxDispatcher } from "@webpack/common";
-import { GuildPlugins } from "@veilplugins/guildplugins";
+import { GuildPlugins } from "@veilcore/guildplugins";
 import { getEntryForGuild, loadManifest } from "./manifestSource";
 import { maybeShowInstallPrompt } from "./installPrompt";
 
