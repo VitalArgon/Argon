@@ -1,52 +1,65 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
-import { FluxDispatcher, SelectedGuildStore } from "@webpack/common";
+import { FluxDispatcher, SelectedGuildStore, ChannelStore } from "@webpack/common";
 
 const STYLE_ID = "veil-guild-theme";
-
-// Per-guild CSS overrides. Swap/extend the variables here to whatever you
-// want a themed server to change — accent color, background, etc.
-// (Later you could pull this from the guild's manifest entry instead of
-// hardcoding it, so each server owner can define their own theme.)
-const GUILD_THEMES: Record<string, string> = {
-    // "123456789012345678": `:root { --background-primary: #1a0000; --brand-experiment: #b30000; }`,
-};
+const CSS_CHANNEL_NAME = "css";
 
 let watchedGuildId: string | null = null;
 
+function getCssForGuild(guildId: string): string | null {
+    const channels = ChannelStore.getMutableGuildChannelsForGuild(guildId);
+    const cssChannel = Object.values(channels).find(
+        (c: any) => c.name?.toLowerCase() === CSS_CHANNEL_NAME
+    ) as any;
+
+    // topic caps out around 1024 chars on most Discord tiers — fine for
+    // small overrides, but don't expect a full stylesheet to fit. Worth
+    // switching to a pinned message or an attachment if you outgrow it.
+    return cssChannel?.topic || null;
+}
+
 function applyThemeIfActive() {
     const selected = SelectedGuildStore.getGuildId();
-    const theme = selected && selected === watchedGuildId ? GUILD_THEMES[selected] : null;
+    const css = selected && selected === watchedGuildId ? getCssForGuild(selected) : null;
 
     let styleEl = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
 
-    if (theme) {
+    if (css) {
         if (!styleEl) {
             styleEl = document.createElement("style");
             styleEl.id = STYLE_ID;
             document.head.appendChild(styleEl);
         }
-        styleEl.textContent = theme;
+        styleEl.textContent = css;
     } else {
         styleEl?.remove();
     }
 }
 
+function onChannelUpdate({ channel }: any) {
+    // live-refresh if the owner edits #css topic while you're actively
+    // sitting in that guild — same pattern as the veil-plugins channel
+    if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === CSS_CHANNEL_NAME) {
+        applyThemeIfActive();
+    }
+}
+
 export default defineGuildPlugin({
     name: "GuildTheme",
-    description: "Applies this guild's custom theme while you're viewing it, reverts the moment you switch away.",
+    description: "Applies CSS from this guild's #css channel topic while you're viewing it, reverts the moment you switch away.",
     authors: [VeilDevs.Zarak],
 
-    // guildId is threaded in by guildPluginManager.activate() — see the
-    // manager change below.
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
         FluxDispatcher.subscribe("CHANNEL_SELECT", applyThemeIfActive);
+        FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
         applyThemeIfActive(); // in case you're already sitting in the guild when it activates
     },
 
     stop() {
         FluxDispatcher.unsubscribe("CHANNEL_SELECT", applyThemeIfActive);
+        FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
         document.getElementById(STYLE_ID)?.remove();
         watchedGuildId = null;
     },
