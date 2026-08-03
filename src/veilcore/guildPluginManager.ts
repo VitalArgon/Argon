@@ -17,12 +17,6 @@ export async function setUserOptIn(guildId: string, pluginId: string, enabled: b
     enabled ? activate(guildId, pluginId) : deactivate(pluginId);
 }
 
-function activate(guildId: string, pluginId: string) {
-    const plugin = GuildPlugins[pluginId];
-    if (!plugin) return;
-    if (!plugin.started) plugin.start?.();
-}
-
 function deactivate(pluginId: string) {
     const plugin = GuildPlugins[pluginId];
     if (!plugin) return;
