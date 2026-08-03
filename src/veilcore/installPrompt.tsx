@@ -1,6 +1,6 @@
 import { ModalRoot, ModalHeader, ModalContent, ModalFooter, openModal } from "@utils/modal";
 import { Button, Text } from "@webpack/common";
-import { GuildManifestEntry } from "@veilplugins/guildplugins/manifest";
+import { GuildManifestEntry } from "@veilcore/guildplugins/manifest";
 import { setUserOptIn } from "./guildPluginManager";
 
 const askedKey = (guildId: string, pluginId: string) => `Veil_guildPlugin_asked_${guildId}_${pluginId}`;
