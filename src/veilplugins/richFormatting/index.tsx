@@ -140,10 +140,13 @@ function renderIconInto(container: HTMLElement, name: string) {
             ? (dom as unknown as SVGElement)
             : container.querySelector("svg");
         if (svgEl) {
+            svgEl.removeAttribute("class");
             svgEl.setAttribute("width", "16");
             svgEl.setAttribute("height", "16");
-            (svgEl as unknown as HTMLElement).style.width = "16px";
-            (svgEl as unknown as HTMLElement).style.height = "16px";
+            const svgStyle = (svgEl as unknown as HTMLElement).style;
+            svgStyle.setProperty("width", "16px", "important");
+            svgStyle.setProperty("height", "16px", "important");
+            svgStyle.setProperty("flex-shrink", "0", "important");
         }
     } catch (e) {
         container.textContent = `[icon render failed: ${name}]`;
@@ -554,7 +557,7 @@ function buildHelpText() {
 
     const zw = "{{\u200B";
     return [
-        "**RichFormatting syntax reference**",
+        "**RichFormatting syntax reference** (only renders for you, client-side)",
         "",
         `**Button (opens link):** \`${zw}btn:Label|https://example.com}}\` — add \`|hexcode\` for a custom color, e.g. \`${zw}btn:Label|https://example.com|FF5555}}\``,
         `**Button (copies text):** \`${zw}btn:Label|copy:some text}}\` — same optional \`|hexcode\` at the end`,
