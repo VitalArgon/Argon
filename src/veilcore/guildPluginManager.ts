@@ -2,12 +2,14 @@ import { FluxDispatcher, GuildStore } from "@webpack/common";
 import * as DataStore from "@api/DataStore";
 import { GuildPlugins } from "@veilcore/guildplugins";
 import { getEntryForGuild } from "./manifestSource";
-import { maybeShowInstallPrompt } from "./installPrompt";
 
 const userEnabledKey = (guildId: string, pluginId: string) => `Veil_guildPlugin_${guildId}_${pluginId}`;
 
+// default true: absence of a stored value means "not yet turned off",
+// i.e. still auto-enabled. Only an explicit `false` disables it.
 export async function isUserOptedIn(guildId: string, pluginId: string): Promise<boolean> {
-    return (await DataStore.get(userEnabledKey(guildId, pluginId))) === true;
+    const stored = await DataStore.get(userEnabledKey(guildId, pluginId));
+    return stored !== false;
 }
 
 export async function setUserOptIn(guildId: string, pluginId: string, enabled: boolean) {
@@ -34,9 +36,9 @@ async function handleGuildAvailable(guildId: string) {
     for (const pluginId of entry.pluginIds) {
         if (await isUserOptedIn(guildId, pluginId)) {
             activate(guildId, pluginId);
-        } else if (entry.promptOnJoin) {
-            maybeShowInstallPrompt(entry, pluginId);
         }
+        // no prompt branch anymore — if they'd previously turned it off,
+        // it just stays off until they flip it back on in Settings
     }
 }
 
@@ -60,13 +62,5 @@ export function initGuildPluginManager() {
 
     for (const guild of Object.values(GuildStore.getGuilds())) {
         handleGuildAvailable((guild as any).id);
-    }
-}
-
-let subscriptions: (() => void)[] = [];
-
-export function stopGuildPluginManager() {
-    for (const pluginId of Object.keys(GuildPlugins)) {
-        deactivate(pluginId);
     }
 }
