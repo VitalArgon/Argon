@@ -8,6 +8,8 @@ Veil is not a cord, or a wire, or a line, or a cable.
 [Equicord Plugins](https://equicord.org/plugins)
 ||ps. We have actual custom plugins rather than userplugins (unlike *some* forks)||
 
+We have GUILD PLUGINS, yep you heard me right guild plugins, plugins that are exclusively enabled via guilds that function ON the guild, I'm not that creative for a use for this though so please make your own and donate them.
+
 ## Disclaimer
 
 1. Discord is trademark of Discord Inc., and solely mentioned for the sake of descriptivity.
