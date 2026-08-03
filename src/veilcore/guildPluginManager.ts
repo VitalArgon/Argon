@@ -7,7 +7,7 @@ import { maybeShowInstallPrompt } from "./installPrompt";
 // the same as the user having agreed to run it
 const userEnabledKey = (guildId: string, pluginId: string) => `Veil_guildPlugin_${guildId}_${pluginId}`;
 
-function isUserOptedIn(guildId: string, pluginId: string): boolean {
+export function isUserOptedIn(guildId: string, pluginId: string): boolean {
     return localStorage.getItem(userEnabledKey(guildId, pluginId)) === "true";
 }
 
