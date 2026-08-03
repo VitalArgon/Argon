@@ -64,3 +64,11 @@ export function initGuildPluginManager() {
         handleGuildAvailable((guild as any).id);
     }
 }
+
+let subscriptions: (() => void)[] = [];
+
+export function stopGuildPluginManager() {
+    for (const pluginId of Object.keys(GuildPlugins)) {
+        deactivate(pluginId);
+    }
+}
