@@ -1,7 +1,7 @@
-import WelcomeBanner from "./welcomeBanner";
+import GuildTheme from "./guildTheme";
 import CustomChannelNames from "./customChannelNames";
 
 export const GuildPlugins: Record<string, ReturnType<typeof import("./_api/defineGuildPlugin").defineGuildPlugin>> = {
-    welcomeBanner: WelcomeBanner,
+    guildTheme: GuildTheme,
     customChannelNames: CustomChannelNames,
 };
