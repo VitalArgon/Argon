@@ -72,3 +72,9 @@ export function stopGuildPluginManager() {
         deactivate(pluginId);
     }
 }
+
+function activate(guildId: string, pluginId: string) {
+    const plugin = GuildPlugins[pluginId];
+    if (!plugin) return;
+    if (!plugin.started) plugin.start?.(guildId);
+}
