@@ -1,2 +1,6 @@
 // Dm me on discord I'll add your shortcut, if it's useful, or for your own client
-{{veildown}} = {{btn:Download Veil|https://github.com/Zarak199076/Veil}}
+{{veildown}} = {{btn:Download Veil|https://github.com/Zarak199076/Veil/releases/}}
+{{veil}} = {{icon:veil}}
+{{equicord}} = {{icon:equicord}}
+{{vencord}} = {{icon:vencord}}
+{{vesktop}} = {{icon:vesktop}}
