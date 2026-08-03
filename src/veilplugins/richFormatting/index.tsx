@@ -141,11 +141,11 @@ function renderIconInto(container: HTMLElement, name: string) {
             : container.querySelector("svg");
         if (svgEl) {
             svgEl.removeAttribute("class");
-            svgEl.setAttribute("width", "16");
-            svgEl.setAttribute("height", "16");
+            svgEl.removeAttribute("width");
+            svgEl.removeAttribute("height");
             const svgStyle = (svgEl as unknown as HTMLElement).style;
-            svgStyle.setProperty("width", "16px", "important");
-            svgStyle.setProperty("height", "16px", "important");
+            svgStyle.setProperty("width", "1.1em", "important");
+            svgStyle.setProperty("height", "1.1em", "important");
             svgStyle.setProperty("flex-shrink", "0", "important");
         }
     } catch (e) {
