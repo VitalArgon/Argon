@@ -1,4 +1,4 @@
-import { GuildManifest, GuildManifestEntry } from "@veilplugins/guildplugins/manifest";
+import { GuildManifest, GuildManifestEntry } from "@veilcore/guildplugins/manifest";
 
 const REMOTE_MANIFEST_URL: string | null = null; // set later if you want live toggling
 
