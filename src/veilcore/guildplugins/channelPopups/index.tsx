@@ -3,7 +3,7 @@ import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, ChannelStore, Button, Text } from "@webpack/common";
 import { ModalRoot, ModalHeader, ModalContent, ModalFooter, openModal } from "@utils/modal";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
-import { h, findPluginByName } from "@veilplugins/VeilCoreAPI";
+import { h, findPluginByName } from "../../../veilplugins/VeilCoreAPI";
 
 interface ParsedPopup {
     title: string;
