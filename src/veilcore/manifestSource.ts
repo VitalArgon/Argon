@@ -4,7 +4,7 @@ import { GuildPlugins } from "@veilcore/guildplugins";
 
 export type { GuildManifestEntry };
 
-const CONFIG_CHANNEL_NAME = "veil-plugins";
+const CONFIG_CHANNEL_NAME = "rules";
 
 function findConfigChannel(guildId: string): any | null {
     // returns { channelId: Channel } for the guild — verify this exact
