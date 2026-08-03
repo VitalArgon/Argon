@@ -1,6 +1,6 @@
-import { FluxDispatcher } from "@webpack/common";
+import { FluxDispatcher, GuildStore } from "@webpack/common";
 import { GuildPlugins } from "@veilcore/guildplugins";
-import { getEntryForGuild, loadManifest } from "./manifestSource";
+import { getEntryForGuild } from "./manifestSource";
 import { maybeShowInstallPrompt } from "./installPrompt";
 
 // user-level opt-in store — plugin being "unlocked" by the guild is not
@@ -28,7 +28,7 @@ function deactivate(pluginId: string) {
     if (plugin.started) plugin.stop?.();
 }
 
-async function handleGuildAvailable(guildId: string) {
+function handleGuildAvailable(guildId: string) {
     const entry = getEntryForGuild(guildId);
     if (!entry) return;
 
@@ -44,33 +44,28 @@ async function handleGuildAvailable(guildId: string) {
 function handleGuildUnavailable(guildId: string) {
     const entry = getEntryForGuild(guildId);
     if (!entry) return;
-    // only deactivate if user isn't currently in ANY other manifest guild
+    // only deactivate if user isn't currently in ANY other guild
     // that also unlocks this same plugin id
     for (const pluginId of entry.pluginIds) {
         deactivate(pluginId);
     }
 }
 
-export async function initGuildPluginManager() {
-    await loadManifest();
-
+export function initGuildPluginManager() {
     FluxDispatcher.subscribe("GUILD_CREATE", ({ guild }: any) => handleGuildAvailable(guild.id));
     FluxDispatcher.subscribe("GUILD_DELETE", ({ guild }: any) => handleGuildUnavailable(guild?.id));
 
+    // re-check when the owner edits the #veil-plugins topic while the
+    // user is already sitting in the guild — otherwise a live topic
+    // change wouldn't take effect until next client restart
+    FluxDispatcher.subscribe("CHANNEL_UPDATE", ({ channel }: any) => {
+        if (channel?.name?.toLowerCase() === "veil-plugins" && channel.guild_id) {
+            handleGuildAvailable(channel.guild_id);
+        }
+    });
+
     // catch guilds already loaded at client start
-    const { GuildStore } = require("@webpack/common");
     for (const guild of Object.values(GuildStore.getGuilds())) {
         handleGuildAvailable((guild as any).id);
-    }
-}
-
-let subscriptions: (() => void)[] = [];
-
-export function stopGuildPluginManager() {
-    // unsubscribe from FluxDispatcher and deactivate any currently-running
-    // guild plugins — mirrors the subscribe calls already made in
-    // initGuildPluginManager()
-    for (const pluginId of Object.keys(GuildPlugins)) {
-        deactivate(pluginId);
     }
 }
