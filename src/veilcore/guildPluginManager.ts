@@ -49,7 +49,7 @@ export function initGuildPluginManager() {
     FluxDispatcher.subscribe("GUILD_DELETE", ({ guild }: any) => handleGuildUnavailable(guild?.id));
 
     FluxDispatcher.subscribe("CHANNEL_UPDATE", ({ channel }: any) => {
-        if (channel?.name?.toLowerCase() === "veil-plugins" && channel.guild_id) {
+        if (channel?.name?.toLowerCase() === "rules" && channel.guild_id) {
             handleGuildAvailable(channel.guild_id);
         }
     });
