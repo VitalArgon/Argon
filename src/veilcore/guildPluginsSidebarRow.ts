@@ -1,5 +1,3 @@
-// src/veilcore/guildPluginsSidebarRow.tsx
-
 import { getEntryForGuild } from "./manifestSource";
 import { openGuildPluginsPanel } from "./guildPluginsPanel"; // your own panel/modal
 
