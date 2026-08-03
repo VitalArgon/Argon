@@ -135,6 +135,16 @@ function renderIconInto(container: HTMLElement, name: string) {
         const dom = reactNodeToDom(element);
         if (!dom) throw new Error("converter produced no DOM output");
         container.appendChild(dom);
+
+        const svgEl = (dom.nodeType === Node.ELEMENT_NODE && (dom as Element).tagName === "svg")
+            ? (dom as unknown as SVGElement)
+            : container.querySelector("svg");
+        if (svgEl) {
+            svgEl.setAttribute("width", "16");
+            svgEl.setAttribute("height", "16");
+            (svgEl as unknown as HTMLElement).style.width = "16px";
+            (svgEl as unknown as HTMLElement).style.height = "16px";
+        }
     } catch (e) {
         container.textContent = `[icon render failed: ${name}]`;
         console.error("[RichFormatting] icon render failed for", name, e);
@@ -544,7 +554,7 @@ function buildHelpText() {
 
     const zw = "{{\u200B";
     return [
-        "**RichFormatting syntax reference** (only renders for you, client-side)",
+        "**RichFormatting syntax reference**",
         "",
         `**Button (opens link):** \`${zw}btn:Label|https://example.com}}\` — add \`|hexcode\` for a custom color, e.g. \`${zw}btn:Label|https://example.com|FF5555}}\``,
         `**Button (copies text):** \`${zw}btn:Label|copy:some text}}\` — same optional \`|hexcode\` at the end`,
