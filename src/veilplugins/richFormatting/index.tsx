@@ -372,7 +372,7 @@ function parseShortcuts(raw: string): Map<string, string> {
     return map;
 }
 
-const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt"; //CHANGE THIS IF YOU TAKE THIS (or don't, ill add any fo your things if you dm me)
+const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
 
 let shortcuts = new Map<string, string>();
 
@@ -440,32 +440,63 @@ function processInlineIntoFragment(text: string) {
     return frag;
 }
 
+function shouldSkipElement(el: Element): boolean {
+    if (el.tagName === "CODE" || el.tagName === "PRE") return true;
+    const className = (el as HTMLElement).className;
+    if (typeof className === "string" && /edited/i.test(className)) return true;
+    return false;
+}
+
+function processTextNode(node: Text) {
+    const raw = node.textContent ?? "";
+    const expanded = expandShortcuts(raw);
+
+    const blockFoldRe = new RegExp(BLOCK_FOLD_RE.source, "g");
+    if (blockFoldRe.test(expanded)) {
+        blockFoldRe.lastIndex = 0;
+        const newFrag = document.createDocumentFragment();
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = blockFoldRe.exec(expanded)) !== null) {
+            if (match.index > lastIndex) newFrag.appendChild(processInlineIntoFragment(expanded.slice(lastIndex, match.index)));
+            newFrag.appendChild(buildFold(match[1].trim(), match[2].trim()));
+            lastIndex = blockFoldRe.lastIndex;
+        }
+        if (lastIndex < expanded.length) newFrag.appendChild(processInlineIntoFragment(expanded.slice(lastIndex)));
+        node.replaceWith(newFrag);
+        return;
+    }
+
+    if (ANY_SYNTAX_RE.test(expanded)) {
+        node.replaceWith(processInlineIntoFragment(expanded));
+    } else if (expanded !== raw) {
+        node.textContent = expanded;
+    }
+}
+
+function walkNode(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+        processTextNode(node as Text);
+        return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const el = node as Element;
+    if (shouldSkipElement(el)) return;
+
+    Array.from(el.childNodes).forEach(walkNode);
+}
+
 function processMessageContentEl(el: HTMLElement) {
     if (!el || el.getAttribute(PROCESSED_ATTR) === "true") return;
-    const raw = el.textContent ?? "";
-    const original = expandShortcuts(raw);
-    if (!ANY_SYNTAX_RE.test(original)) {
+
+    const quickCheck = expandShortcuts(el.textContent ?? "");
+    if (!ANY_SYNTAX_RE.test(quickCheck)) {
         el.setAttribute(PROCESSED_ATTR, "true");
         return;
     }
 
-    const blockFoldRe = new RegExp(BLOCK_FOLD_RE.source, "g");
-    const newFrag = document.createDocumentFragment();
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-    let foundBlock = false;
-
-    while ((match = blockFoldRe.exec(original)) !== null) {
-        foundBlock = true;
-        if (match.index > lastIndex) newFrag.appendChild(processInlineIntoFragment(original.slice(lastIndex, match.index)));
-        newFrag.appendChild(buildFold(match[1].trim(), match[2].trim()));
-        lastIndex = blockFoldRe.lastIndex;
-    }
-    if (foundBlock && lastIndex < original.length) newFrag.appendChild(processInlineIntoFragment(original.slice(lastIndex)));
-    else if (!foundBlock) newFrag.appendChild(processInlineIntoFragment(original));
-
-    el.innerHTML = "";
-    el.appendChild(newFrag);
+    Array.from(el.childNodes).forEach(walkNode);
     el.setAttribute(PROCESSED_ATTR, "true");
 }
 
