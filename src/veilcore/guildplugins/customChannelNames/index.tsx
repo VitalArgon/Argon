@@ -14,8 +14,11 @@ const NAME_CONTAINER_SELECTOR = 'div[class*="name__"]';
 // and explicit rather than a general unicode-passthrough, so you know
 // exactly what's being altered.
 const DISPLAY_REPLACEMENTS: [RegExp, string][] = [
-    [/⋅star⋅/g, "★"],
+    [/⋅⋅/g, " "],
     [/⋅and⋅/g, "&"],
+    [/⋅slash⋅/g, "/"],
+    [/⋅money⋅/g, "$"],
+    [/⋅ton⋅/g, "This is a super long channel name exclusive to Veil users who have custom channel names guild plugin enabled on their guild, so this long ass channel name is a reqard for that progress"],
     // add more literal -> display mappings as needed
 ];
 
