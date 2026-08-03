@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, GuildStore } from "@webpack/common";
 import { getEntryForGuild, GuildManifestEntry } from "./manifestSource";
 import { setUserOptIn, isUserOptedIn } from "./guildPluginManager";
-import { GuildStore } from "@webpack/common";
 
 export default function GuildPluginsSettings() {
     const relevantEntries: GuildManifestEntry[] = Object.values(GuildStore.getGuilds())
