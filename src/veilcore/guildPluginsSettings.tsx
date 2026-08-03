@@ -1,15 +1,17 @@
-import { GuildManifest } from "./guildplugins/manifest";
+import { getEntryForGuild, GuildManifestEntry } from "./manifestSource";
 import { setUserOptIn, isUserOptedIn } from "./guildPluginManager";
 import { GuildStore } from "@webpack/common";
 
 export default function GuildPluginsSettings() {
-    // only show guilds the user is actually currently in
-    const relevantEntries = GuildManifest.filter(entry =>
-        GuildStore.getGuild(entry.guildId) != null
-    );
+    // check every guild the user is currently in — there's no fixed list
+    // anymore, so this has to actually probe each one for a #veil-plugins
+    // config rather than filtering a static array
+    const relevantEntries: GuildManifestEntry[] = Object.values(GuildStore.getGuilds())
+        .map((guild: any) => getEntryForGuild(guild.id))
+        .filter((entry): entry is GuildManifestEntry => entry != null);
 
     if (relevantEntries.length === 0) {
-        return <div>None of your servers have Guild Plugins available yet.</div>;
+        return <div>None of your servers have Guild Plugins set up yet.</div>;
     }
 
     return (
