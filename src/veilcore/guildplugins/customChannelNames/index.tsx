@@ -14,8 +14,8 @@ const NAME_CONTAINER_SELECTOR = 'div[class*="name__"]';
 // and explicit rather than a general unicode-passthrough, so you know
 // exactly what's being altered.
 const DISPLAY_REPLACEMENTS: [RegExp, string][] = [
-    [/:star:/g, "★"],
-    [/:fire:/g, "🔥"],
+    [/⋅star⋅/g, "★"],
+    [/⋅and⋅/g, "&"],
     // add more literal -> display mappings as needed
 ];
 
