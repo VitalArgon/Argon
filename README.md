@@ -1,7 +1,6 @@
 # [<img src="./browser/icon.png" width="40" align="left" alt="Veil">](https://github.com/Zarak199076/Veil) Veil
 
 
-
 Veil is a fork of Equicord, Which is a fork or Vencord. Forkception. Anyways, if you want to use this then figure it out yourself, I'm making this for me and my friends so no reason... though if you do use this then thanks ig, just a passion project really.
 
 Veil is not a cord, or a wire, or a line, or a cable.
@@ -17,6 +16,8 @@ Mentioning it does not imply any affiliation with or endorsement by Discord Inc.
 Vencord is not connected to Veil and as such, all donation links go to Vendicated's donation link.
 
 2. If you plan on taking any plugins then take VeilCoreAPI aswell, some of them will require it.
+
+3. Currently I'm ONLY building for web, because that's kinda the only place I use discord I rarely use the app, also Idk how.
 <details>
 <summary>Using Veil violates Discord's terms of service</summary>
 
