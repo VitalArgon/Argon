@@ -14,13 +14,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ */
 
 import { Dirent, readdirSync, readFileSync, writeFileSync } from "fs";
 import { access, readFile } from "fs/promises";
 import { join, sep } from "path";
 import { normalize as posixNormalize, sep as posixSep } from "path/posix";
-import { BigIntLiteral, createSourceFile, Identifier, isArrayLiteralExpression, isCallExpression, isExportAssignment, isIdentifier, isObjectLiteralExpression, isPropertyAccessExpression, isPropertyAssignment, isSatisfiesExpression, isStringLiteral, isVariableStatement, NamedDeclaration, NodeArray, ObjectLiteralExpression, PropertyAssignment, ScriptTarget, StringLiteral, SyntaxKind } from "typescript";
+import { BigIntLiteral, createSourceFile, Identifier, isArrayLiteralExpression, isCallExpression, isExportAssignment, isIdentifier, isObjectLiteralExpression, isPropertyAccessExpression, isPropertyAssignment, isSatisfiesExpression, isStringLiteral, isVariableStatement, NodeArray, NamedDeclaration, ObjectLiteralExpression, PropertyAssignment, ScriptTarget, StringLiteral, SyntaxKind } from "typescript";
 
 import { getPluginTarget } from "./utils.mjs";
 
@@ -50,6 +50,7 @@ export interface PluginData {
     filePath: string;
     dirName: string;
     isModified: boolean;
+    isVeilModified: boolean;
 }
 
 export const devs = {} as Record<string, Dev>;
@@ -153,6 +154,7 @@ export async function parseFile(fileName: string) {
             enabledByDefault: false,
             required: false,
             isModified: false,
+            isVeilModified: false,
             tags: [] as string[],
             searchTerms: [] as string[],
         } as PluginData;
@@ -225,6 +227,7 @@ export async function parseFile(fileName: string) {
                     break;
                 case "required":
                 case "isModified":
+                case "isVeilModified":
                 case "enabledByDefault":
                     data[key] = value.kind === SyntaxKind.TrueKeyword;
                     break;
@@ -242,12 +245,12 @@ export async function parseFile(fileName: string) {
         data.filePath = posixNormalize(fileName)
             .split(sep)
             .join(posixSep)
-            .replace(/\/index\.([jt]sx?)$/, "");
+            .replace(/\/index\.(?:[jt]sx?)$/, "");
 
         data.dirName = posixNormalize(fileName)
             .split(sep)
             .join(posixSep)
-            .replace(/\/index\.([jt]sx?)$/, "")
+            .replace(/\/index\.(?:[jt]sx?)$/, "")
             .replace(/^src\/plugins\//, "")
             .replace(/^src\/equicordplugins\//, "");
 
