@@ -92,6 +92,12 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
 
     const pluginInfo = [
         {
+            condition: (plugin.isVeilModified ?? false) && isEquicordPlugin,
+            src: "https://raw.githubusercontent.com/VitalVeil/Veil/main/browser/Modified.png",
+            alt: "Veil Modified",
+            title: "Equicord plugin modified by Veil"
+        },
+        {
             condition: isModifiedPlugin,
             src: "https://equicord.org/assets/icons/equicord/modified.png",
             alt: "Modified",
