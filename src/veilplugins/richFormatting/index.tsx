@@ -372,3 +372,220 @@ function buildPluginCardSpan(rawName: string) {
 
     return card;
 }
+
+function buildColoredText(hex: string, text: string) {
+    const span = document.createElement("span");
+    const normalized = hex.startsWith("#") ? hex : `#${hex}`;
+    span.style.color = normalized;
+    span.textContent = text;
+    return span;
+}
+
+function parseShortcuts(raw: string): Map<string, string> {
+    const map = new Map<string, string>();
+    const lineRe = /^\{\{([a-zA-Z0-9_]+)\}\}\s*=\s*(.+)$/;
+    for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const match = trimmed.match(lineRe);
+        if (!match) continue;
+        map.set(match[1], match[2].trim());
+    }
+    return map;
+}
+
+const SHORTCUTS_URL = "https://raw.githubusercontent.com/VitalVeil/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
+
+let shortcuts = new Map<string, string>();
+
+async function loadShortcuts() {
+    try {
+        const res = await fetch(SHORTCUTS_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.text();
+        shortcuts = parseShortcuts(raw);
+        console.log(`[RichFormatting] loaded ${shortcuts.size} shortcut(s) from ext.txt`);
+    } catch (e) {
+        console.error("[RichFormatting] failed to load ext.txt shortcuts:", e);
+    }
+}
+
+function expandShortcuts(text: string): string {
+    if (!shortcuts.size) return text;
+    return text.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (full, name) =>
+        shortcuts.has(name) ? shortcuts.get(name)! : full
+    );
+}
+
+const TOKEN_RE = new RegExp(
+    [
+        String.raw`\{\{btn:([^|}]+)\|(https?:\/\/[^\s|}]+)(?:\|([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
+        String.raw`\{\{btn:([^|}]+)\|copy:([^}]+?)(?:\|([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
+        String.raw`\{\{badge:(red|green|blue|yellow|gray)\|([^}]+)\}\}`,
+        String.raw`\{\{progress:(\d{1,3})\}\}`,
+        String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,
+        String.raw`\{\{icon:([a-zA-Z0-9_]+)(?::([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
+        String.raw`\{\{plugin:"?([^"}]+?)"?\}\}`,
+        String.raw`\{\{colored:(#?[0-9a-fA-F]{3,8}):([^}]*)\}\}`,
+    ].join("|"),
+    "g"
+);
+
+const BLOCK_FOLD_RE = /:::fold\s+([^\n]+)\n([\s\S]*?):::/g;
+const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|\{\{plugin:|\{\{colored:|:::fold/;
+
+const HEADING_LINE_RE = /^(--#|\+#)[ \t]+(.*)$/;
+const HEADING_LINE_ANY_RE = /^(?:--#|\+#)[ \t]+/m;
+
+function buildHeadingLine(tier: "small" | "big", text: string) {
+    const div = document.createElement("div");
+    div.className = tier === "small" ? "rf-heading-small" : "rf-heading-big";
+    div.appendChild(processInlineIntoFragment(text));
+    return div;
+}
+
+function processInlineIntoFragment(text: string) {
+    const frag = document.createDocumentFragment();
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    const tokenRe = new RegExp(TOKEN_RE.source, "g");
+
+    while ((match = tokenRe.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        if (match[1] !== undefined) frag.appendChild(buildButton(match[1], { type: "link", value: match[2] }, match[3]));
+        else if (match[4] !== undefined) frag.appendChild(buildButton(match[4], { type: "copy", value: match[5] }, match[6]));
+        else if (match[7] !== undefined) frag.appendChild(buildBadge(match[7], match[8]));
+        else if (match[9] !== undefined) frag.appendChild(buildProgress(parseInt(match[9], 10)));
+        else if (match[10] !== undefined) frag.appendChild(buildFold(match[10], match[11]));
+        else if (match[12] !== undefined) frag.appendChild(buildIconSpan(match[12], match[13]));
+        else if (match[14] !== undefined) frag.appendChild(buildPluginCardSpan(match[14]));
+        else if (match[15] !== undefined) frag.appendChild(buildColoredText(match[15], match[16]));
+
+        lastIndex = tokenRe.lastIndex;
+
+        if (tokenRe.lastIndex === match.index) tokenRe.lastIndex++;
+    }
+    if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+    return frag;
+}
+
+function processLinesIntoFragment(text: string) {
+    const frag = document.createDocumentFragment();
+    const lines = text.split("\n");
+    let plainBuffer: string[] = [];
+
+    const flushPlain = () => {
+        if (plainBuffer.length === 0) return;
+        frag.appendChild(processInlineIntoFragment(plainBuffer.join("\n")));
+        plainBuffer = [];
+    };
+
+    for (const line of lines) {
+        const match = line.match(HEADING_LINE_RE);
+        if (match) {
+            flushPlain();
+            const tier = match[1] === "--#" ? "small" : "big";
+            frag.appendChild(buildHeadingLine(tier, match[2]));
+        } else {
+            plainBuffer.push(line);
+        }
+    }
+    flushPlain();
+
+    return frag;
+}
+
+function shouldSkipElement(el: Element): boolean {
+    if (el.tagName === "CODE" || el.tagName === "PRE") return true;
+    const className = (el as HTMLElement).className;
+    if (typeof className === "string" && /edited/i.test(className)) return true;
+    return false;
+}
+
+function processTextNode(node: Text) {
+    const raw = node.textContent ?? "";
+    const expanded = expandShortcuts(raw);
+
+    const blockFoldRe = new RegExp(BLOCK_FOLD_RE.source, "g");
+    if (blockFoldRe.test(expanded)) {
+        blockFoldRe.lastIndex = 0;
+        const newFrag = document.createDocumentFragment();
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = blockFoldRe.exec(expanded)) !== null) {
+            if (match.index > lastIndex) newFrag.appendChild(processLinesIntoFragment(expanded.slice(lastIndex, match.index)));
+            newFrag.appendChild(buildFold(match[1].trim(), match[2].trim()));
+            lastIndex = blockFoldRe.lastIndex;
+        }
+        if (lastIndex < expanded.length) newFrag.appendChild(processLinesIntoFragment(expanded.slice(lastIndex)));
+        node.replaceWith(newFrag);
+        return;
+    }
+
+    if (ANY_SYNTAX_RE.test(expanded) || HEADING_LINE_ANY_RE.test(expanded)) {
+        node.replaceWith(processLinesIntoFragment(expanded));
+    } else if (expanded !== raw) {
+        node.textContent = expanded;
+    }
+}
+
+function walkNode(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+        processTextNode(node as Text);
+        return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const el = node as Element;
+    if (shouldSkipElement(el)) return;
+
+    Array.from(el.childNodes).forEach(walkNode);
+}
+
+function processMessageContentEl(el: HTMLElement) {
+    if (!el || el.getAttribute(PROCESSED_ATTR) === "true") return;
+
+    const quickCheck = expandShortcuts(el.textContent ?? "");
+    if (!ANY_SYNTAX_RE.test(quickCheck) && !HEADING_LINE_ANY_RE.test(quickCheck)) {
+        el.setAttribute(PROCESSED_ATTR, "true");
+        return;
+    }
+
+    Array.from(el.childNodes).forEach(walkNode);
+    el.setAttribute(PROCESSED_ATTR, "true");
+}
+
+const STYLE_ID = "rf-styles";
+const rfStyles = createStyleInjector(STYLE_ID, `
+        .rf-btn { background:#5865F2;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:13px;font-weight:500;cursor:pointer;margin:2px 4px 2px 0; }
+        .rf-btn:hover { filter:brightness(0.88); }
+        .rf-badge { display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600;margin:0 2px;color:#fff; }
+        .rf-badge-red{background:#ED4245;} .rf-badge-green{background:#3BA55D;} .rf-badge-blue{background:#5865F2;}
+        .rf-badge-yellow{background:#FAA61A;color:#1a1a1a;} .rf-badge-gray{background:#747F8D;}
+        .rf-progress-wrap{display:inline-flex;align-items:center;background:#2b2d31;border-radius:6px;margin:4px 0;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;cursor:pointer;text-align:left;overflow:hidden;}
+        .rf-progress-bar{display:inline-block;background:linear-gradient(90deg,#5865F2,#3BA55D);height:100%;}
+        .rf-progress-label{position:absolute;left:6px;top:0;font-size:11px;line-height:18px;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.8);} 
+        .rf-fold{border:1px solid #3f4147;border-radius:6px;margin:4px 0;background:#2b2d31;}
+        .rf-fold summary{cursor:pointer;padding:6px 10px;font-weight:600;color:#dbdee1;list-style:none;user-select:none;}
+        .rf-fold summary::-webkit-details-marker{display:none;}
+        .rf-fold summary::before{content:"▶";display:inline-block;margin-right:6px;font-size:10px;transition:transform .15s ease;}
+        .rf-fold[open] summary::before{transform:rotate(90deg);} 
+        .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
+        .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
+        .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
+        .rf-plugin-card{display:flex;align-items:stretch;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;max-width:420px;cursor:pointer;text-align:left;overflow:hidden;}
+        .rf-plugin-card:hover{border-color:#A259FF;transform:translateY(-1px);} 
+        .rf-plugin-card:active{transform:translateY(0);} 
+        .rf-plugin-card-accent{width:4px;flex-shrink:0;background:linear-gradient(180deg,#A259FF,#6C3FBF);} 
+        .rf-plugin-card-body{padding:11px 14px;flex:1;min-width:0;} 
+        .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;} 
+        .rf-plugin-card-title-group{display:flex;align-items:center;gap:7px;min-width:0;} 
+        .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:rgba(162,89,255,0.08);} 
+        .rf-plugin-card-text{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;} 
+        .rf-plugin-card-source-img{width:18px;height:18px;margin-left:6px;border-radius:4px;} 
+        .rf-plugin-card-name{font-weight:700;color:#f2f3f5;font-size:14px;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} 
+        .rf-plugin-card-right{display:flex;align-items:center;gap:8px;} 
+        .rf-plugin-card-info-button{background:transparent;border:none;padding:6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--interpo[... continued]`,
