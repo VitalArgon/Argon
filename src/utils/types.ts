@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ */
 
 import { AudioProcessor } from "@api/AudioPlayer";
 import type { ProfileBadge } from "@api/Badges";
@@ -246,6 +246,11 @@ export interface PluginDef {
      * A Vencord plugin that is modified for extra features in Equicord
      */
     isModified?: boolean;
+
+    /**
+     * An Equicord plugin that has been further modified by Veil
+     */
+    isVeilModified?: boolean;
 }
 
 export const enum StartAt {
