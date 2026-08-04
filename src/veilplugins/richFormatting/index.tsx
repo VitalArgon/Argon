@@ -123,7 +123,7 @@ function getIconComponent(name: string) {
     return Icons[exportName] ?? null;
 }
 
-function renderIconInto(container: HTMLElement, name: string, hex?: string) {
+function renderIconInto(container: HTMLElement, name: string) {
     const IconComponent = getIconComponent(name);
     if (!IconComponent) {
         container.textContent = `[unknown icon: ${name}]`;
@@ -147,9 +147,6 @@ function renderIconInto(container: HTMLElement, name: string, hex?: string) {
             svgStyle.setProperty("width", "1.1em", "important");
             svgStyle.setProperty("height", "1.1em", "important");
             svgStyle.setProperty("flex-shrink", "0", "important");
-
-            const color = normalizeHex(hex);
-            if (color) svgStyle.setProperty("color", color, "important");
         }
     } catch (e) {
         container.textContent = `[icon render failed: ${name}]`;
@@ -220,10 +217,10 @@ function buildFold(title: string, bodyText: string) {
     return details;
 }
 
-function buildIconSpan(name: string, hex?: string) {
+function buildIconSpan(name: string) {
     const span = document.createElement("span");
     span.className = "rf-icon";
-    renderIconInto(span, name, hex);
+    renderIconInto(span, name);
     return span;
 }
 
@@ -273,12 +270,6 @@ function buildPluginCardSpan(rawName: string) {
     nameEl.textContent = plugin.name;
 
     const pluginInfo = [
-        {
-            condition: (plugin.isVeilModified ?? false) && PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
-            src: "https://raw.githubusercontent.com/VitalVeil/Veil/main/browser/Modified.png",
-            alt: "Veil Modified",
-            title: "Equicord plugin modified by Veil"
-        },
         {
             condition: plugin.isModified ?? false,
             src: "https://equicord.org/assets/icons/equicord/modified.png",
@@ -394,7 +385,7 @@ function parseShortcuts(raw: string): Map<string, string> {
     return map;
 }
 
-const SHORTCUTS_URL = "https://raw.githubusercontent.com/VitalVeil/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
+const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
 
 let shortcuts = new Map<string, string>();
 
@@ -424,7 +415,7 @@ const TOKEN_RE = new RegExp(
         String.raw`\{\{badge:(red|green|blue|yellow|gray)\|([^}]+)\}\}`,
         String.raw`\{\{progress:(\d{1,3})\}\}`,
         String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,
-        String.raw`\{\{icon:([a-zA-Z0-9_]+)(?::([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
+        String.raw`\{\{icon:([a-zA-Z0-9_]+)\}\}`,
         String.raw`\{\{plugin:"?([^"}]+?)"?\}\}`,
         String.raw`\{\{colored:(#?[0-9a-fA-F]{3,8}):([^}]*)\}\}`,
     ].join("|"),
@@ -433,16 +424,6 @@ const TOKEN_RE = new RegExp(
 
 const BLOCK_FOLD_RE = /:::fold\s+([^\n]+)\n([\s\S]*?):::/g;
 const ANY_SYNTAX_RE = /\{\{btn:|\{\{badge:|\{\{progress:|\{\{fold:|\{\{icon:|\{\{plugin:|\{\{colored:|:::fold/;
-
-const HEADING_LINE_RE = /^(--#|\+#)[ \t]+(.*)$/;
-const HEADING_LINE_ANY_RE = /^(?:--#|\+#)[ \t]+/m;
-
-function buildHeadingLine(tier: "small" | "big", text: string) {
-    const div = document.createElement("div");
-    div.className = tier === "small" ? "rf-heading-small" : "rf-heading-big";
-    div.appendChild(processInlineIntoFragment(text));
-    return div;
-}
 
 function processInlineIntoFragment(text: string) {
     const frag = document.createDocumentFragment();
@@ -460,41 +441,15 @@ function processInlineIntoFragment(text: string) {
         else if (match[7] !== undefined) frag.appendChild(buildBadge(match[7], match[8]));
         else if (match[9] !== undefined) frag.appendChild(buildProgress(parseInt(match[9], 10)));
         else if (match[10] !== undefined) frag.appendChild(buildFold(match[10], match[11]));
-        else if (match[12] !== undefined) frag.appendChild(buildIconSpan(match[12], match[13]));
-        else if (match[14] !== undefined) frag.appendChild(buildPluginCardSpan(match[14]));
-        else if (match[15] !== undefined) frag.appendChild(buildColoredText(match[15], match[16]));
+        else if (match[12] !== undefined) frag.appendChild(buildIconSpan(match[12]));
+        else if (match[13] !== undefined) frag.appendChild(buildPluginCardSpan(match[13]));
+        else if (match[14] !== undefined) frag.appendChild(buildColoredText(match[14], match[15]));
 
         lastIndex = tokenRe.lastIndex;
 
         if (tokenRe.lastIndex === match.index) tokenRe.lastIndex++;
     }
     if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-    return frag;
-}
-
-function processLinesIntoFragment(text: string) {
-    const frag = document.createDocumentFragment();
-    const lines = text.split("\n");
-    let plainBuffer: string[] = [];
-
-    const flushPlain = () => {
-        if (plainBuffer.length === 0) return;
-        frag.appendChild(processInlineIntoFragment(plainBuffer.join("\n")));
-        plainBuffer = [];
-    };
-
-    for (const line of lines) {
-        const match = line.match(HEADING_LINE_RE);
-        if (match) {
-            flushPlain();
-            const tier = match[1] === "--#" ? "small" : "big";
-            frag.appendChild(buildHeadingLine(tier, match[2]));
-        } else {
-            plainBuffer.push(line);
-        }
-    }
-    flushPlain();
-
     return frag;
 }
 
@@ -516,17 +471,17 @@ function processTextNode(node: Text) {
         let lastIndex = 0;
         let match: RegExpExecArray | null;
         while ((match = blockFoldRe.exec(expanded)) !== null) {
-            if (match.index > lastIndex) newFrag.appendChild(processLinesIntoFragment(expanded.slice(lastIndex, match.index)));
+            if (match.index > lastIndex) newFrag.appendChild(processInlineIntoFragment(expanded.slice(lastIndex, match.index)));
             newFrag.appendChild(buildFold(match[1].trim(), match[2].trim()));
             lastIndex = blockFoldRe.lastIndex;
         }
-        if (lastIndex < expanded.length) newFrag.appendChild(processLinesIntoFragment(expanded.slice(lastIndex)));
+        if (lastIndex < expanded.length) newFrag.appendChild(processInlineIntoFragment(expanded.slice(lastIndex)));
         node.replaceWith(newFrag);
         return;
     }
 
-    if (ANY_SYNTAX_RE.test(expanded) || HEADING_LINE_ANY_RE.test(expanded)) {
-        node.replaceWith(processLinesIntoFragment(expanded));
+    if (ANY_SYNTAX_RE.test(expanded)) {
+        node.replaceWith(processInlineIntoFragment(expanded));
     } else if (expanded !== raw) {
         node.textContent = expanded;
     }
@@ -549,7 +504,7 @@ function processMessageContentEl(el: HTMLElement) {
     if (!el || el.getAttribute(PROCESSED_ATTR) === "true") return;
 
     const quickCheck = expandShortcuts(el.textContent ?? "");
-    if (!ANY_SYNTAX_RE.test(quickCheck) && !HEADING_LINE_ANY_RE.test(quickCheck)) {
+    if (!ANY_SYNTAX_RE.test(quickCheck)) {
         el.setAttribute(PROCESSED_ATTR, "true");
         return;
     }
@@ -565,27 +520,125 @@ const rfStyles = createStyleInjector(STYLE_ID, `
         .rf-badge { display:inline-block;padding:1px 8px;border-radius:8px;font-size:12px;font-weight:600;margin:0 2px;color:#fff; }
         .rf-badge-red{background:#ED4245;} .rf-badge-green{background:#3BA55D;} .rf-badge-blue{background:#5865F2;}
         .rf-badge-yellow{background:#FAA61A;color:#1a1a1a;} .rf-badge-gray{background:#747F8D;}
-        .rf-progress-wrap{display:inline-flex;align-items:center;background:#2b2d31;border-radius:6px;margin:4px 0;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;cursor:pointer;text-align:left;overflow:hidden;}
+        .rf-progress-wrap{display:inline-flex;align-items:center;background:#2b2d31;border-radius:6px;width:160px;height:18px;position:relative;overflow:hidden;margin:0 4px;vertical-align:middle;}
         .rf-progress-bar{display:inline-block;background:linear-gradient(90deg,#5865F2,#3BA55D);height:100%;}
-        .rf-progress-label{position:absolute;left:6px;top:0;font-size:11px;line-height:18px;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.8);} 
+        .rf-progress-label{position:absolute;left:6px;top:0;font-size:11px;line-height:18px;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.8);}
         .rf-fold{border:1px solid #3f4147;border-radius:6px;margin:4px 0;background:#2b2d31;}
         .rf-fold summary{cursor:pointer;padding:6px 10px;font-weight:600;color:#dbdee1;list-style:none;user-select:none;}
         .rf-fold summary::-webkit-details-marker{display:none;}
         .rf-fold summary::before{content:"▶";display:inline-block;margin-right:6px;font-size:10px;transition:transform .15s ease;}
-        .rf-fold[open] summary::before{transform:rotate(90deg);} 
+        .rf-fold[open] summary::before{transform:rotate(90deg);}
         .rf-fold-body{padding:4px 12px 10px 12px;color:#dbdee1;white-space:pre-wrap;}
         .rf-icon{display:inline-flex;vertical-align:middle;margin:0 2px;}
         .rf-icon-missing{color:#ED4245;font-size:12px;font-style:italic;}
         .rf-plugin-card{display:flex;align-items:stretch;background:#2b2d31;border:1px solid #3a3c42;border-radius:10px;margin:6px 0;max-width:420px;cursor:pointer;text-align:left;overflow:hidden;}
-        .rf-plugin-card:hover{border-color:#A259FF;transform:translateY(-1px);} 
-        .rf-plugin-card:active{transform:translateY(0);} 
-        .rf-plugin-card-accent{width:4px;flex-shrink:0;background:linear-gradient(180deg,#A259FF,#6C3FBF);} 
-        .rf-plugin-card-body{padding:11px 14px;flex:1;min-width:0;} 
-        .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;} 
-        .rf-plugin-card-title-group{display:flex;align-items:center;gap:7px;min-width:0;} 
-        .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:rgba(162,89,255,0.08);} 
-        .rf-plugin-card-text{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;} 
-        .rf-plugin-card-source-img{width:18px;height:18px;margin-left:6px;border-radius:4px;} 
-        .rf-plugin-card-name{font-weight:700;color:#f2f3f5;font-size:14px;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} 
-        .rf-plugin-card-right{display:flex;align-items:center;gap:8px;} 
-        .rf-plugin-card-info-button{background:transparent;border:none;padding:6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--interpo[... continued]`,
+        .rf-plugin-card:hover{border-color:#A259FF;transform:translateY(-1px);}
+        .rf-plugin-card:active{transform:translateY(0);}
+        .rf-plugin-card-accent{width:4px;flex-shrink:0;background:linear-gradient(180deg,#A259FF,#6C3FBF);}
+        .rf-plugin-card-body{padding:11px 14px;flex:1;min-width:0;}
+        .rf-plugin-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+        .rf-plugin-card-title-group{display:flex;align-items:center;gap:7px;min-width:0;}
+        .rf-plugin-card-icon{display:inline-flex;color:#A259FF;flex-shrink:0;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:rgba(162,89,255,0.08);}
+        .rf-plugin-card-text{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;}
+        .rf-plugin-card-source-img{width:18px;height:18px;margin-left:6px;border-radius:4px;}
+        .rf-plugin-card-name{font-weight:700;color:#f2f3f5;font-size:14px;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .rf-plugin-card-right{display:flex;align-items:center;gap:8px;}
+        .rf-plugin-card-info-button{background:transparent;border:none;padding:6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--interactive-normal);}
+        .rf-toggle{display:inline-block;width:44px;height:24px;border-radius:999px;background:rgba(148,155,164,0.16);position:relative;}
+        .rf-toggle.rf-toggle-on{background:linear-gradient(90deg,#A259FF,#6C3FBF);}
+        .rf-toggle-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .08s ease;box-shadow:0 1px 2px rgba(0,0,0,0.3);}
+        .rf-toggle.rf-toggle-on .rf-toggle-knob{left:23px;}
+        .rf-plugin-card-desc{color:#b5bac1;font-size:12.5px;line-height:1.45;margin-top:8px;}
+        .rf-plugin-card-authors{color:#80848e;font-size:11px;margin-top:8px;font-weight:500;}
+ `);
+
+function buildHelpText() {
+    const iconNames = Object.keys(ICON_ALIASES).sort().join(", ");
+
+    const zw = "{{\u200B";
+    return [
+        "**RichFormatting syntax reference** (only renders for you, client-side)",
+        "",
+        `**Button (opens link):** \`${zw}btn:Label|https://example.com}}\` — add \`|hexcode\` for a custom color, e.g. \`${zw}btn:Label|https://example.com|FF5555}}\``,
+        `**Button (copies text):** \`${zw}btn:Label|copy:some text}}\` — same optional \`|hexcode\` at the end`,
+        `**Badge:** \`${zw}badge:red|Urgent}}\` — colors: red, green, blue, yellow, gray`,
+        `**Progress bar:** \`${zw}progress:65}}\``,
+        `**Inline fold:** \`${zw}fold:Title|hidden text}}\``,
+        "**Block fold:**",
+        "```",
+        ":::fold\u200B Click to expand",
+        "any text here, can nest other tags too",
+        ":::",
+        "```",
+        `**Icon:** \`${zw}icon:name}}\``,
+        `Available icon names: ${iconNames}`,
+        `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
+        `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
+        "",
+        `**Shortcuts** (defined in ext.txt): ${shortcuts.size ? [...shortcuts.keys()].map(k => `\`{{${k}}}\``).join(", ") : "none loaded"}`,
+    ].join("\n");
+};
+
+const settings = definePluginSettings({
+    logIconsOnStart: {
+        type: OptionType.BOOLEAN,
+        description: "Log every available icon export name to devtools console on startup (use this to find real names for ICON_ALIASES)",
+        default: false,
+    },
+});
+
+let stopObservingMessages: (() => void) | null = null;
+
+export default definePlugin({
+    name: "RichFormatting",
+    description: "Type-to-render buttons, badges, progress bars, collapsible folds, inline Discord icons, and embedded plugin cards in messages (client-side only).",
+    tags: ["Utility", "Veil", "Fun"],
+    authors: [VeilDevs.Zarak],
+    settings,
+    dependencies: ["CommandsAPI", "VeilCoreAPI"],
+
+    commands: [
+        {
+            name: "richformat-help",
+            description: "List all RichFormatting text syntax options",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            execute: (_opts, ctx) => {
+
+                sendBotMessage(ctx.channel.id, { content: buildHelpText() });
+            },
+        },
+        {
+            name: "richformat-reload-shortcuts",
+            description: "Re-fetch ext.txt shortcuts from GitHub without restarting Discord",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            execute: async (_opts, ctx) => {
+                await loadShortcuts();
+                sendBotMessage(ctx.channel.id, {
+                    content: `Reloaded — ${shortcuts.size} shortcut(s) loaded.`,
+                });
+            },
+        },
+    ],
+
+    start() {
+        rfStyles.inject();
+
+        if (settings.store.logIconsOnStart) {
+            console.log("[RichFormatting] Available icons in this build:", Object.keys(Icons).sort());
+        }
+
+        loadShortcuts();
+
+        stopObservingMessages = observeMatches(
+            '[id^="message-content-"]',
+            el => processMessageContentEl(el as HTMLElement)
+        );
+    },
+
+    stop() {
+        stopObservingMessages?.();
+        stopObservingMessages = null;
+        rfStyles.remove();
+        document.querySelectorAll(`[${PROCESSED_ATTR}]`).forEach(el => el.removeAttribute(PROCESSED_ATTR));
+    },
+});
