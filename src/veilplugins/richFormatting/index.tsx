@@ -123,7 +123,7 @@ function getIconComponent(name: string) {
     return Icons[exportName] ?? null;
 }
 
-function renderIconInto(container: HTMLElement, name: string) {
+function renderIconInto(container: HTMLElement, name: string, hex?: string) {
     const IconComponent = getIconComponent(name);
     if (!IconComponent) {
         container.textContent = `[unknown icon: ${name}]`;
@@ -147,6 +147,9 @@ function renderIconInto(container: HTMLElement, name: string) {
             svgStyle.setProperty("width", "1.1em", "important");
             svgStyle.setProperty("height", "1.1em", "important");
             svgStyle.setProperty("flex-shrink", "0", "important");
+
+            const color = normalizeHex(hex);
+            if (color) svgStyle.setProperty("color", color, "important");
         }
     } catch (e) {
         container.textContent = `[icon render failed: ${name}]`;
@@ -217,10 +220,10 @@ function buildFold(title: string, bodyText: string) {
     return details;
 }
 
-function buildIconSpan(name: string) {
+function buildIconSpan(name: string, hex?: string) {
     const span = document.createElement("span");
     span.className = "rf-icon";
-    renderIconInto(span, name);
+    renderIconInto(span, name, hex);
     return span;
 }
 
@@ -415,7 +418,7 @@ const TOKEN_RE = new RegExp(
         String.raw`\{\{badge:(red|green|blue|yellow|gray)\|([^}]+)\}\}`,
         String.raw`\{\{progress:(\d{1,3})\}\}`,
         String.raw`\{\{fold:([^|}]+)\|([^}]*)\}\}`,
-        String.raw`\{\{icon:([a-zA-Z0-9_]+)\}\}`,
+        String.raw`\{\{icon:([a-zA-Z0-9_]+)(?::([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))?\}\}`,
         String.raw`\{\{plugin:"?([^"}]+?)"?\}\}`,
         String.raw`\{\{colored:(#?[0-9a-fA-F]{3,8}):([^}]*)\}\}`,
     ].join("|"),
@@ -451,9 +454,9 @@ function processInlineIntoFragment(text: string) {
         else if (match[7] !== undefined) frag.appendChild(buildBadge(match[7], match[8]));
         else if (match[9] !== undefined) frag.appendChild(buildProgress(parseInt(match[9], 10)));
         else if (match[10] !== undefined) frag.appendChild(buildFold(match[10], match[11]));
-        else if (match[12] !== undefined) frag.appendChild(buildIconSpan(match[12]));
-        else if (match[13] !== undefined) frag.appendChild(buildPluginCardSpan(match[13]));
-        else if (match[14] !== undefined) frag.appendChild(buildColoredText(match[14], match[15]));
+        else if (match[12] !== undefined) frag.appendChild(buildIconSpan(match[12], match[13]));
+        else if (match[14] !== undefined) frag.appendChild(buildPluginCardSpan(match[14]));
+        else if (match[15] !== undefined) frag.appendChild(buildColoredText(match[15], match[16]));
 
         lastIndex = tokenRe.lastIndex;
 
@@ -608,7 +611,7 @@ function buildHelpText() {
         "any text here, can nest other tags too",
         ":::",
         "```",
-        `**Icon:** \`${zw}icon:name}}\``,
+        `**Icon:** \`${zw}icon:name}}\` — add \`:hexcode\` for a custom color, e.g. \`${zw}icon:shop:ff0000}}\``,
         `Available icon names: ${iconNames}`,
         `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
         `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
