@@ -1,6 +1,7 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
+
 console.log("[CategoryBanners] module loaded");
 
 const BANNER_CHANNEL_NAME = "categorybanners";
@@ -94,6 +95,7 @@ function refresh() {
 
 async function applyIfActive() {
     const selected = SelectedGuildStore.getGuildId();
+    console.log("[CategoryBanners] applyIfActive — selected:", selected, "watched:", watchedGuildId);
     if (selected && selected === watchedGuildId) {
         await rebuildBannerMap(selected);
         refresh();
@@ -114,6 +116,7 @@ export default defineGuildPlugin({
     description: "Displays a banner image above each category, sourced from #categorybanners' topic formatted as {categoryname = messageid}.",
     authors: [VeilDevs.Zarak],
     start(guildId?: string) {
+        console.log("[CategoryBanners] start() called with guildId:", guildId);
         watchedGuildId = guildId ?? null;
 
         FluxDispatcher.subscribe("CHANNEL_SELECT", applyIfActive);
@@ -122,11 +125,13 @@ export default defineGuildPlugin({
 
         observer = new MutationObserver(() => injectBanners());
         const root = document.querySelector('[class*="sidebar-"]');
+        console.log("[CategoryBanners] sidebar root found:", !!root);
         if (root) observer.observe(root, { childList: true, subtree: true });
 
         applyIfActive();
     },
     stop() {
+        console.log("[CategoryBanners] stop() called");
         FluxDispatcher.unsubscribe("CHANNEL_SELECT", applyIfActive);
         FluxDispatcher.unsubscribe("GUILD_SELECT", applyIfActive);
         FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
