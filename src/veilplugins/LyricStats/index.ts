@@ -22,6 +22,11 @@ export const settings = definePluginSettings({
         type: OptionType.NUMBER,
         description: "How often to recompute the active lyric line (in ms)",
         default: 150,
+    },
+    showConsoleLogs: {
+        type: OptionType.BOOLEAN,
+        description: "Show console logs for debugging",
+        default: false,
     }
 });
 
@@ -83,6 +88,32 @@ function getSyncIntervalSetting(): number {
     }
 }
 
+function shouldShowLogs(): boolean {
+    try {
+        return settings.store.showConsoleLogs ?? false;
+    } catch {
+        return false;
+    }
+}
+
+function debugLog(message: string, ...args: any[]) {
+    if (shouldShowLogs()) {
+        console.log(message, ...args);
+    }
+}
+
+function debugWarn(message: string, ...args: any[]) {
+    if (shouldShowLogs()) {
+        console.warn(message, ...args);
+    }
+}
+
+function debugError(message: string, ...args: any[]) {
+    if (shouldShowLogs()) {
+        console.error(message, ...args);
+    }
+}
+
 async function fetchLyrics(track: Track) {
     const artistName = track.artists.map(a => a.name).join(", ");
     const trackName = track.name;
@@ -90,7 +121,7 @@ async function fetchLyrics(track: Track) {
     const durationSec = Math.round(track.duration / 1000);
 
     const exactUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(trackName)}&album_name=${encodeURIComponent(albumName)}&duration=${durationSec}`;
-    console.log("[LyricStats] Fetching exact match:", artistName, "-", trackName);
+    debugLog("[LyricStats] Fetching exact match:", artistName, "-", trackName);
 
     try {
         const response = await fetch(exactUrl, {
@@ -101,19 +132,19 @@ async function fetchLyrics(track: Track) {
         if (response.ok) {
             const data = await response.json();
             if (data && data.syncedLyrics) {
-                console.log("[LyricStats] Fetched synced lyrics (exact match).");
+                debugLog("[LyricStats] Fetched synced lyrics (exact match).");
                 return data.syncedLyrics;
             }
         }
     } catch (error) {
-        console.warn("[LyricStats] Exact match failed, falling back to search...", error);
+        debugWarn("[LyricStats] Exact match failed, falling back to search...", error);
     }
 
     const cleanTrackName = trackName.replace(/\s*\([^)]*\)/g, "").replace(/\s*\[[^\]]*\]/g, "").trim();
     const firstArtist = track.artists[0]?.name || "";
     const query = `${firstArtist} ${cleanTrackName}`;
     const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-    console.log(`[LyricStats] Searching lyrics for: "${query}"`);
+    debugLog(`[LyricStats] Searching lyrics for: "${query}"`);
 
     try {
         const response = await fetch(searchUrl, {
@@ -126,13 +157,13 @@ async function fetchLyrics(track: Track) {
             if (Array.isArray(results) && results.length > 0) {
                 const match = results.find(r => r.syncedLyrics && Math.abs(r.duration - durationSec) < 15) || results.find(r => r.syncedLyrics);
                 if (match) {
-                    console.log(`[LyricStats] Found lyrics in search! Match: ${match.artistName} - ${match.trackName}`);
+                    debugLog(`[LyricStats] Found lyrics in search! Match: ${match.artistName} - ${match.trackName}`);
                     return match.syncedLyrics;
                 }
             }
         }
     } catch (error) {
-        console.error("[LyricStats] Error searching lyrics:", error);
+        debugError("[LyricStats] Error searching lyrics:", error);
     }
 
     return null;
@@ -153,7 +184,7 @@ function parseLRC(lrcText: string): LyricLine[] {
         }
     }
 
-    console.log("[LyricStats] Parsed", lines.length, "lines of lyrics.");
+    debugLog("[LyricStats] Parsed", lines.length, "lines of lyrics.");
     return lines.sort((a, b) => a.time - b.time);
 }
 
@@ -190,7 +221,7 @@ function updateLyricsTick() {
             pingSpotifyStore();
         }
     } catch (e) {
-        console.error("[LyricStats] Error in updateLyricsTick:", e);
+        debugError("[LyricStats] Error in updateLyricsTick:", e);
     }
 
     if (isLoopRunning) {
@@ -211,13 +242,13 @@ function pingSpotifyStore() {
             position: getCurrentPosition(),
         });
     } catch (e) {
-        console.error("[LyricStats] Error re-dispatching SPOTIFY_PLAYER_STATE:", e);
+        debugError("[LyricStats] Error re-dispatching SPOTIFY_PLAYER_STATE:", e);
     }
 }
 
 async function handleSpotifyPlayerState(state: PlayerState) {
     try {
-        console.log("[LyricStats] Received player state:", state.track?.name, "isPlaying:", state.isPlaying, "position:", state.position);
+        debugLog("[LyricStats] Received player state:", state.track?.name, "isPlaying:", state.isPlaying, "position:", state.position);
         lastPlayerState = state;
         lastRawPayload = state;
         stateReceivedAt = Date.now();
@@ -239,7 +270,7 @@ async function handleSpotifyPlayerState(state: PlayerState) {
             if (syncedLyrics) {
                 currentLyrics = parseLRC(syncedLyrics);
             } else {
-                console.log("[LyricStats] No synced lyrics available for this track.");
+                debugLog("[LyricStats] No synced lyrics available for this track.");
             }
         }
 
@@ -252,19 +283,19 @@ async function handleSpotifyPlayerState(state: PlayerState) {
             previousLyricLine = null;
         }
     } catch (e) {
-        console.error("[LyricStats] Error in handleSpotifyPlayerState:", e);
+        debugError("[LyricStats] Error in handleSpotifyPlayerState:", e);
     }
 }
 
 function startSyncLoop() {
     if (isLoopRunning) return;
-    console.log("[LyricStats] Starting sync loop.");
+    debugLog("[LyricStats] Starting sync loop.");
     isLoopRunning = true;
     updateLyricsTick();
 }
 
 function stopSyncLoop() {
-    console.log("[LyricStats] Stopping sync loop.");
+    debugLog("[LyricStats] Stopping sync loop.");
     isLoopRunning = false;
     if (syncTimeoutId) {
         clearTimeout(syncTimeoutId);
@@ -292,7 +323,7 @@ export default definePlugin({
     patchActivity(activity: Activity) {
         if (!activity) return;
 
-        console.log("[LyricStats] patchActivity called, currentLyricLine:", currentLyricLine);
+        debugLog("[LyricStats] patchActivity called, currentLyricLine:", currentLyricLine);
 
         if (!currentLyricLine) return;
 
@@ -300,26 +331,26 @@ export default definePlugin({
         const prefix = getPrefixSetting();
         (activity as any)[field] = `${prefix}${currentLyricLine}`;
 
-        console.log("[LyricStats] wrote to", field, ":", (activity as any)[field]);
+        debugLog("[LyricStats] wrote to", field, ":", (activity as any)[field]);
     },
 
     start() {
-        console.log("[LyricStats] Plugin started. Subscribing to FluxDispatcher...");
+        debugLog("[LyricStats] Plugin started. Subscribing to FluxDispatcher...");
         setTimeout(() => {
             try {
                 FluxDispatcher.subscribe("SPOTIFY_PLAYER_STATE", handleSpotifyPlayerState);
             } catch (e) {
-                console.error("[LyricStats] Subscribing failed:", e);
+                debugError("[LyricStats] Subscribing failed:", e);
             }
         }, 1000);
     },
 
     stop() {
-        console.log("[LyricStats] Plugin stopped.");
+        debugLog("[LyricStats] Plugin stopped.");
         try {
             FluxDispatcher.unsubscribe("SPOTIFY_PLAYER_STATE", handleSpotifyPlayerState);
         } catch (e) {
-            console.warn("[LyricStats] Unsubscribing failed:", e);
+            debugWarn("[LyricStats] Unsubscribing failed:", e);
         }
         stopSyncLoop();
         currentLyricLine = null;
