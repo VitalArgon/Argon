@@ -3,8 +3,11 @@ import { VeilDevs } from "@utils/constants";
 import { ChannelStore, FluxDispatcher } from "@webpack/common";
 
 const NAMES_CHANNEL_NAME = "customnames";
+// {shorthand = replacement} — value can contain spaces/symbols, just not { or }
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*([^{}]+?)\s*\}/g;
 
+// dash-to-space is structural (Discord channel names can't contain literal
+// spaces), so it always applies regardless of what's defined in the topic
 const BASE_REPLACEMENTS: [RegExp, string][] = [
     [/-/g, " "],
 ];
@@ -45,12 +48,17 @@ function rebuildReplacements(guildId: string) {
     dynamicReplacements = parseReplacementsFromTopic(namesChannel?.topic);
 }
 
-// shallow clone only — never mutate the store's real object in place, other
-// code/plugins may hold references to it and expect the real underlying name
+// clone while preserving the prototype chain — channel objects are Channel
+// class instances (hasFlag(), etc. live on the prototype), so a plain object
+// spread ({ ...channel }) silently drops those methods and crashes any code
+// downstream that calls them. Object.create + assign keeps the class intact.
 function withDisplayName(channel: any) {
     if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return channel;
     const displayName = applyReplacements(channel.name);
-    return displayName === channel.name ? channel : { ...channel, name: displayName };
+    if (displayName === channel.name) return channel;
+    const clone = Object.assign(Object.create(Object.getPrototypeOf(channel)), channel);
+    clone.name = displayName;
+    return clone;
 }
 
 function onChannelUpdate({ channel }: any) {
