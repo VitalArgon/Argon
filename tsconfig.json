@@ -64,6 +64,9 @@
             ],
             "@veilcore/*": [
                 "./src/veilcore/*"
+            ],
+            "@veilplugins/*": [
+                "./src/veilplugins/*"
             ]
         },
         "plugins": [
