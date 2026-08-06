@@ -12,11 +12,13 @@ const TEXT_TARGET_SELECTOR = [
 const MESSAGE_TEXTAREA_SELECTOR = 'div[role="textbox"][aria-label^="Message"]';
 
 const DISPLAY_REPLACEMENTS: [RegExp, string][] = [
-    [/⋅⋅/g, " "],
+    [/-/g, " "],
     [/⋅and⋅/g, "&"],
     [/⋅slash⋅/g, "/"],
     [/⋅money⋅/g, "$"],
     [/⋅ton⋅/g, "This is a super long channel name exclusive to Veil users who have custom channel names guild plugin enabled on their guild, so this long ass channel name is a reward for that progress"],
+    [/⋅ast⋅/g, "*"],
+    [/⋅hsh⋅/g, "#"],
 ];
 
 function applyReplacements(text: string) {
