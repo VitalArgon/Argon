@@ -4,7 +4,7 @@ import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webp
 
 const BANNER_CHANNEL_NAME = "categorybanners";
 const BANNER_CLASS = "veil-category-banner";
-// {categoryname = messageid} — name can be anything but = and { }
+// {categoryname = messageid} — read from the channel topic, same as #css
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
 
 let watchedGuildId: string | null = null;
@@ -18,14 +18,24 @@ function findBannerChannel(guildId: string) {
     ) as any;
 }
 
-async function fetchRecentMessages(channelId: string) {
-    // grabs the most recent 100 — the mapping message and the image message
-    // both need to land inside this window, so don't bury old banner posts
+function parseMappingsFromTopic(topic: string | null | undefined) {
+    const mappings: { name: string; msgId: string }[] = [];
+    if (!topic) return mappings;
+    for (const match of topic.matchAll(MAPPING_REGEX)) {
+        const [, rawName, msgId] = match;
+        mappings.push({ name: rawName.trim().toLowerCase(), msgId });
+    }
+    return mappings;
+}
+
+async function fetchMessage(channelId: string, messageId: string) {
+    // single-message fetch — no reason to page through history for this
     const res = await RestAPI.get({
         url: `/channels/${channelId}/messages`,
-        query: { limit: 100 },
+        query: { limit: 1, around: messageId },
     });
-    return res.body as any[];
+    const msgs = res.body as any[];
+    return msgs.find(m => m.id === messageId) ?? null;
 }
 
 async function rebuildBannerMap(guildId: string) {
@@ -35,18 +45,15 @@ async function rebuildBannerMap(guildId: string) {
         return;
     }
 
-    const messages = await fetchRecentMessages(channel.id);
-    const byId = new Map(messages.map((m: any) => [m.id, m]));
-
+    const mappings = parseMappingsFromTopic(channel.topic);
     const newMap = new Map<string, string>();
-    for (const msg of messages) {
-        for (const match of msg.content.matchAll(MAPPING_REGEX)) {
-            const [, rawName, msgId] = match;
-            const target = byId.get(msgId);
-            const url = target?.attachments?.[0]?.url;
-            if (url) newMap.set(rawName.trim().toLowerCase(), url);
-        }
-    }
+
+    await Promise.all(mappings.map(async ({ name, msgId }) => {
+        const msg = await fetchMessage(channel.id, msgId);
+        const url = msg?.attachments?.[0]?.url;
+        if (url) newMap.set(name, url);
+    }));
+
     bannerMap = newMap;
 }
 
@@ -56,8 +63,6 @@ function clearBanners() {
 
 function injectBanners() {
     if (!bannerMap.size) return;
-    // category headers render as role="button" rows whose visible text is
-    // the category name — reselect this if Discord shuffles sidebar classes
     const headers = document.querySelectorAll('[role="button"] [class*="title-"]');
     headers.forEach(titleEl => {
         const name = titleEl.textContent?.trim().toLowerCase();
@@ -91,13 +96,7 @@ async function applyIfActive() {
 }
 
 function onChannelUpdate({ channel }: any) {
-    if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === BANNER_CHANNEL_NAME) {
-        applyIfActive();
-    }
-}
-
-function onMessageEvent({ message, channelId }: any) {
-    const channel = ChannelStore.getChannel(channelId ?? message?.channel_id);
+    // topic edits are what matter now, not new messages in the channel
     if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === BANNER_CHANNEL_NAME) {
         applyIfActive();
     }
@@ -105,7 +104,7 @@ function onMessageEvent({ message, channelId }: any) {
 
 export default defineGuildPlugin({
     name: "CategoryBanners",
-    description: "Displays a banner image above each category, sourced from #categorybanners entries formatted as {categoryname = messageid}.",
+    description: "Displays a banner image above each category, sourced from #categorybanners' topic formatted as {categoryname = messageid}.",
     authors: [VeilDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
@@ -113,9 +112,6 @@ export default defineGuildPlugin({
         FluxDispatcher.subscribe("CHANNEL_SELECT", applyIfActive);
         FluxDispatcher.subscribe("GUILD_SELECT", applyIfActive);
         FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
-        FluxDispatcher.subscribe("MESSAGE_CREATE", onMessageEvent);
-        FluxDispatcher.subscribe("MESSAGE_UPDATE", onMessageEvent);
-        FluxDispatcher.subscribe("MESSAGE_DELETE", onMessageEvent);
 
         observer = new MutationObserver(() => injectBanners());
         const root = document.querySelector('[class*="sidebar-"]');
@@ -127,9 +123,6 @@ export default defineGuildPlugin({
         FluxDispatcher.unsubscribe("CHANNEL_SELECT", applyIfActive);
         FluxDispatcher.unsubscribe("GUILD_SELECT", applyIfActive);
         FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
-        FluxDispatcher.unsubscribe("MESSAGE_CREATE", onMessageEvent);
-        FluxDispatcher.unsubscribe("MESSAGE_UPDATE", onMessageEvent);
-        FluxDispatcher.unsubscribe("MESSAGE_DELETE", onMessageEvent);
         observer?.disconnect();
         observer = null;
         clearBanners();
