@@ -5,7 +5,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { Devs } from "@utils/constants";
+import { VeilDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps } from "@webpack";
 import { subscribeFlux, createLogger } from "../VeilCoreAPI";
@@ -81,6 +81,7 @@ const REDACTION_STRATEGIES = {
 
 export default definePlugin({
     name: "AntiBadWords",
+    author: [VeilDevs.Zarak],
     description: "Use Roblox chat filter directly in Discord!",
     dependencies: ["UserSettingsAPI", "VeilCoreAPI"],
     settings,
