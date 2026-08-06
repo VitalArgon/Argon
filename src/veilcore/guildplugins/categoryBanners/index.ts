@@ -40,21 +40,26 @@ async function fetchMessage(channelId: string, messageId: string) {
 
 async function rebuildBannerMap(guildId: string) {
     const channel = findBannerChannel(guildId);
+    console.log("[CategoryBanners] channel:", channel?.id, channel?.topic);
     if (!channel) {
         bannerMap = new Map();
         return;
     }
 
     const mappings = parseMappingsFromTopic(channel.topic);
+    console.log("[CategoryBanners] mappings:", mappings);
     const newMap = new Map<string, string>();
 
     await Promise.all(mappings.map(async ({ name, msgId }) => {
         const msg = await fetchMessage(channel.id, msgId);
+        console.log("[CategoryBanners] fetched msg:", msgId, msg);
         const url = msg?.attachments?.[0]?.url;
+        console.log("[CategoryBanners] attachment url:", url);
         if (url) newMap.set(name, url);
     }));
 
     bannerMap = newMap;
+    console.log("[CategoryBanners] final map:", newMap);
 }
 
 function clearBanners() {
@@ -64,6 +69,7 @@ function clearBanners() {
 function injectBanners() {
     if (!bannerMap.size) return;
     const headers = document.querySelectorAll('[role="button"] [class*="title-"]');
+    console.log("[CategoryBanners] headers found:", headers.length, [...headers].map(h => h.textContent));
     headers.forEach(titleEl => {
         const name = titleEl.textContent?.trim().toLowerCase();
         if (!name || !bannerMap.has(name)) return;
