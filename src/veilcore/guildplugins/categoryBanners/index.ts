@@ -1,6 +1,7 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
+console.log("[CategoryBanners] module loaded");
 
 const BANNER_CHANNEL_NAME = "categorybanners";
 const BANNER_CLASS = "veil-category-banner";
