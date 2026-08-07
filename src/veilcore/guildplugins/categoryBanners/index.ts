@@ -10,7 +10,7 @@ const BANNER_CLASS = "veil-category-banner";
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
 
 let watchedGuildId: string | null = null;
-let bannerMap: Map<string, string> = new Map(); // category name (lowercase) or category id -> image url
+let bannerMap: Map<string, string> = new Map(); // category name (normalized) or category id -> image url
 let observer: MutationObserver | null = null;
 
 function findBannerChannel(guildId: string) {
@@ -20,12 +20,24 @@ function findBannerChannel(guildId: string) {
     ) as any;
 }
 
+function normalizeName(raw?: string) {
+    if (!raw) return "";
+    const lower = raw.trim().toLowerCase();
+    try {
+        // Try Unicode-safe normalization (may throw in older engines)
+        return lower.replace(/[^^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, " ").trim();
+    } catch (e) {
+        // Fallback to ASCII-only sanitization
+        return lower.replace(/[^a-z0-9\s_-]/g, "").replace(/\s+/g, " ").trim();
+    }
+}
+
 function parseMappingsFromTopic(topic: string | null | undefined) {
     const mappings: { name: string; msgId: string }[] = [];
     if (!topic) return mappings;
     for (const match of topic.matchAll(MAPPING_REGEX)) {
         const [, rawName, msgId] = match;
-        mappings.push({ name: rawName.trim().toLowerCase(), msgId });
+        mappings.push({ name: normalizeName(rawName), msgId });
     }
     return mappings;
 }
@@ -62,13 +74,13 @@ async function rebuildBannerMap(guildId: string) {
         console.log("[CategoryBanners] attachment url:", url);
         if (!url) return;
 
-        // store by the given key (name or numeric id)
+        // store by the given key (normalized name or numeric id string)
         newMap.set(name, url);
 
         // if the mapping was a textual name, attempt to find the category channel and also store by its id
         const isId = /^\d{17,20}$/.test(name);
         if (!isId) {
-            const matched = Object.values(guildChannels).find((c: any) => c.type === 4 && c.name?.trim().toLowerCase() === name);
+            const matched = Object.values(guildChannels).find((c: any) => c.type === 4 && normalizeName(c.name) === name);
             if (matched) {
                 newMap.set(matched.id, url);
             }
@@ -92,19 +104,31 @@ function injectBanners() {
     const guildId = SelectedGuildStore.getGuildId();
     const guildChannels = guildId ? ChannelStore.getMutableGuildChannelsForGuild(guildId) : {};
 
-    const headers = document.querySelectorAll('[role="button"] [class*="title-"]');
-    console.log("[CategoryBanners] headers found:", headers.length, [...headers].map(h => h.textContent));
-    headers.forEach(titleEl => {
-        const name = titleEl.textContent?.trim().toLowerCase();
+    // Prefer collapsible category buttons — they usually have aria-expanded
+    const buttons = Array.from(document.querySelectorAll('[role="button"][aria-expanded]')) as HTMLElement[];
+    if (!buttons.length) return;
+
+    console.log("[CategoryBanners] category buttons found:", buttons.length);
+
+    buttons.forEach(btn => {
+        // Prefer a title element when present, otherwise fall back to the button's text
+        const titleEl = btn.querySelector('[class*="title-"]') as HTMLElement | null;
+        const rawName = (titleEl?.textContent ?? btn.textContent) || "";
+        const name = normalizeName(rawName);
         if (!name) return;
 
-        // try to resolve a category channel by name to get its id (if any)
-        const categoryChannel = Object.values(guildChannels).find((c: any) => c.type === 4 && c.name?.trim().toLowerCase() === name);
-        const idKey = categoryChannel?.id;
-
-        const headerRow = titleEl.closest('[role="button"]') as HTMLElement | null;
+        const headerRow = btn; // the button is the header row
         if (!headerRow) return;
-        if (headerRow.previousElementSibling?.classList.contains(BANNER_CLASS)) return;
+
+        // Avoid inserting duplicates — look for an existing banner immediately above this header within the same parent
+        const prev = headerRow.previousElementSibling;
+        if (prev?.classList?.contains(BANNER_CLASS)) return;
+        // also if the parent already contains a banner for this header, skip
+        if (headerRow.parentElement?.querySelector(`.${BANNER_CLASS}`)) return;
+
+        // try to resolve a category channel by name to get its id (if any)
+        const categoryChannel = Object.values(guildChannels).find((c: any) => c.type === 4 && normalizeName(c.name) === name);
+        const idKey = categoryChannel?.id;
 
         // prefer ID-based mapping if available, fall back to name-based mapping
         const url = (idKey && bannerMap.get(idKey)) ?? bannerMap.get(name);
@@ -114,6 +138,8 @@ function injectBanners() {
         banner.src = url;
         banner.className = BANNER_CLASS;
         banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;";
+
+        // Insert the banner directly before the header button so it appears above the category title
         headerRow.parentElement?.insertBefore(banner, headerRow);
     });
 }
