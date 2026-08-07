@@ -10,7 +10,7 @@ const BANNER_CLASS = "veil-category-banner";
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
 
 let watchedGuildId: string | null = null;
-let bannerMap: Map<string, string> = new Map(); // category name (lowercase) -> image url
+let bannerMap: Map<string, string> = new Map(); // category name (lowercase) or category id -> image url
 let observer: MutationObserver | null = null;
 
 function findBannerChannel(guildId: string) {
@@ -52,12 +52,30 @@ async function rebuildBannerMap(guildId: string) {
     console.log("[CategoryBanners] mappings:", mappings);
     const newMap = new Map<string, string>();
 
+    // grab guild channels once for name -> id resolution
+    const guildChannels = ChannelStore.getMutableGuildChannelsForGuild(guildId) || {};
+
     await Promise.all(mappings.map(async ({ name, msgId }) => {
         const msg = await fetchMessage(channel.id, msgId);
         console.log("[CategoryBanners] fetched msg:", msgId, msg);
         const url = msg?.attachments?.[0]?.url;
         console.log("[CategoryBanners] attachment url:", url);
-        if (url) newMap.set(name, url);
+        if (!url) return;
+
+        // store by the given key (name or numeric id)
+        newMap.set(name, url);
+
+        // if the mapping was a textual name, attempt to find the category channel and also store by its id
+        const isId = /^\d{17,20}$/.test(name);
+        if (!isId) {
+            const matched = Object.values(guildChannels).find((c: any) => c.type === 4 && c.name?.trim().toLowerCase() === name);
+            if (matched) {
+                newMap.set(matched.id, url);
+            }
+        } else {
+            // if the mapping was a numeric id, ensure we also set by that id (redundant but explicit)
+            newMap.set(name, url);
+        }
     }));
 
     bannerMap = newMap;
@@ -70,18 +88,30 @@ function clearBanners() {
 
 function injectBanners() {
     if (!bannerMap.size) return;
+
+    const guildId = SelectedGuildStore.getGuildId();
+    const guildChannels = guildId ? ChannelStore.getMutableGuildChannelsForGuild(guildId) : {};
+
     const headers = document.querySelectorAll('[role="button"] [class*="title-"]');
     console.log("[CategoryBanners] headers found:", headers.length, [...headers].map(h => h.textContent));
     headers.forEach(titleEl => {
         const name = titleEl.textContent?.trim().toLowerCase();
-        if (!name || !bannerMap.has(name)) return;
+        if (!name) return;
+
+        // try to resolve a category channel by name to get its id (if any)
+        const categoryChannel = Object.values(guildChannels).find((c: any) => c.type === 4 && c.name?.trim().toLowerCase() === name);
+        const idKey = categoryChannel?.id;
 
         const headerRow = titleEl.closest('[role="button"]') as HTMLElement | null;
         if (!headerRow) return;
         if (headerRow.previousElementSibling?.classList.contains(BANNER_CLASS)) return;
 
+        // prefer ID-based mapping if available, fall back to name-based mapping
+        const url = (idKey && bannerMap.get(idKey)) ?? bannerMap.get(name);
+        if (!url) return;
+
         const banner = document.createElement("img");
-        banner.src = bannerMap.get(name)!;
+        banner.src = url;
         banner.className = BANNER_CLASS;
         banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;";
         headerRow.parentElement?.insertBefore(banner, headerRow);
