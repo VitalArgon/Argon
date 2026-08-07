@@ -1,4 +1,3 @@
-// Fixed CategoryBanners plugin for Equicord
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
@@ -166,22 +165,18 @@ function injectBanners() {
         const name = normalizeName(rawName);
         if (!name) return;
 
-        const previous = btn.previousElementSibling;
-        if (previous?.classList?.contains(BANNER_CLASS)) return;
-
         const cat = Object.values(guildChannels).find((c: any) => c.type === 4 && normalizeName(c.name) === name);
         const url = (cat && bannerMap.get(cat.id)) ?? bannerMap.get(name);
         if (!url) return;
+
+        const row = findRowRoot(btn);
+        const previous = row.previousElementSibling;
+        if (previous?.classList?.contains(BANNER_CLASS)) return;
 
         const banner = document.createElement("img");
         banner.src = url;
         banner.className = BANNER_CLASS;
         banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;object-fit:cover;position:relative;z-index:10;";
-
-        // Resolve the real row element — NOT the small inner clickable div —
-        // so the banner becomes a new row in the list instead of being
-        // squeezed inside the existing 32px-tall header row.
-        const row = findRowRoot(btn);
 
         const applyShift = () => {
             const height = banner.offsetHeight || banner.getBoundingClientRect().height || 0;
@@ -198,17 +193,18 @@ function injectBanners() {
             const isAbsolute = computed.position === "absolute" || computed.position === "fixed";
 
             if (isAbsolute) {
+                // Out-of-flow row: inserting the banner before it does nothing
+                // on its own, so we need an explicit spacer to reserve space.
                 const spacer = document.createElement("div");
                 spacer.dataset[SPACER_DATA_ATTR] = "1";
                 spacer.style.height = `${height}px`;
                 spacer.style.width = "100%";
                 spacer.style.margin = "4px 0";
                 row.parentElement?.insertBefore(spacer, row);
-            } else {
-                if (!row.style.position) row.style.position = "relative";
-                row.style.zIndex = row.style.zIndex || "0";
-                row.style.marginTop = `${height}px`;
             }
+            // Normal flow row: the banner is already a real sibling in the
+            // document, so it naturally pushes `row` down — no extra
+            // marginTop needed here, adding one would double the gap.
         };
 
         // Insert the banner as a sibling of the ROW, not the inner button —
@@ -220,7 +216,7 @@ function injectBanners() {
         } else {
             banner.addEventListener("load", applyShift, { once: true });
             setTimeout(() => {
-                if (!btn.dataset[SHIFT_DATA_ATTR]) applyShift();
+                if (!row.dataset[SHIFT_DATA_ATTR]) applyShift();
             }, 400);
         }
     });
