@@ -9,6 +9,14 @@ const BANNER_CLASS = "veil-category-banner";
 // {categoryname = messageid} — read from the channel topic, same as #css
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
 
+const SPACER_DATA_ATTR = "veilBannerSpacer";
+const SHIFT_DATA_ATTR = "veilBannerShift";
+const PREV_POSITION_ATTR = "veilPrevPosition";
+const PREV_MARGIN_ATTR = "veilPrevMarginTop";
+const PREV_TOP_ATTR = "veilPrevTop";
+const PREV_Z_ATTR = "veilPrevZ";
+const PREV_TRANSFORM_ATTR = "veilPrevTransform";
+
 let watchedGuildId: string | null = null;
 let bannerMap: Map<string, string> = new Map(); // category name (normalized) or category id -> image url
 let observer: MutationObserver | null = null;
@@ -25,7 +33,7 @@ function normalizeName(raw?: string) {
     const lower = raw.trim().toLowerCase();
     try {
         // Try Unicode-safe normalization (may throw in older engines)
-        return lower.replace(/[^^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, " ").trim();
+        return lower.replace(/[^\^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, " ").trim();
     } catch (e) {
         // Fallback to ASCII-only sanitization
         return lower.replace(/[^a-z0-9\s_-]/g, "").replace(/\s+/g, " ").trim();
@@ -98,15 +106,35 @@ function clearBanners() {
     // remove inserted banners
     document.querySelectorAll(`.${BANNER_CLASS}`).forEach(el => el.remove());
 
-    // restore any header shifts we applied
-    document.querySelectorAll('[data-veil-banner-shift]').forEach((el: Element) => {
+    // remove any spacer elements we inserted
+    document.querySelectorAll(`[data-${SPACER_DATA_ATTR}]`).forEach(el => el.remove());
+
+    // restore any header shifts we applied, using saved previous inline styles
+    document.querySelectorAll(`[data-${SHIFT_DATA_ATTR}]`).forEach((el: Element) => {
         const e = el as HTMLElement;
-        e.style.transform = "";
-        e.style.top = "";
-        e.style.marginTop = "";
-        e.style.position = "";
-        e.style.zIndex = "";
-        delete (e as any).dataset.veilBannerShift;
+        // restore previous inline styles (if any) saved on the element
+        if (e.dataset[PREV_TRANSFORM_ATTR]) e.style.transform = e.dataset[PREV_TRANSFORM_ATTR];
+        else e.style.transform = "";
+
+        if (e.dataset[PREV_TOP_ATTR]) e.style.top = e.dataset[PREV_TOP_ATTR];
+        else e.style.top = "";
+
+        if (e.dataset[PREV_MARGIN_ATTR]) e.style.marginTop = e.dataset[PREV_MARGIN_ATTR];
+        else e.style.marginTop = "";
+
+        if (e.dataset[PREV_POSITION_ATTR]) e.style.position = e.dataset[PREV_POSITION_ATTR];
+        else e.style.position = "";
+
+        if (e.dataset[PREV_Z_ATTR]) e.style.zIndex = e.dataset[PREV_Z_ATTR];
+        else e.style.zIndex = "";
+
+        // remove our bookkeeping attrs
+        delete (e as any).dataset[SHIFT_DATA_ATTR];
+        delete (e as any).dataset[PREV_POSITION_ATTR];
+        delete (e as any).dataset[PREV_MARGIN_ATTR];
+        delete (e as any).dataset[PREV_TOP_ATTR];
+        delete (e as any).dataset[PREV_Z_ATTR];
+        delete (e as any).dataset[PREV_TRANSFORM_ATTR];
     });
 }
 
@@ -155,24 +183,49 @@ function injectBanners() {
         const applyShift = () => {
             const h = banner.offsetHeight || banner.getBoundingClientRect().height || 0;
             if (!h) return;
-            // mark the header so we can restore later
-            headerRow.dataset.veilBannerShift = String(h);
 
-            // Reset any transform we previously used
-            headerRow.style.transform = "";
+            // Save previous inline styles so we can restore them later
+            headerRow.dataset[PREV_POSITION_ATTR] = headerRow.style.position ?? "";
+            headerRow.dataset[PREV_MARGIN_ATTR] = headerRow.style.marginTop ?? "";
+            headerRow.dataset[PREV_TOP_ATTR] = headerRow.style.top ?? "";
+            headerRow.dataset[PREV_Z_ATTR] = headerRow.style.zIndex ?? "";
+            headerRow.dataset[PREV_TRANSFORM_ATTR] = headerRow.style.transform ?? "";
 
-            // Ensure the banner and header participate in stacking so z-index works
-            headerRow.style.position = headerRow.style.position || "relative";
-            headerRow.style.zIndex = "0";
+            // mark the header so we can restore later (store the numeric shift)
+            headerRow.dataset[SHIFT_DATA_ATTR] = String(h);
 
-            // Make sure banner sits above header visually
-            banner.style.position = "relative";
-            banner.style.zIndex = "10";
+            // Compute how the header is positioned in the page
+            const computed = window.getComputedStyle(headerRow);
+            const isAbsolute = computed.position === "absolute" || computed.position === "fixed";
 
-            // Push the header down by the banner's height
-            headerRow.style.marginTop = `${h}px`;
+            if (isAbsolute) {
+                // Absolute/fixed header won't be moved by marginTop.
+                // Insert a spacer element to reserve layout space above the header.
+                const spacer = document.createElement("div");
+                spacer.dataset[SPACER_DATA_ATTR] = "1";
+                spacer.style.height = `${h}px`;
+                spacer.style.width = "100%";
+                spacer.style.margin = "4px 0";
+                // insert spacer between banner and headerRow (banner is already inserted before headerRow)
+                headerRow.parentElement?.insertBefore(spacer, headerRow);
+                // keep headerRow's own inline positioning untouched (we saved previous styles)
+            } else {
+                // Reset any transform we previously used
+                headerRow.style.transform = headerRow.style.transform || "";
 
-            console.log("[CategoryBanners] applied shift:", { header: headerRow, shift: h });
+                // Ensure the header and banner participate in stacking so z-index works
+                if (!headerRow.style.position) headerRow.style.position = "relative";
+                headerRow.style.zIndex = headerRow.style.zIndex || "0";
+
+                // Make sure banner sits above header visually
+                banner.style.position = "relative";
+                banner.style.zIndex = "10";
+
+                // Push the header down by the banner's height (affects layout)
+                headerRow.style.marginTop = `${h}px`;
+            }
+
+            console.log("[CategoryBanners] applied shift:", { header: headerRow, shift: h, absolute: isAbsolute });
         };
 
         // insert banner before the headerRow so it's visually above it
@@ -184,7 +237,7 @@ function injectBanners() {
             banner.addEventListener("load", applyShift, { once: true });
             // if load fails, still attempt after a short timeout (best-effort)
             setTimeout(() => {
-                if (!headerRow.dataset.veilBannerShift) applyShift();
+                if (!headerRow.dataset[SHIFT_DATA_ATTR]) applyShift();
             }, 400);
         }
     });
