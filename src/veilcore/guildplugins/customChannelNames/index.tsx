@@ -48,17 +48,10 @@ function rebuildReplacements(guildId: string) {
     dynamicReplacements = parseReplacementsFromTopic(namesChannel?.topic);
 }
 
-// clone while preserving the prototype chain — channel objects are Channel
-// class instances (hasFlag(), etc. live on the prototype), so a plain object
-// spread ({ ...channel }) silently drops those methods and crashes any code
-// downstream that calls them. Object.create + assign keeps the class intact.
 function withDisplayName(channel: any) {
     if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return channel;
     const displayName = applyReplacements(channel.name);
-    if (displayName === channel.name) return channel;
-    const clone = Object.assign(Object.create(Object.getPrototypeOf(channel)), channel);
-    clone.name = displayName;
-    return clone;
+    return displayName === channel.name ? channel : { ...channel, name: displayName };
 }
 
 function onChannelUpdate({ channel }: any) {
