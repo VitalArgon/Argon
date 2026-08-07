@@ -1,4 +1,3 @@
-// Fixed CategoryBanners plugin for Equicord
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
@@ -7,7 +6,6 @@ console.log("[CategoryBanners] module loaded");
 
 const BANNER_CHANNEL_NAME = "categorybanners";
 const BANNER_CLASS = "veil-category-banner";
-// Mapping syntax: {categoryName = messageId}
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
 
 const SPACER_DATA_ATTR = "veilBannerSpacer";
@@ -17,6 +15,8 @@ const PREV_MARGIN_ATTR = "veilPrevMargin";
 const PREV_TOP_ATTR = "veilPrevTop";
 const PREV_Z_ATTR = "veilPrevZ";
 const PREV_TRANSFORM_ATTR = "veilPrevTransform";
+const ROW_SHIFT_ATTR = "veilRowShift";
+const ROW_PREV_TRANSFORM_ATTR = "veilRowPrevTransform";
 
 let watchedGuildId: string | null = null;
 let bannerMap: Map<string, string> = new Map(); // name|id → image URL
@@ -35,10 +35,8 @@ function normalizeName(raw?: string) {
     if (!raw) return "";
     const lower = raw.trim().toLowerCase();
     try {
-        // Unicode‑safe version (may throw on older JS engines)
         return lower.replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, " ").trim();
     } catch {
-        // Fallback to ASCII only
         return lower.replace(/[^a-z0-9\s_-]/g, "").replace(/\s+/g, " ").trim();
     }
 }
@@ -79,24 +77,93 @@ async function rebuildBannerMap(guildId: string) {
         const msg = await fetchMessage(channel.id, msgId);
         const url = msg?.attachments?.[0]?.url;
         if (!url) return;
-        // store by the raw key (could be name or numeric ID)
         newMap.set(name, url);
-        // if the key is a name, also map the category's **ID** for faster lookup later
         if (!/^\d{17,20}$/.test(name)) {
             const cat = Object.values(guildChannels).find((c: any) => c.type === 4 && normalizeName(c.name) === name);
             if (cat) newMap.set(cat.id, url);
-        } else {
-            // numeric key – already stored, nothing else to do
         }
     }));
     bannerMap = newMap;
     console.log("[CategoryBanners] bannerMap rebuilt", bannerMap);
 }
 
+/* ------------------------------------------------------------------ */
+/*  Transform / virtualization helpers                                 */
+/* ------------------------------------------------------------------ */
+
+/** Extract the translateY component (in px) from a transform string, whether
+ *  it's an inline `translateY(Npx)` or a computed `matrix(a,b,c,d,tx,ty)`. */
+function parseTranslateY(transform: string | null | undefined): number {
+    if (!transform || transform === "none") return 0;
+    const matrixMatch = transform.match(/matrix\(([^)]+)\)/);
+    if (matrixMatch) {
+        const parts = matrixMatch[1].split(",").map(s => parseFloat(s.trim()));
+        return parts[5] ?? 0;
+    }
+    const translateMatch = transform.match(/translateY?\(\s*(-?[\d.]+)px/);
+    if (translateMatch) return parseFloat(translateMatch[1]);
+    return 0;
+}
+
+/** Rewrite (or append) the translateY component of a transform string. */
+function withTranslateY(transform: string | null | undefined, newY: number): string {
+    if (!transform || transform === "none") return `translateY(${newY}px)`;
+    if (/translateY?\(/.test(transform)) {
+        return transform.replace(/translateY?\(\s*-?[\d.]+px\s*\)/, `translateY(${newY}px)`);
+    }
+    return `${transform} translateY(${newY}px)`;
+}
+
+/** Walk up from the header button to find the nearest ancestor that is
+ *  itself positioned via an inline transform – this is the actual
+ *  virtualized "row" element in Discord's channel list, which is often a
+ *  few levels above the clickable header div. Returns null if the list
+ *  isn't transform-virtualized (older/alternate Discord builds). */
+function findTransformRow(el: HTMLElement): HTMLElement | null {
+    let cur: HTMLElement | null = el;
+    for (let i = 0; i < 6 && cur; i++) {
+        if (cur.style.transform && cur.style.transform !== "none") return cur;
+        cur = cur.parentElement;
+    }
+    return null;
+}
+
+/** Shift every sibling row at or below `row`'s current offset down by
+ *  `height` px, so the banner has real space instead of overlapping the
+ *  next row. Original transforms are stashed on the row itself so
+ *  clearBanners() can restore them exactly. */
+function shiftRowsBelow(row: HTMLElement, height: number) {
+    const container = row.parentElement;
+    if (!container) return;
+
+    const rowTy = parseTranslateY(row.style.transform);
+    const siblings = Array.from(container.children) as HTMLElement[];
+
+    siblings.forEach(sib => {
+        if (sib.classList.contains(BANNER_CLASS)) return;
+        if (!sib.style.transform) return;
+
+        const currentTy = parseTranslateY(sib.style.transform);
+        if (currentTy < rowTy) return; // row is above the insertion point, leave it
+
+        if (!sib.dataset[ROW_SHIFT_ATTR]) {
+            sib.dataset[ROW_PREV_TRANSFORM_ATTR] = sib.style.transform;
+            sib.dataset[ROW_SHIFT_ATTR] = "1";
+        }
+        const baseTy = parseTranslateY(sib.dataset[ROW_PREV_TRANSFORM_ATTR]);
+        sib.style.transform = withTranslateY(sib.style.transform, baseTy + height);
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Banner injection / cleanup                                         */
+/* ------------------------------------------------------------------ */
+
 /** Remove all injected banners and restore original styles */
 function clearBanners() {
     document.querySelectorAll(`.${BANNER_CLASS}`).forEach(el => el.remove());
     document.querySelectorAll(`[data-${SPACER_DATA_ATTR}]`).forEach(el => el.remove());
+
     document.querySelectorAll(`[data-${SHIFT_DATA_ATTR}]`).forEach((el: Element) => {
         const e = el as HTMLElement;
         e.style.position = e.dataset[PREV_POSITION_ATTR] ?? "";
@@ -104,13 +171,19 @@ function clearBanners() {
         e.style.top = e.dataset[PREV_TOP_ATTR] ?? "";
         e.style.zIndex = e.dataset[PREV_Z_ATTR] ?? "";
         e.style.transform = e.dataset[PREV_TRANSFORM_ATTR] ?? "";
-        // clean up bookkeeping attributes
         delete e.dataset[SHIFT_DATA_ATTR];
         delete e.dataset[PREV_POSITION_ATTR];
         delete e.dataset[PREV_MARGIN_ATTR];
         delete e.dataset[PREV_TOP_ATTR];
         delete e.dataset[PREV_Z_ATTR];
         delete e.dataset[PREV_TRANSFORM_ATTR];
+    });
+
+    document.querySelectorAll(`[data-${ROW_SHIFT_ATTR}]`).forEach((el: Element) => {
+        const e = el as HTMLElement;
+        e.style.transform = e.dataset[ROW_PREV_TRANSFORM_ATTR] ?? "";
+        delete e.dataset[ROW_SHIFT_ATTR];
+        delete e.dataset[ROW_PREV_TRANSFORM_ATTR];
     });
 }
 
@@ -121,24 +194,20 @@ function injectBanners() {
     if (!guildId) return;
     const guildChannels = ChannelStore.getMutableGuildChannelsForGuild(guildId) || {};
 
-    // Discord uses role="treeitem" for category headers – fallback to role="button" for older builds
     const headerButtons = Array.from(
         document.querySelectorAll('[role="treeitem"][aria-expanded], [role="button"][aria-expanded]')
     ) as HTMLElement[];
     if (!headerButtons.length) return;
 
     headerButtons.forEach(btn => {
-        // Grab the visible title text
         const titleEl = btn.querySelector('[class*="title-"]') as HTMLElement | null;
         const rawName = (titleEl?.textContent ?? btn.textContent) || "";
         const name = normalizeName(rawName);
         if (!name) return;
 
-        // Prevent duplicate banners for the same header
         const previous = btn.previousElementSibling;
         if (previous?.classList?.contains(BANNER_CLASS)) return;
 
-        // Resolve banner URL – prefer ID mapping then name mapping
         const cat = Object.values(guildChannels).find((c: any) => c.type === 4 && normalizeName(c.name) === name);
         const url = (cat && bannerMap.get(cat.id)) ?? bannerMap.get(name);
         if (!url) return;
@@ -151,7 +220,20 @@ function injectBanners() {
         const applyShift = () => {
             const height = banner.offsetHeight || banner.getBoundingClientRect().height || 0;
             if (!height) return;
-            // Store original inline styles
+
+            // Prefer the transform-virtualized row wrapper if one exists —
+            // this is what's actually responsible for the row's on-screen
+            // position in modern Discord's channel list.
+            const row = findTransformRow(btn);
+
+            if (row) {
+                btn.dataset[SHIFT_DATA_ATTR] = String(height);
+                shiftRowsBelow(row, height);
+                return;
+            }
+
+            // Fallback: older/non-virtualized layouts where the header
+            // participates in normal flow or is absolutely positioned.
             btn.dataset[PREV_POSITION_ATTR] = btn.style.position ?? "";
             btn.dataset[PREV_MARGIN_ATTR] = btn.style.marginTop ?? "";
             btn.dataset[PREV_TOP_ATTR] = btn.style.top ?? "";
@@ -176,14 +258,12 @@ function injectBanners() {
             }
         };
 
-        // Insert banner directly before the header button
         btn.parentElement?.insertBefore(banner, btn);
 
         if (banner.complete && banner.naturalHeight !== 0) {
             applyShift();
         } else {
             banner.addEventListener("load", applyShift, { once: true });
-            // Fallback in case load never fires (e.g., cached image)
             setTimeout(() => {
                 if (!btn.dataset[SHIFT_DATA_ATTR]) applyShift();
             }, 400);
