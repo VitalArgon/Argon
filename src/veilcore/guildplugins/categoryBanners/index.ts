@@ -95,7 +95,17 @@ async function rebuildBannerMap(guildId: string) {
 }
 
 function clearBanners() {
+    // remove inserted banners
     document.querySelectorAll(`.${BANNER_CLASS}`).forEach(el => el.remove());
+
+    // restore any header shifts we applied
+    document.querySelectorAll('[data-veil-banner-shift]').forEach((el: Element) => {
+        const e = el as HTMLElement;
+        e.style.transform = "";
+        e.style.top = "";
+        e.style.marginTop = "";
+        delete (e as any).dataset.veilBannerShift;
+    });
 }
 
 function injectBanners() {
@@ -137,10 +147,34 @@ function injectBanners() {
         const banner = document.createElement("img");
         banner.src = url;
         banner.className = BANNER_CLASS;
-        banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;";
+        banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;object-fit:cover;";
 
-        // Insert the banner directly before the header button so it appears above the category title
+        // When the banner loads, measure it and shift the header down by its height.
+        const applyShift = () => {
+            const h = banner.offsetHeight || banner.getBoundingClientRect().height || 0;
+            if (!h) return;
+            // mark the header so we can restore later
+            headerRow.dataset.veilBannerShift = String(h);
+            // apply transform to shift the header down; transform is less likely to conflict with other layout rules
+            // use translateY so we don't disturb flows other than visually shifting the header
+            headerRow.style.transform = `translateY(${h}px)`;
+            // also add a bit of top margin fallback
+            headerRow.style.marginTop = `${Math.max(4, Math.round(h * 0.1))}px`;
+            console.log("[CategoryBanners] applied shift:", { header: headerRow, shift: h });
+        };
+
+        // insert banner before the headerRow so it's visually above it
         headerRow.parentElement?.insertBefore(banner, headerRow);
+
+        if (banner.complete && banner.naturalHeight !== 0) {
+            applyShift();
+        } else {
+            banner.addEventListener("load", applyShift, { once: true });
+            // if load fails, still attempt after a short timeout (best-effort)
+            setTimeout(() => {
+                if (!headerRow.dataset.veilBannerShift) applyShift();
+            }, 400);
+        }
     });
 }
 
