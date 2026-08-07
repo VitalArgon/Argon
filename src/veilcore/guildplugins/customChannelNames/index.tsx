@@ -12,8 +12,20 @@ const BASE_REPLACEMENTS: [RegExp, string][] = [
     [/-/g, " "],
 ];
 
+// How often to auto-increment backslashes (ms). Change to taste.
+const DEFAULT_DELAY_MS = 2000;
+// Safety cap on number of backslashes appended
+const MAX_BACKSLASHES = 300;
+
 let watchedGuildId: string | null = null;
 let dynamicReplacements: [RegExp, string][] = [];
+
+// Map of channelId -> original server-provided name (never mutated)
+const originalChannelNames: Map<string, string> = new Map();
+// Map of channelId -> how many backslashes to append
+const backslashCounts: Map<string, number> = new Map();
+
+let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
 let originalGetChannel: typeof ChannelStore.getChannel | null = null;
 let originalGetMutableGuildChannelsForGuild: typeof ChannelStore.getMutableGuildChannelsForGuild | null = null;
@@ -39,6 +51,14 @@ function applyReplacements(text: string) {
     return out;
 }
 
+// Helper: get the original/source name for a channel (prefer saved original,
+// fallback to the current channel.name).
+function getSourceNameForChannel(channelId: string, channelObj?: any) {
+    if (originalChannelNames.has(channelId)) return originalChannelNames.get(channelId)!;
+    if (channelObj && typeof channelObj.name === "string") return channelObj.name;
+    return "";
+}
+
 function rebuildReplacements(guildId: string) {
     if (!originalGetMutableGuildChannelsForGuild) return;
     const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
@@ -48,12 +68,23 @@ function rebuildReplacements(guildId: string) {
     dynamicReplacements = parseReplacementsFromTopic(namesChannel?.topic);
 }
 
+// Build the final display name from the original name + replacements + suffix
+function buildDisplayName(originalName: string, channelId: string) {
+    const base = applyReplacements(originalName);
+    const count = Math.min(backslashCounts.get(channelId) || 0, MAX_BACKSLASHES);
+    const suffix = count > 0 ? "\\".repeat(count) : "";
+    return base + suffix;
+}
+
 function withDisplayName(channel: any) {
     if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return channel;
     // Avoid modifying the special names channel so we can still read its topic
     if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return channel;
 
-    const displayName = applyReplacements(channel.name);
+    // Ensure we have a stable original source for this channel
+    if (channel.id && !originalChannelNames.has(channel.id)) originalChannelNames.set(channel.id, channel.name);
+    const sourceName = getSourceNameForChannel(channel.id, channel);
+    const displayName = buildDisplayName(sourceName, channel.id);
     return displayName === channel.name ? channel : { ...channel, name: displayName };
 }
 
@@ -62,10 +93,16 @@ function withDisplayName(channel: any) {
 function applyDisplayNamesToGuildChannels(guildId: string) {
     if (!originalGetMutableGuildChannelsForGuild) return;
     const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
-    for (const ch of Object.values(channels) as any[]) {
+    for (const [id, ch] of Object.entries(channels) as [string, any][]) {
         if (!ch || ch.guild_id !== watchedGuildId || typeof ch.name !== "string") continue;
         if (ch.name.toLowerCase() === NAMES_CHANNEL_NAME) continue;
-        const displayName = applyReplacements(ch.name);
+
+        // Save the original name if not already saved.
+        if (!originalChannelNames.has(id)) {
+            originalChannelNames.set(id, ch.name);
+        }
+        const sourceName = originalChannelNames.get(id)!;
+        const displayName = buildDisplayName(sourceName, id);
         if (displayName !== ch.name) {
             try {
                 ch.name = displayName;
@@ -76,18 +113,32 @@ function applyDisplayNamesToGuildChannels(guildId: string) {
     }
 }
 
+function incrementBackslashesForChannel(channelId: string) {
+    const now = backslashCounts.get(channelId) || 0;
+    const next = Math.min(now + 1, MAX_BACKSLASHES);
+    backslashCounts.set(channelId, next);
+    // Apply immediately if we have channel object access
+    if (originalGetChannel) {
+        const ch = originalGetChannel.call(ChannelStore, channelId);
+        if (ch && ch.guild_id === watchedGuildId && typeof ch.name === "string" && ch.name.toLowerCase() !== NAMES_CHANNEL_NAME) {
+            try { ch.name = buildDisplayName(getSourceNameForChannel(channelId, ch), channelId); } catch (e) { /* ignore */ }
+        }
+    }
+}
+
 // Handle channel select events (e.g., when the user clicks a channel)
-// and attempt to mutate the selected channel object in-place.
+// and increment the backslash count for that channel.
 function onChannelSelect({ channelId, guildId }: any) {
     if (!channelId || !guildId || guildId !== watchedGuildId) return;
     if (!originalGetChannel) return;
     const channel = originalGetChannel.call(ChannelStore, channelId);
     if (!channel || typeof channel.name !== "string") return;
     if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return;
-    const displayName = applyReplacements(channel.name);
-    if (displayName !== channel.name) {
-        try { channel.name = displayName; } catch (e) { /* ignore */ }
-    }
+
+    // Ensure original name is saved.
+    if (!originalChannelNames.has(channelId)) originalChannelNames.set(channelId, channel.name);
+    // Increment the backslash count for this channel (user requested click-based growth)
+    incrementBackslashesForChannel(channelId);
 }
 
 function onChannelUpdate({ channel }: any) {
@@ -95,15 +146,21 @@ function onChannelUpdate({ channel }: any) {
 
     // If the special names channel changed, rebuild our replacement list
     if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) {
+        // Update original map for the names channel too (so its topic reading is consistent)
+        if (channel.id) originalChannelNames.set(channel.id, channel.name);
         rebuildReplacements(watchedGuildId!);
         // Also re-apply display names across the guild
         applyDisplayNamesToGuildChannels(watchedGuildId!);
         return;
     }
 
+    // The channel payload is fresh server data — record its original name first.
+    if (channel.id) originalChannelNames.set(channel.id, channel.name);
+
     // Mutate the dispatched channel object so subscribers that use the event payload
     // (instead of calling ChannelStore.getChannel) also see the display name.
-    const displayName = applyReplacements(channel.name);
+    const sourceName = getSourceNameForChannel(channel.id, channel);
+    const displayName = buildDisplayName(sourceName, channel.id);
     if (displayName !== channel.name) {
         try { channel.name = displayName; } catch (e) { /* ignore */ }
     }
@@ -111,7 +168,7 @@ function onChannelUpdate({ channel }: any) {
 
 export default defineGuildPlugin({
     name: "CustomChannelNames",
-    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic).",
+    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic) and allows controlled backslash-accumulation.",
     authors: [VeilDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
@@ -133,6 +190,10 @@ export default defineGuildPlugin({
             if (guildId !== watchedGuildId) return channels;
             const patched: Record<string, any> = {};
             for (const [id, channel] of Object.entries(channels)) {
+                // Ensure original name saved for each channel so withDisplayName has a stable source
+                if (typeof channel?.name === "string" && !originalChannelNames.has(id)) {
+                    originalChannelNames.set(id, channel.name);
+                }
                 patched[id] = withDisplayName(channel);
             }
             return patched;
@@ -144,8 +205,47 @@ export default defineGuildPlugin({
 
         FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
         FluxDispatcher.subscribe("CHANNEL_SELECT", onChannelSelect);
+
+        // Start periodic increment of backslashes for all channels in the watched guild.
+        if (watchedGuildId) {
+            intervalHandle = setInterval(() => {
+                try {
+                    if (!originalGetMutableGuildChannelsForGuild) return;
+                    const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, watchedGuildId!);
+                    for (const [id, ch] of Object.entries(channels) as [string, any][]) {
+                        if (!ch || ch.guild_id !== watchedGuildId || typeof ch.name !== "string") continue;
+                        if (ch.name.toLowerCase() === NAMES_CHANNEL_NAME) continue;
+                        // Ensure original exists
+                        if (!originalChannelNames.has(id)) originalChannelNames.set(id, ch.name);
+                        incrementBackslashesForChannel(id);
+                    }
+                } catch (e) {
+                    // ignore interval errors
+                }
+            }, DEFAULT_DELAY_MS);
+        }
     },
     stop() {
+        // Before restoring getters, restore mutated in-store names back to original
+        if (originalGetMutableGuildChannelsForGuild && watchedGuildId) {
+            try {
+                const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, watchedGuildId);
+                for (const [id, ch] of Object.entries(channels) as [string, any][]) {
+                    if (!ch || typeof ch.name !== "string") continue;
+                    if (originalChannelNames.has(id)) {
+                        try { ch.name = originalChannelNames.get(id)!; } catch (e) { /* ignore */ }
+                    }
+                }
+            } catch (e) {
+                // best-effort restore; ignore if we can't access channels
+            }
+        }
+
+        if (intervalHandle) {
+            clearInterval(intervalHandle);
+            intervalHandle = null;
+        }
+
         if (originalGetChannel) ChannelStore.getChannel = originalGetChannel;
         if (originalGetMutableGuildChannelsForGuild) {
             ChannelStore.getMutableGuildChannelsForGuild = originalGetMutableGuildChannelsForGuild;
@@ -156,6 +256,8 @@ export default defineGuildPlugin({
         FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
         FluxDispatcher.unsubscribe("CHANNEL_SELECT", onChannelSelect);
         dynamicReplacements = [];
+        originalChannelNames.clear();
+        backslashCounts.clear();
         watchedGuildId = null;
     },
 });
