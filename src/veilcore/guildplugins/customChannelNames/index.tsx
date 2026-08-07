@@ -50,8 +50,44 @@ function rebuildReplacements(guildId: string) {
 
 function withDisplayName(channel: any) {
     if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return channel;
+    // Avoid modifying the special names channel so we can still read its topic
+    if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return channel;
+
     const displayName = applyReplacements(channel.name);
     return displayName === channel.name ? channel : { ...channel, name: displayName };
+}
+
+// Mutate in-store channel objects where possible so components holding references
+// to the original objects see our display names immediately.
+function applyDisplayNamesToGuildChannels(guildId: string) {
+    if (!originalGetMutableGuildChannelsForGuild) return;
+    const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
+    for (const ch of Object.values(channels) as any[]) {
+        if (!ch || ch.guild_id !== watchedGuildId || typeof ch.name !== "string") continue;
+        if (ch.name.toLowerCase() === NAMES_CHANNEL_NAME) continue;
+        const displayName = applyReplacements(ch.name);
+        if (displayName !== ch.name) {
+            try {
+                ch.name = displayName;
+            } catch (e) {
+                // ignore — fall back to getter patching which returns copies
+            }
+        }
+    }
+}
+
+// Handle channel select events (e.g., when the user clicks a channel)
+// and attempt to mutate the selected channel object in-place.
+function onChannelSelect({ channelId, guildId }: any) {
+    if (!channelId || !guildId || guildId !== watchedGuildId) return;
+    if (!originalGetChannel) return;
+    const channel = originalGetChannel.call(ChannelStore, channelId);
+    if (!channel || typeof channel.name !== "string") return;
+    if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return;
+    const displayName = applyReplacements(channel.name);
+    if (displayName !== channel.name) {
+        try { channel.name = displayName; } catch (e) { /* ignore */ }
+    }
 }
 
 function onChannelUpdate({ channel }: any) {
@@ -60,6 +96,8 @@ function onChannelUpdate({ channel }: any) {
     // If the special names channel changed, rebuild our replacement list
     if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) {
         rebuildReplacements(watchedGuildId!);
+        // Also re-apply display names across the guild
+        applyDisplayNamesToGuildChannels(watchedGuildId!);
         return;
     }
 
@@ -67,13 +105,13 @@ function onChannelUpdate({ channel }: any) {
     // (instead of calling ChannelStore.getChannel) also see the display name.
     const displayName = applyReplacements(channel.name);
     if (displayName !== channel.name) {
-        channel.name = displayName;
+        try { channel.name = displayName; } catch (e) { /* ignore */ }
     }
 }
 
 export default defineGuildPlugin({
     name: "CustomChannelNames",
-    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic[...]") ,
+    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic).",
     authors: [VeilDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
@@ -100,7 +138,12 @@ export default defineGuildPlugin({
             return patched;
         };
 
+        // Apply display names into store objects right away to cover components
+        // that keep references to existing objects.
+        if (watchedGuildId) applyDisplayNamesToGuildChannels(watchedGuildId);
+
         FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
+        FluxDispatcher.subscribe("CHANNEL_SELECT", onChannelSelect);
     },
     stop() {
         if (originalGetChannel) ChannelStore.getChannel = originalGetChannel;
@@ -111,6 +154,7 @@ export default defineGuildPlugin({
         originalGetMutableGuildChannelsForGuild = null;
 
         FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
+        FluxDispatcher.unsubscribe("CHANNEL_SELECT", onChannelSelect);
         dynamicReplacements = [];
         watchedGuildId = null;
     },
