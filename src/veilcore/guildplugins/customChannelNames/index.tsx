@@ -12,18 +12,18 @@ const BASE_REPLACEMENTS: [RegExp, string][] = [
     [/-/g, " "],
 ];
 
-// How often to auto-increment backslashes (ms). Change to taste.
+// How often to auto-step the cycle (ms).
 const DEFAULT_DELAY_MS = 2000;
-// Safety cap on number of backslashes appended
-const MAX_BACKSLASHES = 300;
+// Safety cap on the number of iterations (will wrap back to 0 to loop).
+const MAX_ITERATIONS = 300;
 
 let watchedGuildId: string | null = null;
 let dynamicReplacements: [RegExp, string][] = [];
 
 // Map of channelId -> original server-provided name (never mutated)
 const originalChannelNames: Map<string, string> = new Map();
-// Map of channelId -> how many backslashes to append
-const backslashCounts: Map<string, number> = new Map();
+// Map of channelId -> how many times to apply the replacements (iteration index)
+const iterationCounts: Map<string, number> = new Map();
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -44,10 +44,22 @@ function parseReplacementsFromTopic(topic: string | null | undefined): [RegExp, 
     return pairs;
 }
 
-function applyReplacements(text: string) {
+// Apply the full replacement set once (base + dynamic)
+function applyOnce(text: string) {
     let out = text;
     for (const [pattern, replacement] of BASE_REPLACEMENTS) out = out.replace(pattern, replacement);
     for (const [pattern, replacement] of dynamicReplacements) out = out.replace(pattern, replacement);
+    return out;
+}
+
+// Apply replacement set repeatedly 'times' times (stops early if stable)
+function applyRepeated(text: string, times: number) {
+    let out = text;
+    for (let i = 0; i < times; i++) {
+        const next = applyOnce(out);
+        if (next === out) break;
+        out = next;
+    }
     return out;
 }
 
@@ -68,12 +80,10 @@ function rebuildReplacements(guildId: string) {
     dynamicReplacements = parseReplacementsFromTopic(namesChannel?.topic);
 }
 
-// Build the final display name from the original name + replacements + suffix
+// Build the final display name by applying the mapping repeatedly per-channel
 function buildDisplayName(originalName: string, channelId: string) {
-    const base = applyReplacements(originalName);
-    const count = Math.min(backslashCounts.get(channelId) || 0, MAX_BACKSLASHES);
-    const suffix = count > 0 ? "\\".repeat(count) : "";
-    return base + suffix;
+    const count = iterationCounts.get(channelId) || 0;
+    return applyRepeated(originalName, count);
 }
 
 function withDisplayName(channel: any) {
@@ -113,10 +123,21 @@ function applyDisplayNamesToGuildChannels(guildId: string) {
     }
 }
 
-function incrementBackslashesForChannel(channelId: string) {
-    const now = backslashCounts.get(channelId) || 0;
-    const next = Math.min(now + 1, MAX_BACKSLASHES);
-    backslashCounts.set(channelId, next);
+// Only increment iteration for channels that are affected by at least one mapping
+function channelIsAffectedByMappings(sourceName: string) {
+    if (!dynamicReplacements.length) return false;
+    for (const [pattern] of dynamicReplacements) {
+        // reset lastIndex in case pattern has 'g'
+        try { pattern.lastIndex = 0; } catch { /* ignore */ }
+        if (pattern.test(sourceName)) return true;
+    }
+    return false;
+}
+
+function incrementIterationForChannel(channelId: string) {
+    const now = iterationCounts.get(channelId) || 0;
+    const next = (now + 1) % (MAX_ITERATIONS + 1); // wrap to create a loop
+    iterationCounts.set(channelId, next);
     // Apply immediately if we have channel object access
     if (originalGetChannel) {
         const ch = originalGetChannel.call(ChannelStore, channelId);
@@ -127,7 +148,7 @@ function incrementBackslashesForChannel(channelId: string) {
 }
 
 // Handle channel select events (e.g., when the user clicks a channel)
-// and increment the backslash count for that channel.
+// and step that channel through the cycle.
 function onChannelSelect({ channelId, guildId }: any) {
     if (!channelId || !guildId || guildId !== watchedGuildId) return;
     if (!originalGetChannel) return;
@@ -137,8 +158,8 @@ function onChannelSelect({ channelId, guildId }: any) {
 
     // Ensure original name is saved.
     if (!originalChannelNames.has(channelId)) originalChannelNames.set(channelId, channel.name);
-    // Increment the backslash count for this channel (user requested click-based growth)
-    incrementBackslashesForChannel(channelId);
+    const sourceName = getSourceNameForChannel(channelId, channel);
+    if (channelIsAffectedByMappings(sourceName)) incrementIterationForChannel(channelId);
 }
 
 function onChannelUpdate({ channel }: any) {
@@ -168,7 +189,7 @@ function onChannelUpdate({ channel }: any) {
 
 export default defineGuildPlugin({
     name: "CustomChannelNames",
-    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic) and allows controlled backslash-accumulation.",
+    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic) and steps through mapping iterations for affected channels.",
     authors: [VeilDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
@@ -206,7 +227,7 @@ export default defineGuildPlugin({
         FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
         FluxDispatcher.subscribe("CHANNEL_SELECT", onChannelSelect);
 
-        // Start periodic increment of backslashes for all channels in the watched guild.
+        // Start periodic stepping for affected channels in the watched guild.
         if (watchedGuildId) {
             intervalHandle = setInterval(() => {
                 try {
@@ -217,7 +238,10 @@ export default defineGuildPlugin({
                         if (ch.name.toLowerCase() === NAMES_CHANNEL_NAME) continue;
                         // Ensure original exists
                         if (!originalChannelNames.has(id)) originalChannelNames.set(id, ch.name);
-                        incrementBackslashesForChannel(id);
+                        const source = getSourceNameForChannel(id, ch);
+                        if (channelIsAffectedByMappings(source)) {
+                            incrementIterationForChannel(id);
+                        }
                     }
                 } catch (e) {
                     // ignore interval errors
@@ -257,7 +281,7 @@ export default defineGuildPlugin({
         FluxDispatcher.unsubscribe("CHANNEL_SELECT", onChannelSelect);
         dynamicReplacements = [];
         originalChannelNames.clear();
-        backslashCounts.clear();
+        iterationCounts.clear();
         watchedGuildId = null;
     },
 });
