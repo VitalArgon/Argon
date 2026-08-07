@@ -36,8 +36,6 @@ jobs:
       - name: Build web
         run: pnpm buildWeb
 
-      # Adjust these paths if your build outputs the zips somewhere
-      # other than dist/, or under different filenames.
       - name: Verify build output exists
         run: |
           for f in dist/extension-chrome.zip dist/extension-firefox.zip; do

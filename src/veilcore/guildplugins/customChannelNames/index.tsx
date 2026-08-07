@@ -1,92 +1,161 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
+import { ChannelStore, FluxDispatcher } from "@webpack/common";
 
-// Right-click -> Inspect on each of these in your own client to confirm/adjust
-// selectors — Discord's class names are hashed per build and can drift.
-const TEXT_TARGET_SELECTOR = [
-    'a[data-list-item-id^="channels___"] div[class*="name__"]', // sidebar link
-    '[class*="title__"]',                                       // chat header title bar
-    '[class*="emptyStateHeader"], h3[class*="title"]',           // "Welcome to #X!" heading
-].join(", ");
+const NAMES_CHANNEL_NAME = "customnames";
+// {shorthand = replacement} — value can contain spaces/symbols, just not { or }
+const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*([^{}]+?)\s*\}/g;
 
-const MESSAGE_TEXTAREA_SELECTOR = 'div[role="textbox"][aria-label^="Message"]';
-
-const DISPLAY_REPLACEMENTS: [RegExp, string][] = [
-    [/⋅⋅/g, " "],
-    [/⋅and⋅/g, "&"],
-    [/⋅slash⋅/g, "/"],
-    [/⋅money⋅/g, "$"],
-    [/⋅ton⋅/g, "This is a super long channel name exclusive to Veil users who have custom channel names guild plugin enabled on their guild, so this long ass channel name is a reward for that progress"],
+// dash-to-space is structural (Discord channel names can't contain literal
+// spaces), so it always applies regardless of what's defined in the topic
+const BASE_REPLACEMENTS: [RegExp, string][] = [
+    [/-/g, " "],
 ];
+
+let watchedGuildId: string | null = null;
+let dynamicReplacements: [RegExp, string][] = [];
+
+let originalGetChannel: typeof ChannelStore.getChannel | null = null;
+let originalGetMutableGuildChannelsForGuild: typeof ChannelStore.getMutableGuildChannelsForGuild | null = null;
+
+function escapeRegex(str: string) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseReplacementsFromTopic(topic: string | null | undefined): [RegExp, string][] {
+    const pairs: [RegExp, string][] = [];
+    if (!topic) return pairs;
+    for (const match of topic.matchAll(MAPPING_REGEX)) {
+        const [, shorthand, replacement] = match;
+        pairs.push([new RegExp(escapeRegex(shorthand.trim()), "g"), replacement]);
+    }
+    return pairs;
+}
 
 function applyReplacements(text: string) {
     let out = text;
-    for (const [pattern, replacement] of DISPLAY_REPLACEMENTS) {
-        out = out.replace(pattern, replacement);
-    }
+    for (const [pattern, replacement] of BASE_REPLACEMENTS) out = out.replace(pattern, replacement);
+    for (const [pattern, replacement] of dynamicReplacements) out = out.replace(pattern, replacement);
     return out;
 }
 
-function processTextNodesIn(el: Element) {
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let node: Node | null;
-    while ((node = walker.nextNode())) {
-        if (node.nodeValue) {
-            const replaced = applyReplacements(node.nodeValue);
-            if (replaced !== node.nodeValue) node.nodeValue = replaced;
+function rebuildReplacements(guildId: string) {
+    if (!originalGetMutableGuildChannelsForGuild) return;
+    const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
+    const namesChannel = Object.values(channels).find(
+        (c: any) => c.name?.toLowerCase() === NAMES_CHANNEL_NAME
+    ) as any;
+    dynamicReplacements = parseReplacementsFromTopic(namesChannel?.topic);
+}
+
+function withDisplayName(channel: any) {
+    if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return channel;
+    // Avoid modifying the special names channel so we can still read its topic
+    if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return channel;
+
+    const displayName = applyReplacements(channel.name);
+    return displayName === channel.name ? channel : { ...channel, name: displayName };
+}
+
+// Mutate in-store channel objects where possible so components holding references
+// to the original objects see our display names immediately.
+function applyDisplayNamesToGuildChannels(guildId: string) {
+    if (!originalGetMutableGuildChannelsForGuild) return;
+    const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
+    for (const ch of Object.values(channels) as any[]) {
+        if (!ch || ch.guild_id !== watchedGuildId || typeof ch.name !== "string") continue;
+        if (ch.name.toLowerCase() === NAMES_CHANNEL_NAME) continue;
+        const displayName = applyReplacements(ch.name);
+        if (displayName !== ch.name) {
+            try {
+                ch.name = displayName;
+            } catch (e) {
+                // ignore — fall back to getter patching which returns copies
+            }
         }
     }
 }
 
-function processMessagePlaceholder(el: Element) {
-    // Discord sets the visible placeholder via aria-label AND a data-slate
-    // placeholder node's text — aria-label is the reliable one to patch
-    const label = el.getAttribute("aria-label");
-    if (label) {
-        const replaced = applyReplacements(label);
-        if (replaced !== label) el.setAttribute("aria-label", replaced);
+// Handle channel select events (e.g., when the user clicks a channel)
+// and attempt to mutate the selected channel object in-place.
+function onChannelSelect({ channelId, guildId }: any) {
+    if (!channelId || !guildId || guildId !== watchedGuildId) return;
+    if (!originalGetChannel) return;
+    const channel = originalGetChannel.call(ChannelStore, channelId);
+    if (!channel || typeof channel.name !== "string") return;
+    if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return;
+    const displayName = applyReplacements(channel.name);
+    if (displayName !== channel.name) {
+        try { channel.name = displayName; } catch (e) { /* ignore */ }
     }
 }
 
-function processAll(root: ParentNode) {
-    root.querySelectorAll(TEXT_TARGET_SELECTOR).forEach(processTextNodesIn);
-    root.querySelectorAll(MESSAGE_TEXTAREA_SELECTOR).forEach(processMessagePlaceholder);
-}
+function onChannelUpdate({ channel }: any) {
+    if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return;
 
-let observer: MutationObserver | null = null;
+    // If the special names channel changed, rebuild our replacement list
+    if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) {
+        rebuildReplacements(watchedGuildId!);
+        // Also re-apply display names across the guild
+        applyDisplayNamesToGuildChannels(watchedGuildId!);
+        return;
+    }
+
+    // Mutate the dispatched channel object so subscribers that use the event payload
+    // (instead of calling ChannelStore.getChannel) also see the display name.
+    const displayName = applyReplacements(channel.name);
+    if (displayName !== channel.name) {
+        try { channel.name = displayName; } catch (e) { /* ignore */ }
+    }
+}
 
 export default defineGuildPlugin({
     name: "CustomChannelNames",
-    description: "Renders special characters/emoji shorthand in this guild's channel names (display-only, cosmetic).",
+    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmeti[...]",
     authors: [VeilDevs.Zarak],
+    start(guildId?: string) {
+        watchedGuildId = guildId ?? null;
 
-    start() {
-        processAll(document);
-        observer = new MutationObserver(mutations => {
-            for (const mutation of mutations) {
-                mutation.addedNodes.forEach(node => {
-                    if (!(node instanceof Element)) return;
-                    processAll(node);
-                });
-                // aria-label changes on the textarea don't fire childList
-                // mutations — need attribute watching for those specifically
-                if (mutation.type === "attributes" && mutation.target instanceof Element) {
-                    if (mutation.target.matches(MESSAGE_TEXTAREA_SELECTOR)) {
-                        processMessagePlaceholder(mutation.target);
-                    }
-                }
+        originalGetChannel = ChannelStore.getChannel.bind(ChannelStore);
+        originalGetMutableGuildChannelsForGuild = ChannelStore.getMutableGuildChannelsForGuild.bind(ChannelStore);
+
+        if (watchedGuildId) rebuildReplacements(watchedGuildId);
+
+        // Patch the getters themselves rather than the DOM — every component
+        // (sidebar item, chat header, textarea placeholder) reads channel.name
+        // through these same Flux store calls, so React re-renders it for us.
+        // @ts-ignore — intentional override, restored in stop()
+        ChannelStore.getChannel = (channelId: string) => withDisplayName(originalGetChannel!(channelId));
+
+        // @ts-ignore — intentional override, restored in stop()
+        ChannelStore.getMutableGuildChannelsForGuild = (guildId: string) => {
+            const channels = originalGetMutableGuildChannelsForGuild!.call(ChannelStore, guildId);
+            if (guildId !== watchedGuildId) return channels;
+            const patched: Record<string, any> = {};
+            for (const [id, channel] of Object.entries(channels)) {
+                patched[id] = withDisplayName(channel);
             }
-        });
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ["aria-label"],
-        });
-    },
+            return patched;
+        };
 
+        // Apply display names into store objects right away to cover components
+        // that keep references to existing objects.
+        if (watchedGuildId) applyDisplayNamesToGuildChannels(watchedGuildId);
+
+        FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
+        FluxDispatcher.subscribe("CHANNEL_SELECT", onChannelSelect);
+    },
     stop() {
-        observer?.disconnect();
-        observer = null;
+        if (originalGetChannel) ChannelStore.getChannel = originalGetChannel;
+        if (originalGetMutableGuildChannelsForGuild) {
+            ChannelStore.getMutableGuildChannelsForGuild = originalGetMutableGuildChannelsForGuild;
+        }
+        originalGetChannel = null;
+        originalGetMutableGuildChannelsForGuild = null;
+
+        FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
+        FluxDispatcher.unsubscribe("CHANNEL_SELECT", onChannelSelect);
+        dynamicReplacements = [];
+        watchedGuildId = null;
     },
 });
