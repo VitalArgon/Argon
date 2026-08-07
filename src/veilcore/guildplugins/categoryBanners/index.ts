@@ -104,6 +104,8 @@ function clearBanners() {
         e.style.transform = "";
         e.style.top = "";
         e.style.marginTop = "";
+        e.style.position = "";
+        e.style.zIndex = "";
         delete (e as any).dataset.veilBannerShift;
     });
 }
@@ -147,7 +149,7 @@ function injectBanners() {
         const banner = document.createElement("img");
         banner.src = url;
         banner.className = BANNER_CLASS;
-        banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;object-fit:cover;";
+        banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;object-fit:cover;position:relative;z-index:10;";
 
         // When the banner loads, measure it and shift the header down by its height.
         const applyShift = () => {
@@ -155,11 +157,21 @@ function injectBanners() {
             if (!h) return;
             // mark the header so we can restore later
             headerRow.dataset.veilBannerShift = String(h);
-            // apply transform to shift the header down; transform is less likely to conflict with other layout rules
-            // use translateY so we don't disturb flows other than visually shifting the header
-            headerRow.style.transform = `translateY(${h}px)`;
-            // also add a bit of top margin fallback
-            headerRow.style.marginTop = `${Math.max(4, Math.round(h * 0.1))}px`;
+
+            // Reset any transform we previously used
+            headerRow.style.transform = "";
+
+            // Ensure the banner and header participate in stacking so z-index works
+            headerRow.style.position = headerRow.style.position || "relative";
+            headerRow.style.zIndex = "0";
+
+            // Make sure banner sits above header visually
+            banner.style.position = "relative";
+            banner.style.zIndex = "10";
+
+            // Push the header down by the banner's height
+            headerRow.style.marginTop = `${h}px`;
+
             console.log("[CategoryBanners] applied shift:", { header: headerRow, shift: h });
         };
 
