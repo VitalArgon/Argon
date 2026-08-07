@@ -55,14 +55,25 @@ function withDisplayName(channel: any) {
 }
 
 function onChannelUpdate({ channel }: any) {
-    if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === NAMES_CHANNEL_NAME) {
+    if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return;
+
+    // If the special names channel changed, rebuild our replacement list
+    if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) {
         rebuildReplacements(watchedGuildId!);
+        return;
+    }
+
+    // Mutate the dispatched channel object so subscribers that use the event payload
+    // (instead of calling ChannelStore.getChannel) also see the display name.
+    const displayName = applyReplacements(channel.name);
+    if (displayName !== channel.name) {
+        channel.name = displayName;
     }
 }
 
 export default defineGuildPlugin({
     name: "CustomChannelNames",
-    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic).",
+    description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmetic[...]") ,
     authors: [VeilDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
