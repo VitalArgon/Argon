@@ -1,3 +1,4 @@
+// Fixed CategoryBanners plugin for Equicord
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
@@ -176,7 +177,7 @@ function injectBanners() {
         const banner = document.createElement("img");
         banner.src = url;
         banner.className = BANNER_CLASS;
-        banner.style.cssText = "width:100%;border-radius:4px;margin:4px 0;display:block;object-fit:cover;position:relative;z-index:10;";
+        banner.style.cssText = "width:85%;max-width:220px;border-radius:4px;margin:4px auto;display:block;object-fit:cover;position:relative;z-index:10;";
 
         const applyShift = () => {
             const height = banner.offsetHeight || banner.getBoundingClientRect().height || 0;
