@@ -1,4 +1,3 @@
-// Fixed CategoryBanners plugin for Equicord
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 import { VeilDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
@@ -87,19 +86,6 @@ async function rebuildBannerMap(guildId: string) {
     console.log("[CategoryBanners] bannerMap rebuilt", bannerMap);
 }
 
-/* ------------------------------------------------------------------ */
-/*  Row-root resolution                                                */
-/* ------------------------------------------------------------------ */
-
-/** The clickable header (`[role="treeitem"]`) is just a small inner element
- *  (icon + label). The actual full-width row that Discord stacks in the
- *  channel list sits several levels further up — identifiable because its
- *  *parent* is dramatically taller than it is (the parent is the scroll
- *  container holding every row, not another single-row wrapper).
- *
- *  Confirmed from a live DOM dump: clickable (24px) → ... → bar (32px)
- *  → list container (844px, holds every row). We stop climbing right
- *  before that big jump, landing on `bar`. */
 function findRowRoot(el: HTMLElement): HTMLElement {
     const RATIO_THRESHOLD = 2.5;
     const MIN_JUMP_PX = 40;
@@ -123,11 +109,6 @@ function findRowRoot(el: HTMLElement): HTMLElement {
     return cur;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Banner injection / cleanup                                         */
-/* ------------------------------------------------------------------ */
-
-/** Remove all injected banners and restore original styles */
 function clearBanners() {
     document.querySelectorAll(`.${BANNER_CLASS}`).forEach(el => el.remove());
     document.querySelectorAll(`[data-${SPACER_DATA_ATTR}]`).forEach(el => el.remove());
@@ -177,7 +158,7 @@ function injectBanners() {
         const banner = document.createElement("img");
         banner.src = url;
         banner.className = BANNER_CLASS;
-        banner.style.cssText = "width:85%;max-width:220px;border-radius:4px;margin:4px auto;display:block;object-fit:cover;position:relative;z-index:10;";
+        banner.style.cssText = "width:75%;border-radius:16px;margin:4px auto 1px;display:block;object-fit:cover;position:relative;z-index:10;";
 
         const applyShift = () => {
             const height = banner.offsetHeight || banner.getBoundingClientRect().height || 0;
