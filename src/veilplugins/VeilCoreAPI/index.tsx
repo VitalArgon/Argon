@@ -57,6 +57,25 @@ export function observeMatches(
     return () => observer.disconnect();
 }
 
+export function openSimpleModal(
+    title: string,
+    render: (modalProps: any) => any
+) {
+    openModal(modalProps =>
+        h(Modal, { ...modalProps, title }, render(modalProps))
+    );
+}
+
+export function findPluginByName(rawName: string) {
+    const name = rawName.trim().replace(/^"(.*)"$/, "$1");
+    return (
+        Plugins[name] ??
+        Object.values(Plugins).find(p => p.name.toLowerCase() === name.toLowerCase())
+    );
+}
+
+export { Plugins, PluginMeta };
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const SVG_ATTR_CAMEL_KEEP = new Set([
