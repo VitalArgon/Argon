@@ -1,5 +1,6 @@
 import definePlugin from "@utils/types";
 import { VeilDevs } from "@utils/constants";
+import { createStyleInjector } from "../VeilCoreAPI";
 
 const STYLE_ID = "thread-hider-styles";
 
@@ -16,13 +17,7 @@ const CSS = `
 }
 `;
 
-function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = CSS;
-    document.head.appendChild(style);
-}
+const injector = createStyleInjector(STYLE_ID, CSS);
 
 export default definePlugin({
     name: "ThreadHider",
@@ -31,10 +26,10 @@ export default definePlugin({
     authors: [VeilDevs.Zarak],
 
     start() {
-        injectStyles();
+        injector.inject();
     },
 
     stop() {
-        document.getElementById(STYLE_ID)?.remove();
+        injector.remove();
     },
 });
