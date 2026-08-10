@@ -150,28 +150,37 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                 <ModalCloseButton onClick={modalProps.onClose} />
             </ModalHeader>
             <ModalContent>
-                <div style={{ display: "flex", gap: 12, padding: "16px 0", minHeight: 420 }}>
+                <div style={{ display: "flex", gap: 12, padding: "16px 0", minHeight: 420, maxHeight: "70vh" }}>
                     {/* Sidebar */}
-                    <div style={{ width: 220, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
                         <Button size={Button.Sizes.SMALL} onClick={addSnippet}>+ New Snippet</Button>
 
-                        <Forms.FormTitle tag="h5" style={{ marginTop: 8 }}>Category</Forms.FormTitle>
+                        <Forms.FormTitle tag="h5" style={{ marginTop: 8, marginBottom: 4 }}>Category</Forms.FormTitle>
                         <select
                             value={categoryFilter}
                             onChange={e => setCategoryFilter(e.target.value)}
-                            style={{ background: "var(--background-secondary)", color: "var(--text-normal)", borderRadius: 4, padding: 6 }}
+                            style={{
+                                background: "var(--background-secondary)",
+                                color: "var(--text-normal)",
+                                border: "1px solid var(--background-modifier-accent)",
+                                borderRadius: 4,
+                                padding: "6px 8px",
+                                width: "100%",
+                                boxSizing: "border-box",
+                                fontSize: 13
+                            }}
                         >
-                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            {categories.map(c => <option key={c} value={c} style={{ background: "var(--background-secondary)", color: "var(--text-normal)" }}>{c}</option>)}
                         </select>
 
-                        <Forms.FormTitle tag="h5" style={{ marginTop: 8 }}>Filter by tag</Forms.FormTitle>
+                        <Forms.FormTitle tag="h5" style={{ marginTop: 8, marginBottom: 4 }}>Filter by tag</Forms.FormTitle>
                         <TextInput
                             value={tagFilter}
                             onChange={setTagFilter}
                             placeholder="e.g. webpack"
                         />
 
-                        <div style={{ marginTop: 8, overflowY: "auto", flexGrow: 1, borderTop: "1px solid var(--background-modifier-accent)" }}>
+                        <div style={{ marginTop: 8, overflowY: "auto", overflowX: "hidden", flexGrow: 1, minHeight: 0, borderTop: "1px solid var(--background-modifier-accent)" }}>
                             {!loaded && <Forms.FormText style={{ padding: 8 }}>Loading…</Forms.FormText>}
                             {loaded && filtered.length === 0 && (
                                 <Forms.FormText style={{ padding: 8, opacity: 0.7 }}>No snippets yet.</Forms.FormText>
@@ -187,8 +196,20 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                                         background: s.id === selectedId ? "var(--background-modifier-selected)" : "transparent"
                                     }}
                                 >
-                                    <div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div>
-                                    <div style={{ fontSize: 11, opacity: 0.6 }}>
+                                    <div style={{
+                                        fontWeight: 600,
+                                        fontSize: 14,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis"
+                                    }}>{s.name}</div>
+                                    <div style={{
+                                        fontSize: 11,
+                                        opacity: 0.6,
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis"
+                                    }}>
                                         {s.category || "Uncategorized"}
                                         {s.tags.length > 0 ? ` · ${s.tags.join(", ")}` : ""}
                                     </div>
@@ -198,7 +219,7 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                     </div>
 
                     {/* Editor pane */}
-                    <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
                         {!selected && (
                             <Forms.FormText style={{ margin: "auto", opacity: 0.6 }}>
                                 Select a snippet, or create a new one.
@@ -207,16 +228,23 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
 
                         {selected && (
                             <>
-                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
                                     {renaming ? (
                                         <TextInput
                                             value={draftName}
                                             onChange={setDraftName}
                                             autoFocus
-                                            style={{ flexGrow: 1 }}
+                                            style={{ flexGrow: 1, minWidth: 0 }}
                                         />
                                     ) : (
-                                        <Forms.FormTitle tag="h3" style={{ flexGrow: 1, margin: 0 }}>{selected.name}</Forms.FormTitle>
+                                        <Forms.FormTitle tag="h3" style={{
+                                            flexGrow: 1,
+                                            minWidth: 0,
+                                            margin: 0,
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis"
+                                        }}>{selected.name}</Forms.FormTitle>
                                     )}
                                     <Button size={Button.Sizes.SMALL} color={Button.Colors.PRIMARY} onClick={() => setRenaming(r => !r)}>
                                         {renaming ? "Done" : "Rename"}
@@ -230,28 +258,38 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                                     </Button>
                                 </div>
 
-                                <div style={{ display: "flex", gap: 8 }}>
-                                    <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
                                         <Forms.FormTitle tag="h5">Category</Forms.FormTitle>
                                         <TextInput value={draftCategory} onChange={setDraftCategory} placeholder="Uncategorized" />
                                     </div>
-                                    <div style={{ flex: 2 }}>
+                                    <div style={{ flex: 2, minWidth: 0 }}>
                                         <Forms.FormTitle tag="h5">Tags (comma separated)</Forms.FormTitle>
                                         <TextInput value={draftTags} onChange={setDraftTags} placeholder="webpack, patch, react" />
                                     </div>
                                 </div>
 
-                                <Forms.FormTitle tag="h5" style={{ marginTop: 4 }}>Content</Forms.FormTitle>
+                                <Forms.FormTitle tag="h5" style={{ marginTop: 4, marginBottom: 0 }}>Content</Forms.FormTitle>
                                 <textarea
                                     value={draftContent}
                                     onChange={e => setDraftContent(e.target.value)}
                                     spellCheck={false}
+                                    wrap="soft"
                                     style={{
                                         flexGrow: 1,
                                         minHeight: 220,
+                                        width: "100%",
+                                        maxWidth: "100%",
+                                        boxSizing: "border-box",
                                         resize: "vertical",
+                                        whiteSpace: "pre-wrap",
+                                        overflowWrap: "break-word",
+                                        wordBreak: "break-word",
+                                        overflowX: "hidden",
+                                        overflowY: "auto",
                                         fontFamily: "var(--font-code)",
                                         fontSize: 13,
+                                        lineHeight: 1.5,
                                         background: "var(--background-secondary)",
                                         color: "var(--text-normal)",
                                         border: "1px solid var(--background-modifier-accent)",
