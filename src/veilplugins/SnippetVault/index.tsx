@@ -200,12 +200,14 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                                     <div style={{
                                         fontWeight: 600,
                                         fontSize: 14,
+                                        color: "var(--text-normal, #dcddde)",
                                         whiteSpace: "nowrap",
                                         overflow: "hidden",
                                         textOverflow: "ellipsis"
                                     }}>{s.name}</div>
                                     <div style={{
                                         fontSize: 11,
+                                        color: "var(--text-normal, #dcddde)",
                                         opacity: 0.6,
                                         whiteSpace: "nowrap",
                                         overflow: "hidden",
