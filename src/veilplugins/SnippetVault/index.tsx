@@ -3,15 +3,50 @@ import { DataStore } from "@api/index";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { openModal, ModalRoot, ModalHeader, ModalContent, ModalCloseButton, ModalSize } from "@utils/modal";
 import definePlugin from "@utils/types";
-import { Button, Forms, TextInput, useEffect, useMemo, useState } from "@webpack/common";
+import { findByPropsLazy } from "@webpack";
+import { Button, Forms, TextInput, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
 const DATA_KEY = "SnippetVault_snippets";
+
+// Discord bundles highlight.js for its own message code blocks — reuse that
+// instance instead of shipping our own copy. Falls back to plain text if the
+// module shape ever changes upstream.
+const HLJS = findByPropsLazy("highlight", "highlightAuto");
+
+const LANGUAGES = [
+    "plaintext", "javascript", "typescript", "jsx", "tsx", "python", "java",
+    "csharp", "cpp", "c", "css", "scss", "html", "xml", "json", "yaml",
+    "markdown", "bash", "shell", "sql", "rust", "go", "php", "ruby",
+    "swift", "kotlin", "lua", "diff", "ini", "dockerfile"
+];
+
+function escapeHtml(str: string) {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function highlightCode(code: string, lang: string): string {
+    if (!code) return "";
+    if (!HLJS?.highlight) return escapeHtml(code);
+    try {
+        if (lang && lang !== "plaintext" && HLJS.getLanguage?.(lang)) {
+            return HLJS.highlight(code, { language: lang }).value;
+        }
+        if (lang === "plaintext") return escapeHtml(code);
+        return HLJS.highlightAuto(code).value;
+    } catch {
+        return escapeHtml(code);
+    }
+}
 
 interface Snippet {
     id: string;
     name: string;
     content: string;
     category: string;
+    language: string;
     tags: string[];
     updatedAt: number;
 }
@@ -58,7 +93,10 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
     const [draftName, setDraftName] = useState("");
     const [draftContent, setDraftContent] = useState("");
     const [draftCategory, setDraftCategory] = useState("");
+    const [draftLanguage, setDraftLanguage] = useState("plaintext");
     const [draftTags, setDraftTags] = useState("");
+    const highlightRef = useRef<HTMLPreElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         loadSnippets().then(s => {
@@ -78,6 +116,7 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
             setDraftName(selected.name);
             setDraftContent(selected.content);
             setDraftCategory(selected.category);
+            setDraftLanguage(selected.language || "plaintext");
             setDraftTags(selected.tags.join(", "));
             setRenaming(false);
         }
@@ -107,6 +146,7 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
             name: "New Snippet",
             content: "",
             category: "Uncategorized",
+            language: "plaintext",
             tags: [],
             updatedAt: Date.now()
         };
@@ -131,6 +171,7 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                     name: draftName.trim() || "Untitled",
                     content: draftContent,
                     category: draftCategory.trim() || "Uncategorized",
+                    language: draftLanguage || "plaintext",
                     tags: draftTags
                         .split(",")
                         .map(t => t.trim())
@@ -214,6 +255,7 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                                         textOverflow: "ellipsis"
                                     }}>
                                         {s.category || "Uncategorized"}
+                                        {s.language && s.language !== "plaintext" ? ` · ${s.language}` : ""}
                                         {s.tags.length > 0 ? ` · ${s.tags.join(", ")}` : ""}
                                     </div>
                                 </div>
@@ -266,41 +308,111 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                                         <Forms.FormTitle tag="h5">Category</Forms.FormTitle>
                                         <TextInput value={draftCategory} onChange={setDraftCategory} placeholder="Uncategorized" />
                                     </div>
-                                    <div style={{ flex: 2, minWidth: 0 }}>
-                                        <Forms.FormTitle tag="h5">Tags (comma separated)</Forms.FormTitle>
-                                        <TextInput value={draftTags} onChange={setDraftTags} placeholder="webpack, patch, react" />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Forms.FormTitle tag="h5">Language</Forms.FormTitle>
+                                        <select
+                                            value={draftLanguage}
+                                            onChange={e => setDraftLanguage(e.target.value)}
+                                            style={{
+                                                background: "var(--background-secondary, #2b2d31)",
+                                                color: "var(--text-normal, #dcddde)",
+                                                border: "1px solid var(--background-modifier-accent)",
+                                                borderRadius: 4,
+                                                padding: "6px 8px",
+                                                width: "100%",
+                                                boxSizing: "border-box",
+                                                fontSize: 13,
+                                                colorScheme: "dark"
+                                            }}
+                                        >
+                                            {LANGUAGES.map(l => (
+                                                <option key={l} value={l} style={{ background: "#2b2d31", color: "#dcddde" }}>{l}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
 
+                                <div style={{ minWidth: 0 }}>
+                                    <Forms.FormTitle tag="h5">Tags (comma separated)</Forms.FormTitle>
+                                    <TextInput value={draftTags} onChange={setDraftTags} placeholder="webpack, patch, react" />
+                                </div>
+
                                 <Forms.FormTitle tag="h5" style={{ marginTop: 4, marginBottom: 0 }}>Content</Forms.FormTitle>
-                                <textarea
-                                    value={draftContent}
-                                    onChange={e => setDraftContent(e.target.value)}
-                                    spellCheck={false}
-                                    wrap="soft"
-                                    style={{
-                                        flexGrow: 1,
-                                        minHeight: 220,
-                                        width: "100%",
-                                        maxWidth: "100%",
-                                        boxSizing: "border-box",
-                                        resize: "vertical",
-                                        whiteSpace: "pre-wrap",
-                                        overflowWrap: "break-word",
-                                        wordBreak: "break-word",
-                                        overflowX: "hidden",
-                                        overflowY: "auto",
-                                        fontFamily: "var(--font-code)",
-                                        fontSize: 13,
-                                        lineHeight: 1.5,
-                                        background: "var(--background-secondary, #2b2d31)",
-                                        color: "var(--text-normal, #dcddde)",
-                                        colorScheme: "dark",
-                                        border: "1px solid var(--background-modifier-accent)",
-                                        borderRadius: 4,
-                                        padding: 8
-                                    }}
-                                />
+                                <div style={{
+                                    position: "relative",
+                                    flexGrow: 1,
+                                    minHeight: 220,
+                                    width: "100%",
+                                    boxSizing: "border-box",
+                                    border: "1px solid var(--background-modifier-accent)",
+                                    borderRadius: 4,
+                                    background: "var(--background-secondary, #2b2d31)",
+                                    overflow: "hidden"
+                                }}>
+                                    {/* Highlighted code sits behind the textarea; the textarea itself
+                                        renders transparent text on top so typing/selection/caret all
+                                        still work like a normal textarea. */}
+                                    <pre
+                                        ref={highlightRef}
+                                        aria-hidden="true"
+                                        style={{
+                                            margin: 0,
+                                            position: "absolute",
+                                            inset: 0,
+                                            overflow: "hidden",
+                                            pointerEvents: "none",
+                                            whiteSpace: "pre-wrap",
+                                            overflowWrap: "break-word",
+                                            wordBreak: "break-word",
+                                            fontFamily: "var(--font-code)",
+                                            fontSize: 13,
+                                            lineHeight: 1.5,
+                                            padding: 8,
+                                            color: "var(--text-normal, #dcddde)"
+                                        }}
+                                    >
+                                        <code
+                                            className={`hljs${draftLanguage && draftLanguage !== "plaintext" ? ` language-${draftLanguage}` : ""}`}
+                                            dangerouslySetInnerHTML={{ __html: highlightCode(draftContent, draftLanguage) + "\n" }}
+                                        />
+                                    </pre>
+                                    <textarea
+                                        ref={textareaRef}
+                                        value={draftContent}
+                                        onChange={e => setDraftContent(e.target.value)}
+                                        onScroll={e => {
+                                            if (highlightRef.current) {
+                                                highlightRef.current.scrollTop = e.currentTarget.scrollTop;
+                                                highlightRef.current.scrollLeft = e.currentTarget.scrollLeft;
+                                            }
+                                        }}
+                                        spellCheck={false}
+                                        wrap="soft"
+                                        style={{
+                                            position: "absolute",
+                                            inset: 0,
+                                            width: "100%",
+                                            height: "100%",
+                                            margin: 0,
+                                            boxSizing: "border-box",
+                                            resize: "none",
+                                            whiteSpace: "pre-wrap",
+                                            overflowWrap: "break-word",
+                                            wordBreak: "break-word",
+                                            overflow: "auto",
+                                            fontFamily: "var(--font-code)",
+                                            fontSize: 13,
+                                            lineHeight: 1.5,
+                                            background: "transparent",
+                                            color: "transparent",
+                                            caretColor: "var(--text-normal, #dcddde)",
+                                            colorScheme: "dark",
+                                            border: "none",
+                                            borderRadius: 4,
+                                            padding: 8
+                                        }}
+                                    />
+                                </div>
 
                                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                                     <Button
