@@ -51,16 +51,36 @@ interface Snippet {
     updatedAt: number;
 }
 
+function uid() {
+    return crypto.randomUUID();
+}
+
+// Normalizes a raw record from DataStore into a well-formed Snippet.
+// Older saved data (or anything written by a previous version of this
+// plugin) may be missing fields like `tags` or `language` entirely —
+// reading `.join`/`.some`/`.length` on `undefined` is what was crashing
+// the modal on open. Every snippet is coerced through this before it
+// ever reaches render or state.
+function normalizeSnippet(raw: any): Snippet {
+    return {
+        id: typeof raw?.id === "string" ? raw.id : uid(),
+        name: typeof raw?.name === "string" ? raw.name : "Untitled",
+        content: typeof raw?.content === "string" ? raw.content : "",
+        category: typeof raw?.category === "string" ? raw.category : "Uncategorized",
+        language: typeof raw?.language === "string" ? raw.language : "plaintext",
+        tags: Array.isArray(raw?.tags) ? raw.tags.filter((t: unknown) => typeof t === "string") : [],
+        updatedAt: typeof raw?.updatedAt === "number" ? raw.updatedAt : Date.now()
+    };
+}
+
 async function loadSnippets(): Promise<Snippet[]> {
-    return (await DataStore.get(DATA_KEY)) ?? [];
+    const raw = await DataStore.get(DATA_KEY);
+    if (!Array.isArray(raw)) return [];
+    return raw.map(normalizeSnippet);
 }
 
 async function saveSnippets(snippets: Snippet[]) {
     await DataStore.set(DATA_KEY, snippets);
-}
-
-function uid() {
-    return crypto.randomUUID();
 }
 
 function ToolbarIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -117,7 +137,7 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
             setDraftContent(selected.content);
             setDraftCategory(selected.category);
             setDraftLanguage(selected.language || "plaintext");
-            setDraftTags(selected.tags.join(", "));
+            setDraftTags((selected.tags ?? []).join(", "));
             setRenaming(false);
         }
     }, [selectedId]);
@@ -130,7 +150,8 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
     const filtered = useMemo(() => {
         return snippets.filter(s => {
             const catOk = categoryFilter === "All" || (s.category || "Uncategorized") === categoryFilter;
-            const tagOk = !tagFilter.trim() || s.tags.some(t => t.toLowerCase().includes(tagFilter.trim().toLowerCase()));
+            const tags = s.tags ?? [];
+            const tagOk = !tagFilter.trim() || tags.some(t => t.toLowerCase().includes(tagFilter.trim().toLowerCase()));
             return catOk && tagOk;
         });
     }, [snippets, categoryFilter, tagFilter]);
@@ -227,39 +248,42 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                             {loaded && filtered.length === 0 && (
                                 <Forms.FormText style={{ padding: 8, opacity: 0.7 }}>No snippets yet.</Forms.FormText>
                             )}
-                            {filtered.map(s => (
-                                <div
-                                    key={s.id}
-                                    onClick={() => setSelectedId(s.id)}
-                                    style={{
-                                        padding: "8px 6px",
-                                        borderRadius: 4,
-                                        cursor: "pointer",
-                                        background: s.id === selectedId ? "var(--background-modifier-selected)" : "transparent"
-                                    }}
-                                >
-                                    <div style={{
-                                        fontWeight: 600,
-                                        fontSize: 14,
-                                        color: "var(--text-normal, #dcddde)",
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis"
-                                    }}>{s.name}</div>
-                                    <div style={{
-                                        fontSize: 11,
-                                        color: "var(--text-normal, #dcddde)",
-                                        opacity: 0.6,
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis"
-                                    }}>
-                                        {s.category || "Uncategorized"}
-                                        {s.language && s.language !== "plaintext" ? ` · ${s.language}` : ""}
-                                        {s.tags.length > 0 ? ` · ${s.tags.join(", ")}` : ""}
+                            {filtered.map(s => {
+                                const tags = s.tags ?? [];
+                                return (
+                                    <div
+                                        key={s.id}
+                                        onClick={() => setSelectedId(s.id)}
+                                        style={{
+                                            padding: "8px 6px",
+                                            borderRadius: 4,
+                                            cursor: "pointer",
+                                            background: s.id === selectedId ? "var(--background-modifier-selected)" : "transparent"
+                                        }}
+                                    >
+                                        <div style={{
+                                            fontWeight: 600,
+                                            fontSize: 14,
+                                            color: "var(--text-normal, #dcddde)",
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis"
+                                        }}>{s.name}</div>
+                                        <div style={{
+                                            fontSize: 11,
+                                            color: "var(--text-normal, #dcddde)",
+                                            opacity: 0.6,
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis"
+                                        }}>
+                                            {s.category || "Uncategorized"}
+                                            {s.language && s.language !== "plaintext" ? ` · ${s.language}` : ""}
+                                            {tags.length > 0 ? ` · ${tags.join(", ")}` : ""}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 
