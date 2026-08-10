@@ -39,7 +39,6 @@ export function observeMatches(
         r.querySelectorAll?.(selector).forEach(onMatch);
     };
 
-    // Respect the provided root instead of always scanning the whole document.
     scan(root);
 
     const observer = new MutationObserver(mutations => {
@@ -93,26 +92,16 @@ function svgAttrName(prop: string): string {
     return prop.replace(/([A-Z])/g, "-$1").toLowerCase();
 }
 
-/**
- * Render a React element to DOM in a safe React renderer context and return the
- * resulting DOM node (first child) or a text node when rendering produced only text.
- * Uses createRoot + ReactDOM.flushSync to avoid calling component functions
- * (and hooks) outside of React's render cycle — this prevents random crashes
- * caused by invalid hook calls.
- */
 export function renderReactToDom(element: any): Node | null {
     try {
         const container = document.createElement("div");
         const root = createRoot(container);
-        // flushSync ensures synchronous rendering so callers immediately get DOM.
         ReactDOM.flushSync(() => root.render(element));
         const child = container.firstChild;
         root.unmount();
         if (child) return child;
         return document.createTextNode(container.textContent ?? "");
     } catch (e) {
-        // If React rendering fails for any reason, fall back to a conservative
-        // attempt that will not execute hooks: attempt to stringify.
         try {
             return document.createTextNode(String(element));
         } catch {
@@ -137,15 +126,11 @@ export function reactNodeToDom(node: any): Node | null {
     if (typeof node === "object" && "type" in node) {
         const { type, props } = node as { type: any; props: any };
 
-        // If this is a React component (function/class), render it via React
-        // instead of invoking the function directly — that avoids invalid
-        // hook calls when the component uses hooks.
         if (typeof type === "function") {
             try {
                 const element = React.createElement(type, props ?? {});
                 return renderReactToDom(element);
             } catch (e) {
-                // As a last resort, try calling it directly (best-effort).
                 try {
                     return reactNodeToDom(type(props ?? {}));
                 } catch {
@@ -155,9 +140,6 @@ export function reactNodeToDom(node: any): Node | null {
         }
 
         if (typeof type === "string") {
-            // Create an SVG element only when the tag is an SVG tag (root svg)
-            // or when xmlns explicitly requests SVG. This avoids creating html
-            // elements in the SVG namespace which can cause subtle DOM issues.
             const isSvg = type === "svg" || (props && props.xmlns === SVG_NS);
             const el = isSvg ? document.createElementNS(SVG_NS, type) : document.createElement(type);
 
@@ -168,16 +150,13 @@ export function reactNodeToDom(node: any): Node | null {
                     Object.assign((el as any).style, value);
                     continue;
                 }
-                // Handle className separately for consistency
                 if (key === "className") {
                     (el as HTMLElement).className = String(value);
                     continue;
                 }
-                // Use appropriate attribute naming for SVG/hyphenation
                 try {
                     el.setAttribute(svgAttrName(key), String(value));
                 } catch {
-                    // ignore attributes that fail to set
                 }
             }
             const childDom = reactNodeToDom(props?.children);
@@ -186,6 +165,12 @@ export function reactNodeToDom(node: any): Node | null {
         }
     }
     return null;
+}
+
+export function mountReactChild(container: Element, element: any): () => void {
+    const root = createRoot(container);
+    ReactDOM.flushSync(() => root.render(element));
+    return () => root.unmount();
 }
 
 export function createLogger(name: string, color = "#A259FF") {
@@ -212,18 +197,201 @@ export function subscribeFlux(event: string, handler: (payload: any) => void) {
 export { addContextMenuPatch, removeContextMenuPatch, findGroupChildrenByChildId };
 export { addPreSendListener, removePreSendListener, addPreEditListener, removePreEditListener };
 
-export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    return ((...args: any[]) => {
-        const ctx = this as any;
+    let lastArgs: any[] | undefined;
+    let lastThis: any;
+
+    function debounced(this: any, ...args: any[]) {
+        lastArgs = args;
+        lastThis = this;
         clearTimeout(timer);
-        timer = setTimeout(() => fn.apply(ctx, args), ms);
+        timer = setTimeout(() => {
+            timer = undefined;
+            fn.apply(lastThis, lastArgs as any[]);
+        }, ms);
+    }
+
+    debounced.cancel = () => {
+        clearTimeout(timer);
+        timer = undefined;
+    };
+
+    debounced.flush = () => {
+        if (timer === undefined) return;
+        clearTimeout(timer);
+        timer = undefined;
+        fn.apply(lastThis, lastArgs as any[]);
+    };
+
+    return debounced as T & { cancel(): void; flush(): void; };
+}
+
+export function throttle<T extends (...args: any[]) => void>(
+    fn: T,
+    ms: number,
+    opts: { trailing?: boolean; } = {}
+) {
+    let lastCall = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastArgs: any[] | undefined;
+    let lastThis: any;
+
+    function throttled(this: any, ...args: any[]) {
+        const now = Date.now();
+        const remaining = ms - (now - lastCall);
+        lastArgs = args;
+        lastThis = this;
+
+        if (remaining <= 0) {
+            lastCall = now;
+            fn.apply(this, args);
+        } else if (opts.trailing && timer === undefined) {
+            timer = setTimeout(() => {
+                lastCall = Date.now();
+                timer = undefined;
+                fn.apply(lastThis, lastArgs as any[]);
+            }, remaining);
+        }
+    }
+
+    throttled.cancel = () => {
+        clearTimeout(timer);
+        timer = undefined;
+    };
+
+    return throttled as T & { cancel(): void; };
+}
+
+export function once<T extends (...args: any[]) => any>(fn: T): T {
+    let called = false;
+    let result: ReturnType<T>;
+    return ((...args: any[]) => {
+        if (!called) {
+            called = true;
+            result = fn(...args);
+        }
+        return result;
     }) as T;
+}
+
+export function memoize<T extends (...args: any[]) => any>(fn: T): T {
+    const cache = new Map<string, ReturnType<T>>();
+    return ((...args: any[]) => {
+        const key = JSON.stringify(args);
+        if (cache.has(key)) return cache.get(key)!;
+        const result = fn(...args);
+        cache.set(key, result);
+        return result;
+    }) as T;
+}
+
+export function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function waitFor<T>(
+    check: () => T | null | undefined | false,
+    { interval = 50, timeout = 10_000 }: { interval?: number; timeout?: number; } = {}
+): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const tick = () => {
+            const value = check();
+            if (value) return resolve(value);
+            if (Date.now() - start >= timeout) return reject(new Error("waitFor timed out"));
+            setTimeout(tick, interval);
+        };
+        tick();
+    });
+}
+
+export class EventBus<Events extends Record<string, any> = Record<string, any>> {
+    private listeners = new Map<keyof Events, Set<(payload: any) => void>>();
+
+    on<K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): () => void {
+        if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+        this.listeners.get(event)!.add(handler);
+        return () => this.off(event, handler);
+    }
+
+    off<K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): void {
+        this.listeners.get(event)?.delete(handler);
+    }
+
+    emit<K extends keyof Events>(event: K, payload: Events[K]): void {
+        this.listeners.get(event)?.forEach(handler => {
+            try {
+                handler(payload);
+            } catch (e) {
+                createLogger("VeilCoreAPI").error(`EventBus handler for "${String(event)}" threw`, e);
+            }
+        });
+    }
+
+    clear(): void {
+        this.listeners.clear();
+    }
+}
+
+export function createSimpleStore<T>(key: string, defaultValue: T) {
+    const storageKey = `veil-${key}`;
+    return {
+        get(): T {
+            try {
+                const raw = localStorage.getItem(storageKey);
+                return raw ? (JSON.parse(raw) as T) : defaultValue;
+            } catch {
+                return defaultValue;
+            }
+        },
+        set(value: T): void {
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(value));
+            } catch (e) {
+                createLogger("VeilCoreAPI").error(`Failed to persist store "${key}"`, e);
+            }
+        },
+        clear(): void {
+            localStorage.removeItem(storageKey);
+        },
+    };
+}
+
+export function wrapMethod<O extends object, K extends keyof O>(
+    obj: O,
+    key: K,
+    hooks: {
+        before?: (args: any[]) => void;
+        after?: (result: any, args: any[]) => void;
+        onError?: (err: unknown, args: any[]) => void;
+    }
+): () => void {
+    const original = obj[key] as unknown as (...args: any[]) => any;
+    if (typeof original !== "function") {
+        throw new Error(`wrapMethod: "${String(key)}" is not a function`);
+    }
+
+    (obj[key] as unknown as (...args: any[]) => any) = function (this: any, ...args: any[]) {
+        hooks.before?.(args);
+        try {
+            const result = original.apply(this, args);
+            hooks.after?.(result, args);
+            return result;
+        } catch (err) {
+            hooks.onError?.(err, args);
+            throw err;
+        }
+    };
+
+    return () => {
+        (obj[key] as unknown as (...args: any[]) => any) = original;
+    };
 }
 
 export default definePlugin({
     name: "VeilCoreAPI",
-    description: "Shared helpers for building Veil plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus,[...]",
+    description: "Shared helpers for building Veil plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, debounce/throttle/once/memoize, waitFor, a lightweight EventBus, simple localStorage-backed stores, managed React child mounting, and method wrapping).",
     authors: [VeilDevs.Zarak],
     required: true,
     dependencies: ["ContextMenuAPI", "MessageEventsAPI"],
