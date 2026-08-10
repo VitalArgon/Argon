@@ -1,8 +1,8 @@
 import { DataStore } from "@api/index";
+import { HeaderBarButton } from "@api/HeaderBar";
 import { openModal, ModalRoot, ModalHeader, ModalContent, ModalCloseButton, ModalSize } from "@utils/modal";
 import { VeilDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { findComponentByCodeLazy } from "@webpack";
 import { Button, Forms, TextInput, useEffect, useMemo, useState } from "@webpack/common";
 
 const DATA_KEY = "SnippetVault_snippets";
@@ -16,8 +16,6 @@ interface Snippet {
     updatedAt: number;
 }
 
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP");
-
 async function loadSnippets(): Promise<Snippet[]> {
     return (await DataStore.get(DATA_KEY)) ?? [];
 }
@@ -30,22 +28,25 @@ function uid() {
     return crypto.randomUUID();
 }
 
-const ToolbarSvg = () => (
-    <svg
-        aria-hidden="true"
-        role="img"
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        fill="none"
-        viewBox="0 0 24 24"
-    >
-        <path
-            fill="currentColor"
-            d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h9.5a1 1 0 0 0 .7-.29l4.5-4.5a1 1 0 0 0 .3-.71V4a2 2 0 0 0-2-2H6Zm0 2h12v12h-3.5a1.5 1.5 0 0 0-1.5 1.5V20H6V4Zm2 3a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2H8Zm0 4a1 1 0 1 0 0 2h5a1 1 0 1 0 0-2H8Z"
-        />
-    </svg>
-);
+function ToolbarIcon(props: React.SVGProps<SVGSVGElement>) {
+    return (
+        <svg
+            aria-hidden="true"
+            role="img"
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            fill="none"
+            viewBox="0 0 24 24"
+            {...props}
+        >
+            <path
+                fill="currentColor"
+                d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h9.5a1 1 0 0 0 .7-.29l4.5-4.5a1 1 0 0 0 .3-.71V4a2 2 0 0 0-2-2H6Zm0 2h12v12h-3.5a1.5 1.5 0 0 0-1.5 1.5V20H6V4Zm2 3a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2H8Zm0 4a1 1 0 1 0 0 2h5a1 1 0 1 0 0-2H8Z"
+            />
+        </svg>
+    );
+}
 
 function SnippetVaultModal({ onClose }: { onClose: () => void; }) {
     const [snippets, setSnippets] = useState<Snippet[]>([]);
@@ -285,10 +286,11 @@ function openVault() {
 
 function ToolbarButton() {
     return (
-        <HeaderBarIcon
-            tooltip="Snippet Vault"
-            icon={ToolbarSvg}
+        <HeaderBarButton
+            className="vc-snippet-vault-btn"
             onClick={openVault}
+            tooltip="Snippet Vault"
+            icon={ToolbarIcon}
         />
     );
 }
@@ -297,16 +299,11 @@ export default definePlugin({
     name: "SnippetVault",
     description: "Save, tag, categorize, and rename text/code snippets from a toolbar button next to Help/Inbox.",
     authors: [VeilDevs.Zarak],
+    dependencies: ["HeaderBarAPI"],
 
-    patches: [
-        {
-            find: "toolbar:function",
-            replacement: {
-                match: /(function .{1,3}\(.{1,20}\){.{0,200}?toolbar:)(.{1,3})(?=,)/,
-                replace: "$1[$self.renderToolbarButton(),$2]"
-            }
-        }
-    ],
-
-    renderToolbarButton: () => <ToolbarButton key="snippet-vault" />
+    headerBarButton: {
+        icon: ToolbarIcon,
+        render: ToolbarButton,
+        priority: 1000
+    }
 });
