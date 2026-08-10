@@ -160,17 +160,18 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                             value={categoryFilter}
                             onChange={e => setCategoryFilter(e.target.value)}
                             style={{
-                                background: "var(--background-secondary)",
-                                color: "var(--text-normal)",
+                                background: "var(--background-secondary, #2b2d31)",
+                                color: "var(--text-normal, #dcddde)",
                                 border: "1px solid var(--background-modifier-accent)",
                                 borderRadius: 4,
                                 padding: "6px 8px",
                                 width: "100%",
                                 boxSizing: "border-box",
-                                fontSize: 13
+                                fontSize: 13,
+                                colorScheme: "dark"
                             }}
                         >
-                            {categories.map(c => <option key={c} value={c} style={{ background: "var(--background-secondary)", color: "var(--text-normal)" }}>{c}</option>)}
+                            {categories.map(c => <option key={c} value={c} style={{ background: "#2b2d31", color: "#dcddde" }}>{c}</option>)}
                         </select>
 
                         <Forms.FormTitle tag="h5" style={{ marginTop: 8, marginBottom: 4 }}>Filter by tag</Forms.FormTitle>
@@ -290,8 +291,9 @@ function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
                                         fontFamily: "var(--font-code)",
                                         fontSize: 13,
                                         lineHeight: 1.5,
-                                        background: "var(--background-secondary)",
-                                        color: "var(--text-normal)",
+                                        background: "var(--background-secondary, #2b2d31)",
+                                        color: "var(--text-normal, #dcddde)",
+                                        colorScheme: "dark",
                                         border: "1px solid var(--background-modifier-accent)",
                                         borderRadius: 4,
                                         padding: 8
