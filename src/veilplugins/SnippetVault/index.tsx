@@ -1,7 +1,7 @@
+import { VeilDevs } from "@utils/constants";
 import { DataStore } from "@api/index";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { openModal, ModalRoot, ModalHeader, ModalContent, ModalCloseButton, ModalSize } from "@utils/modal";
-import { VeilDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { Button, Forms, TextInput, useEffect, useMemo, useState } from "@webpack/common";
 
@@ -48,7 +48,7 @@ function ToolbarIcon(props: React.SVGProps<SVGSVGElement>) {
     );
 }
 
-function SnippetVaultModal({ onClose }: { onClose: () => void; }) {
+function SnippetVaultModal({ modalProps }: { modalProps: any; }) {
     const [snippets, setSnippets] = useState<Snippet[]>([]);
     const [loaded, setLoaded] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -144,10 +144,10 @@ function SnippetVaultModal({ onClose }: { onClose: () => void; }) {
     }
 
     return (
-        <ModalRoot onClose={onClose} size={ModalSize.LARGE}>
+        <ModalRoot {...modalProps} size={ModalSize.LARGE}>
             <ModalHeader>
                 <Forms.FormTitle tag="h4" style={{ flexGrow: 1 }}>Snippet Vault</Forms.FormTitle>
-                <ModalCloseButton onClick={onClose} />
+                <ModalCloseButton onClick={modalProps.onClose} />
             </ModalHeader>
             <ModalContent>
                 <div style={{ display: "flex", gap: 12, padding: "16px 0", minHeight: 420 }}>
@@ -281,7 +281,7 @@ function SnippetVaultModal({ onClose }: { onClose: () => void; }) {
 }
 
 function openVault() {
-    openModal(props => <SnippetVaultModal onClose={props.onClose} />);
+    openModal(modalProps => <SnippetVaultModal modalProps={modalProps} />);
 }
 
 function ToolbarButton() {
