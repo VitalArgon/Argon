@@ -1415,8 +1415,8 @@ export const EquicordDevs = Object.freeze({
         id: 255004979637649408n
     },
 } satisfies Record<string, Dev>);
-// Veil plugin authors
-export const VeilDevs = /* #__PURE__*/ Object.freeze({
+// Argon plugin authors
+export const ArgonDevs = /* #__PURE__*/ Object.freeze({
      Zarak: {
          name: "Zarak",
          id: 1212639964605718582n
@@ -1440,9 +1440,9 @@ export const EquicordDevsById = /* #__PURE__*/ (() =>
     ))
 )() as Record<string, Dev>;
 
-export const VeilDevsById = /* #__PURE__*/ (() =>
+export const ArgonDevsById = /* #__PURE__*/ (() =>
     Object.freeze(Object.fromEntries(
-        Object.entries(VeilDevs)
+        Object.entries(ArgonDevs)
             .filter(d => d[1].id !== 0n)
             .map(([_, v]) => [v.id, v] as const)
     ))

@@ -98,7 +98,7 @@ interface SettingsLayoutBuilder {
 const settings = definePluginSettings({
     settingsLocation: {
         type: OptionType.SELECT,
-        description: "Where to put the Veil settings section",
+        description: "Where to put the Argon settings section",
         options: [
             { label: "At the very top", value: "top" },
             { label: "Above Billing section", value: "aboveNitro", default: true },
@@ -110,7 +110,7 @@ const settings = definePluginSettings({
     },
     includeVencordInfoWhenCopying: {
         type: OptionType.BOOLEAN,
-        description: "Also copy Veil info (Veil, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
+        description: "Also copy Argon info (Argon, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
         default: true
     }
 });
@@ -193,8 +193,8 @@ export default definePlugin({
         const equicordEntries: SettingsLayoutNode[] = [
             buildEntry({
                 key: "equicord_main",
-                title: "Veil",
-                panelTitle: "Veil Settings",
+                title: "Argon",
+                panelTitle: "Argon Settings",
                 Component: VencordTab,
                 Icon: MainSettingsIcon
             }),
@@ -248,7 +248,7 @@ export default definePlugin({
         const equicordSection: SettingsLayoutNode = {
             key: "equicord_section",
             type: LayoutTypes.SECTION,
-            useTitle: () => "Veil Settings",
+            useTitle: () => "Argon Settings",
             buildLayout: () => equicordEntries
         };
 

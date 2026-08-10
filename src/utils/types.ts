@@ -72,7 +72,7 @@ export const PluginTags = [
     "Voice",
     "Equicord",
     "Vencord",
-    "Veil"
+    "Argon"
 ] as const;
 
 export type PluginTag = typeof PluginTags[number];

@@ -1,0 +1,1374 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index d72182a..4ee22de 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -7,7 +7,7 @@ on:
+ env:
+     FORCE_COLOR: true
+     GITHUB_TOKEN: ${{ secrets.ETOKEN }}
+-    REPO: VitalArgon/Argon
++    REPO: VitalArgon/Argon
+     USERNAME: GitHub-Actions
+ 
+ permissions:
+@@ -15,7 +15,7 @@ permissions:
+ 
+ jobs:
+     Build:
+-        name: Build Argon
++        name: Build Argon
+         runs-on: ubuntu-latest
+ 
+         steps:
+@@ -60,20 +60,20 @@ jobs:
+                   cp desktop/* release
+                   for file in equibop/*; do
+                     filename=$(basename "$file")
+-                    cp "$file" "release/argonapp${filename^}"
++                    cp "$file" "release/argonapp${filename^}"
+                   done
+ 
+                   find release -size 0 -delete
+                   rm release/package.json
+                   rm release/*.map
+ 
+-            - name: Upload Argon Stable
++            - name: Upload Argon Stable
+               if: ${{ vars.ACT == 'false' }}
+               run: |
+                   gh release upload latest --clobber dist/release/*
+ 
+-            - name: Upload Plugin JSONs to Argon repo
+-              if: github.repository == 'VitalArgon/Argon' && vars.ACT == 'false'
++            - name: Upload Plugin JSONs to Argon repo
++              if: github.repository == 'VitalArgon/Argon' && vars.ACT == 'false'
+               run: |
+                   git config --global user.name "GitHub-Actions"
+                   git config --global user.email actions@github.com
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index c602eb5..710b223 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -6,7 +6,7 @@
+ > Your contribution must be majority human written! Some AI assistance like inline suggestions is acceptable, but "vibecoded" contributions are not welcome.
+ > Also **do not** use AI to generate your pull request description, README.md or in communication. Ignoring this rule will lead to a permanent block.
+ 
+-Argon is a community project and welcomes any kind of contribution from anyone!
++Argon is a community project and welcomes any kind of contribution from anyone!
+ 
+ We have development documentation for new contributors, which can be found at <https://docs.equicord.org>.
+ 
+diff --git a/PRIVACY_POLICY.md b/PRIVACY_POLICY.md
+index e5fc211..442d62f 100644
+--- a/PRIVACY_POLICY.md
++++ b/PRIVACY_POLICY.md
+@@ -1 +1 @@
+-Argon is designed with user privacy in mind and doesn’t collect or share any personal data. Since it’s an extension for Discord, it operates entirely within the Discord platform. This means all interactions and data management follow Discord’s privacy policies, which you can check out at [discord.com/privacy](https://discord.com/privacy/). So, while Equicord doesn’t handle your data, it’s a good idea to review Discord’s policy to understand how your information is managed. This setup ensures transparency and follows standard practices for third-party tools working within larger platforms.
++Argon is designed with user privacy in mind and doesn’t collect or share any personal data. Since it’s an extension for Discord, it operates entirely within the Discord platform. This means all interactions and data management follow Discord’s privacy policies, which you can check out at [discord.com/privacy](https://discord.com/privacy/). So, while Equicord doesn’t handle your data, it’s a good idea to review Discord’s policy to understand how your information is managed. This setup ensures transparency and follows standard practices for third-party tools working within larger platforms.
+diff --git a/README.md b/README.md
+index 6746b3b..42409fb 100644
+--- a/README.md
++++ b/README.md
+@@ -1,9 +1,9 @@
+-# [<img src="./browser/icon.png" width="40" align="left" alt="Argon">](https://github.com/VitalArgon/Argon) Argon
++# [<img src="./browser/icon.png" width="40" align="left" alt="Argon">](https://github.com/VitalArgon/Argon) Argon
+ 
+ 
+-Argon is a fork of Equicord, Which is a fork or Vencord. Forkception. Anyways, if you want to use this then figure it out yourself, I'm making this for me and my friends so no reason... though if you do use this then thanks ig, just a passion project really.
++Argon is a fork of Equicord, Which is a fork or Vencord. Forkception. Anyways, if you want to use this then figure it out yourself, I'm making this for me and my friends so no reason... though if you do use this then thanks ig, just a passion project really.
+ 
+-Argon is not a cord, or a wire, or a line, or a cable.
++Argon is not a cord, or a wire, or a line, or a cable.
+ [Equicord Plugins](https://equicord.org/plugins)
+ ||ps. We have actual custom plugins rather than userplugins (unlike *some* forks)||
+ 
+@@ -13,20 +13,20 @@ We have GUILD PLUGINS, yep you heard me right guild plugins, plugins that are ex
+ 
+ 1. Discord is trademark of Discord Inc., and solely mentioned for the sake of descriptivity.
+ Mentioning it does not imply any affiliation with or endorsement by Discord Inc.
+-Vencord is not connected to Argon and as such, all donation links go to Vendicated's donation link.
++Vencord is not connected to Argon and as such, all donation links go to Vendicated's donation link.
+ 
+-2. If you plan on taking any plugins then take ArgonCoreAPI aswell, some of them will require it.
++2. If you plan on taking any plugins then take ArgonCoreAPI aswell, some of them will require it.
+ 
+ 3. Currently I'm ONLY building for web, because that's kinda the only place I use discord I rarely use the app, also Idk how.
+ <details>
+-<summary>Using Argon violates Discord's terms of service</summary>
++<summary>Using Argon violates Discord's terms of service</summary>
+ 
+ Client Modifications are against Discord’s Terms of Service.
+ 
+ However, Discord is pretty indifferent about them and there are no known cases of users getting banned for using client mods! So you should generally be fine if you don’t use plugins that implement abusive behavior. (though, idgaf about discords TOS, but be careful if you wish to abide by it)
+ 
+-Regardless, if your account is essential to you and getting disabled would be a disaster for you, you should probably not use any client mods (not exclusive to Argon), just to be safe.
++Regardless, if your account is essential to you and getting disabled would be a disaster for you, you should probably not use any client mods (not exclusive to Argon), just to be safe.
+ 
+-Additionally, make sure not to post screenshots with Argon in a server where you might get banned for it.
++Additionally, make sure not to post screenshots with Argon in a server where you might get banned for it.
+ 
+ </details>
+diff --git a/browser/VencordNativeStub.ts b/browser/VencordNativeStub.ts
+index e1ed387..2fa20fd 100644
+--- a/browser/VencordNativeStub.ts
++++ b/browser/VencordNativeStub.ts
+@@ -71,7 +71,7 @@ window.VencordNative = {
+     },
+ 
+     updater: {
+-        getRepo: async () => ({ ok: true, value: "https://github.com/VitalArgon/Argon" }),
++        getRepo: async () => ({ ok: true, value: "https://github.com/VitalArgon/Argon" }),
+         getUpdates: async () => ({ ok: true, value: [] }),
+         update: async () => ({ ok: true, value: false }),
+         rebuild: async () => ({ ok: true, value: true }),
+diff --git a/browser/manifest.json b/browser/manifest.json
+index e64f4d6..093489e 100644
+--- a/browser/manifest.json
++++ b/browser/manifest.json
+@@ -1,10 +1,10 @@
+ {
+     "manifest_version": 3,
+     "minimum_chrome_version": "111",
+-    "name": "Argon Web",
+-    "description": "Argon. That one random discord client that you do honestly don't need.",
++    "name": "Argon Web",
++    "description": "Argon. That one random discord client that you do honestly don't need.",
+     "author": "Zarak",
+-    "homepage_url": "https://github.com/VitalArgon/Argon",
++    "homepage_url": "https://github.com/VitalArgon/Argon",
+     "icons": {
+         "128": "icon.png"
+     },
+diff --git a/browser/manifestv2.json b/browser/manifestv2.json
+index 82282dd..590a978 100644
+--- a/browser/manifestv2.json
++++ b/browser/manifestv2.json
+@@ -1,10 +1,10 @@
+ {
+     "manifest_version": 2,
+     "minimum_chrome_version": "91",
+-    "name": "Argon Web",
+-    "description": "Argon. That one random discord client that you do honestly don't need.",
++    "name": "Argon Web",
++    "description": "Argon. That one random discord client that you do honestly don't need.",
+     "author": "Zarak",
+-    "homepage_url": "https://github.com/VitalArgon/Argon",
++    "homepage_url": "https://github.com/VitalArgon/Argon",
+     "icons": {
+         "128": "icon.png"
+     },
+diff --git a/package.json b/package.json
+index 9881e3f..825c6b0 100644
+--- a/package.json
++++ b/package.json
+@@ -1,5 +1,5 @@
+ {
+-    "name": "Argon",
++    "name": "Argon",
+     "private": "true",
+     "version": "26.8.7",
+     "description": "The other cutest Discord client mod",
+diff --git a/scripts/build/common.mjs b/scripts/build/common.mjs
+index b265342..5e88fa0 100644
+--- a/scripts/build/common.mjs
++++ b/scripts/build/common.mjs
+@@ -147,7 +147,7 @@ export const globPlugins = kind => ({
+         });
+ 
+         build.onLoad({ filter, namespace: "import-plugins" }, async () => {
+-            const pluginDirs = ["plugins/_api", "plugins/_core", "plugins", "equicordplugins/_api", "equicordplugins/_core", "equicordplugins", "argonplugins", "userplugins"];
++            const pluginDirs = ["plugins/_api", "plugins/_core", "plugins", "equicordplugins/_api", "equicordplugins/_core", "equicordplugins", "argonplugins", "userplugins"];
+             let code = "";
+             let pluginsCode = "\n";
+             let metaCode = "\n";
+diff --git a/scripts/utils.ts b/scripts/utils.ts
+index 6cd386f..7c80719 100644
+--- a/scripts/utils.ts
++++ b/scripts/utils.ts
+@@ -50,7 +50,7 @@ export interface PluginData {
+     filePath: string;
+     dirName: string;
+     isModified: boolean;
+-    isArgonModified: boolean;
++    isArgonModified: boolean;
+ }
+ 
+ export const devs = {} as Record<string, Dev>;
+@@ -154,7 +154,7 @@ export async function parseFile(fileName: string) {
+             enabledByDefault: false,
+             required: false,
+             isModified: false,
+-            isArgonModified: false,
++            isArgonModified: false,
+             tags: [] as string[],
+             searchTerms: [] as string[],
+         } as PluginData;
+@@ -227,7 +227,7 @@ export async function parseFile(fileName: string) {
+                     break;
+                 case "required":
+                 case "isModified":
+-                case "isArgonModified":
++                case "isArgonModified":
+                 case "enabledByDefault":
+                     data[key] = value.kind === SyntaxKind.TrueKeyword;
+                     break;
+diff --git a/src/Vencord.ts b/src/Vencord.ts
+index e2be3ea..f9cdeb1 100644
+--- a/src/Vencord.ts
++++ b/src/Vencord.ts
+@@ -146,7 +146,7 @@ async function runUpdateCheck() {
+                 notifiedForUpdatesThisSession = true;
+ 
+                 showNotice(
+-                    "Argon has been updated!",
++                    "Argon has been updated!",
+                     "Restart",
+                     relaunch
+                 );
+@@ -158,7 +158,7 @@ async function runUpdateCheck() {
+         notifiedForUpdatesThisSession = true;
+ 
+         showNotice(
+-            "A new version of Argon is available!",
++            "A new version of Argon is available!",
+             "View Update",
+             () => openSettingsTabModal(UpdaterTab!)
+         );
+@@ -176,7 +176,7 @@ function initTrayIpc() {
+             VencordNative.tray.setUpdateState(isOutdated);
+ 
+             if (isOutdated) {
+-                showNotice("An Argon update is available!", "View Update", () => openSettingsTabModal(UpdaterTab!));
++                showNotice("An Argon update is available!", "View Update", () => openSettingsTabModal(UpdaterTab!));
+             } else {
+                 showNotice("No updates available, you're on the latest version!", "OK", popNotice);
+             }
+@@ -191,7 +191,7 @@ function initTrayIpc() {
+             await update();
+             relaunch();
+         } catch (err) {
+-            UpdateLogger.error("Failed to repair Argon", err);
++            UpdateLogger.error("Failed to repair Argon", err);
+         }
+     });
+ 
+@@ -221,7 +221,7 @@ async function init() {
+                 "Webpack has finished initialising, but some patches haven't been applied yet.",
+                 "This might be expected since some Modules are lazy loaded, but please verify",
+                 "that all plugins are working as intended.",
+-                "You are seeing this warning because this is a Development build of Argon.",
++                "You are seeing this warning because this is a Development build of Argon.",
+                 "\nThe following patches have not been applied:",
+                 "\n\n" + pendingPatches.map(p => `${p.plugin}: ${p.find}`).join("\n")
+             );
+diff --git a/src/argoncore/guildPluginManager.ts b/src/argoncore/guildPluginManager.ts
+similarity index 93%
+rename from src/argoncore/guildPluginManager.ts
+rename to src/argoncore/guildPluginManager.ts
+index 260c8fe..e4f80d4 100644
+--- a/src/argoncore/guildPluginManager.ts
++++ b/src/argoncore/guildPluginManager.ts
+@@ -1,9 +1,9 @@
+ import { FluxDispatcher, GuildStore } from "@webpack/common";
+ import * as DataStore from "@api/DataStore";
+-import { GuildPlugins } from "@argoncore/guildplugins";
++import { GuildPlugins } from "@argoncore/guildplugins";
+ import { getEntryForGuild } from "./manifestSource";
+ 
+-const userEnabledKey = (guildId: string, pluginId: string) => `Argon_guildPlugin_${guildId}_${pluginId}`;
++const userEnabledKey = (guildId: string, pluginId: string) => `Argon_guildPlugin_${guildId}_${pluginId}`;
+ 
+ // default true: absence of a stored value means "not yet turned off",
+ // i.e. still auto-enabled. Only an explicit `false` disables it.
+diff --git a/src/argoncore/guildPluginsSettings.tsx b/src/argoncore/guildPluginsSettings.tsx
+similarity index 100%
+rename from src/argoncore/guildPluginsSettings.tsx
+rename to src/argoncore/guildPluginsSettings.tsx
+diff --git a/src/argoncore/guildplugins/_api/defineGuildPlugin.ts b/src/argoncore/guildplugins/_api/defineGuildPlugin.ts
+similarity index 100%
+rename from src/argoncore/guildplugins/_api/defineGuildPlugin.ts
+rename to src/argoncore/guildplugins/_api/defineGuildPlugin.ts
+diff --git a/src/argoncore/guildplugins/categoryBanners/index.ts b/src/argoncore/guildplugins/categoryBanners/index.ts
+similarity index 95%
+rename from src/argoncore/guildplugins/categoryBanners/index.ts
+rename to src/argoncore/guildplugins/categoryBanners/index.ts
+index 7b80fa8..7ec905d 100644
+--- a/src/argoncore/guildplugins/categoryBanners/index.ts
++++ b/src/argoncore/guildplugins/categoryBanners/index.ts
+@@ -1,21 +1,21 @@
+ import { defineGuildPlugin } from "../_api/defineGuildPlugin";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
+ 
+ console.log("[CategoryBanners] module loaded");
+ 
+ const BANNER_CHANNEL_NAME = "categorybanners";
+-const BANNER_CLASS = "argon-category-banner";
++const BANNER_CLASS = "argon-category-banner";
+ // Mapping syntax: {categoryName = messageId}
+ const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
+ 
+-const SPACER_DATA_ATTR = "argonBannerSpacer";
+-const SHIFT_DATA_ATTR = "argonBannerShift";
+-const PREV_POSITION_ATTR = "argonPrevPosition";
+-const PREV_MARGIN_ATTR = "argonPrevMargin";
+-const PREV_TOP_ATTR = "argonPrevTop";
+-const PREV_Z_ATTR = "argonPrevZ";
+-const PREV_TRANSFORM_ATTR = "argonPrevTransform";
++const SPACER_DATA_ATTR = "argonBannerSpacer";
++const SHIFT_DATA_ATTR = "argonBannerShift";
++const PREV_POSITION_ATTR = "argonPrevPosition";
++const PREV_MARGIN_ATTR = "argonPrevMargin";
++const PREV_TOP_ATTR = "argonPrevTop";
++const PREV_Z_ATTR = "argonPrevZ";
++const PREV_TRANSFORM_ATTR = "argonPrevTransform";
+ 
+ let watchedGuildId: string | null = null;
+ let bannerMap: Map<string, string> = new Map(); // name|id → image URL
+@@ -228,7 +228,7 @@ function onChannelUpdate({ channel }: any) {
+ export default defineGuildPlugin({
+     name: "CategoryBanners",
+     description: "Shows a banner image above each category, based on mappings in #categorybanners (topic format: {categoryName = messageId}).",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+     start(guildId?: string) {
+         watchedGuildId = guildId ?? null;
+         FluxDispatcher.subscribe("CHANNEL_SELECT", applyIfActive);
+diff --git a/src/argoncore/guildplugins/channelPopups/index.tsx b/src/argoncore/guildplugins/channelPopups/index.tsx
+similarity index 96%
+rename from src/argoncore/guildplugins/channelPopups/index.tsx
+rename to src/argoncore/guildplugins/channelPopups/index.tsx
+index 8aecae8..2d21432 100644
+--- a/src/argoncore/guildplugins/channelPopups/index.tsx
++++ b/src/argoncore/guildplugins/channelPopups/index.tsx
+@@ -1,9 +1,9 @@
+ import { defineGuildPlugin } from "../_api/defineGuildPlugin";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { FluxDispatcher, ChannelStore, Button, Text } from "@webpack/common";
+ import { ModalRoot, ModalHeader, ModalContent, ModalFooter, openModal } from "@utils/modal";
+ import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
+-import { h, findPluginByName } from "../../../argonplugins/ArgonCoreAPI";
++import { h, findPluginByName } from "../../../argonplugins/ArgonCoreAPI";
+ 
+ interface ParsedPopup {
+     title: string;
+@@ -100,7 +100,7 @@ function onChannelSelect({ channelId }: any) {
+ export default defineGuildPlugin({
+     name: "ChannelPopups",
+     description: "Shows a custom popup defined in a channel's description, the first time you open that channel each session.",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+ 
+     start(guildId?: string) {
+         watchedGuildId = guildId ?? null;
+diff --git a/src/argoncore/guildplugins/customChannelNames/index.tsx b/src/argoncore/guildplugins/customChannelNames/index.tsx
+similarity index 98%
+rename from src/argoncore/guildplugins/customChannelNames/index.tsx
+rename to src/argoncore/guildplugins/customChannelNames/index.tsx
+index 682b435..a117232 100644
+--- a/src/argoncore/guildplugins/customChannelNames/index.tsx
++++ b/src/argoncore/guildplugins/customChannelNames/index.tsx
+@@ -1,5 +1,5 @@
+ import { defineGuildPlugin } from "../_api/defineGuildPlugin";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { ChannelStore, FluxDispatcher } from "@webpack/common";
+ 
+ const NAMES_CHANNEL_NAME = "customnames";
+@@ -112,7 +112,7 @@ function onChannelUpdate({ channel }: any) {
+ export default defineGuildPlugin({
+     name: "CustomChannelNames",
+     description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmeti[...]",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+     start(guildId?: string) {
+         watchedGuildId = guildId ?? null;
+ 
+diff --git a/src/argoncore/guildplugins/guildTheme/index.tsx b/src/argoncore/guildplugins/guildTheme/index.tsx
+similarity index 92%
+rename from src/argoncore/guildplugins/guildTheme/index.tsx
+rename to src/argoncore/guildplugins/guildTheme/index.tsx
+index 98a3165..a606179 100644
+--- a/src/argoncore/guildplugins/guildTheme/index.tsx
++++ b/src/argoncore/guildplugins/guildTheme/index.tsx
+@@ -1,8 +1,8 @@
+ import { defineGuildPlugin } from "../_api/defineGuildPlugin";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { FluxDispatcher, SelectedGuildStore, ChannelStore } from "@webpack/common";
+ 
+-const STYLE_ID = "argon-guild-theme";
++const STYLE_ID = "argon-guild-theme";
+ const CSS_CHANNEL_NAME = "css";
+ 
+ let watchedGuildId: string | null = null;
+@@ -39,7 +39,7 @@ function applyThemeIfActive() {
+ 
+ function onChannelUpdate({ channel }: any) {
+     // live-refresh if the owner edits #css topic while you're actively
+-    // sitting in that guild — same pattern as the argon-plugins channel
++    // sitting in that guild — same pattern as the argon-plugins channel
+     if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === CSS_CHANNEL_NAME) {
+         applyThemeIfActive();
+     }
+@@ -48,7 +48,7 @@ function onChannelUpdate({ channel }: any) {
+ export default defineGuildPlugin({
+     name: "GuildTheme",
+     description: "Applies CSS from this guild's #css channel topic while you're viewing it, reverts the moment you switch away.",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+ 
+     start(guildId?: string) {
+         watchedGuildId = guildId ?? null;
+diff --git a/src/argoncore/guildplugins/index.ts b/src/argoncore/guildplugins/index.ts
+similarity index 100%
+rename from src/argoncore/guildplugins/index.ts
+rename to src/argoncore/guildplugins/index.ts
+diff --git a/src/argoncore/guildplugins/manifest.ts b/src/argoncore/guildplugins/manifest.ts
+similarity index 100%
+rename from src/argoncore/guildplugins/manifest.ts
+rename to src/argoncore/guildplugins/manifest.ts
+diff --git a/src/argoncore/installPrompt.tsx b/src/argoncore/installPrompt.tsx
+similarity index 89%
+rename from src/argoncore/installPrompt.tsx
+rename to src/argoncore/installPrompt.tsx
+index 73a6043..f876bac 100644
+--- a/src/argoncore/installPrompt.tsx
++++ b/src/argoncore/installPrompt.tsx
+@@ -1,6 +1,6 @@
+ import * as DataStore from "@api/DataStore";
+ // ...
+-const askedKey = (guildId: string, pluginId: string) => `Argon_guildPlugin_asked_${guildId}_${pluginId}`;
++const askedKey = (guildId: string, pluginId: string) => `Argon_guildPlugin_asked_${guildId}_${pluginId}`;
+ 
+ export async function maybeShowInstallPrompt(entry: GuildManifestEntry, pluginId: string) {
+     const key = askedKey(entry.guildId, pluginId);
+diff --git a/src/argoncore/manifestSource.ts b/src/argoncore/manifestSource.ts
+similarity index 87%
+rename from src/argoncore/manifestSource.ts
+rename to src/argoncore/manifestSource.ts
+index 7ca7711..bc51379 100644
+--- a/src/argoncore/manifestSource.ts
++++ b/src/argoncore/manifestSource.ts
+@@ -1,6 +1,6 @@
+ import { ChannelStore } from "@webpack/common";
+-import { GuildManifestEntry, StaticOverrides } from "@argoncore/guildplugins/manifest";
+-import { GuildPlugins } from "@argoncore/guildplugins";
++import { GuildManifestEntry, StaticOverrides } from "@argoncore/guildplugins/manifest";
++import { GuildPlugins } from "@argoncore/guildplugins";
+ 
+ export type { GuildManifestEntry };
+ 
+@@ -36,7 +36,7 @@ function parseConfig(topic: string | undefined, guildId: string): GuildManifestE
+             promptOnJoin: parsed.promptOnJoin !== false,
+         };
+     } catch {
+-        console.warn(`[Argon] malformed JSON in #${CONFIG_CHANNEL_NAME} topic for guild ${guildId}`);
++        console.warn(`[Argon] malformed JSON in #${CONFIG_CHANNEL_NAME} topic for guild ${guildId}`);
+         return null;
+     }
+ }
+diff --git a/src/argoncore/registerGuildPluginsTab.ts b/src/argoncore/registerGuildPluginsTab.ts
+similarity index 82%
+rename from src/argoncore/registerGuildPluginsTab.ts
+rename to src/argoncore/registerGuildPluginsTab.ts
+index 50d6e1a..ebcbeff 100644
+--- a/src/argoncore/registerGuildPluginsTab.ts
++++ b/src/argoncore/registerGuildPluginsTab.ts
+@@ -1,12 +1,12 @@
+ import { PluginsIcon } from "@components/Icons"; // swap for a custom icon later if you want
+ import GuildPluginsSettings from "./guildPluginsSettings";
+ 
+-const ENTRY_KEY = "argon_guild_plugins";
++const ENTRY_KEY = "argon_guild_plugins";
+ 
+ export function registerGuildPluginsTab() {
+     const settingsPlugin = (window as any).Vencord?.Plugins?.plugins?.["Settings"];
+     if (!settingsPlugin) {
+-        console.warn("[Argon] Settings plugin not found — Guild Plugins tab not registered");
++        console.warn("[Argon] Settings plugin not found — Guild Plugins tab not registered");
+         return;
+     }
+ 
+diff --git a/src/argonplugins/AntiBadwords/banlist.ts b/src/argonplugins/AntiBadwords/banlist.ts
+similarity index 100%
+rename from src/argonplugins/AntiBadwords/banlist.ts
+rename to src/argonplugins/AntiBadwords/banlist.ts
+diff --git a/src/argonplugins/AntiBadwords/index.tsx b/src/argonplugins/AntiBadwords/index.tsx
+similarity index 94%
+rename from src/argonplugins/AntiBadwords/index.tsx
+rename to src/argonplugins/AntiBadwords/index.tsx
+index fe45a53..e84a1b8 100644
+--- a/src/argonplugins/AntiBadwords/index.tsx
++++ b/src/argonplugins/AntiBadwords/index.tsx
+@@ -5,10 +5,10 @@
+  */
+ 
+ import { definePluginSettings } from "@api/Settings";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import definePlugin, { OptionType } from "@utils/types";
+ import { findByProps } from "@webpack";
+-import { subscribeFlux, createLogger } from "../ArgonCoreAPI";
++import { subscribeFlux, createLogger } from "../ArgonCoreAPI";
+ 
+ import { banlist } from "./banlist";
+ 
+@@ -81,9 +81,9 @@ const REDACTION_STRATEGIES = {
+ 
+ export default definePlugin({
+     name: "AntiBadWords",
+-    author: [ArgonDevs.Zarak],
++    author: [ArgonDevs.Zarak],
+     description: "Use Roblox chat filter directly in Discord!",
+-    dependencies: ["UserSettingsAPI", "ArgonCoreAPI"],
++    dependencies: ["UserSettingsAPI", "ArgonCoreAPI"],
+     settings,
+     start: () => {
+         const unsubscribe = subscribeFlux("MESSAGE_CREATE", (e: any) => {
+diff --git a/src/argonplugins/Veil Badges/index.tsx b/src/argonplugins/Argon Badges/index.tsx
+similarity index 95%
+rename from src/argonplugins/Veil Badges/index.tsx
+rename to src/argonplugins/Argon Badges/index.tsx
+index c50c898..f834708 100644
+--- a/src/argonplugins/Veil Badges/index.tsx	
++++ b/src/argonplugins/Argon Badges/index.tsx	
+@@ -1,5 +1,5 @@
+ import definePlugin, { OptionType } from "@utils/types";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ 
+ type Badge = {
+   id: string;
+@@ -118,7 +118,7 @@ class CustomBadges {
+ 
+   private tryFixImage(img: HTMLImageElement) {
+     try {
+-      if (!img || img.dataset?.argonBadgeFixed === "1") return;
++      if (!img || img.dataset?.argonBadgeFixed === "1") return;
+ 
+       const src = img.getAttribute("src") || "";
+       if (
+@@ -148,7 +148,7 @@ class CustomBadges {
+             (img as any).decoding = "async";
+           } catch {}
+           img.src = raw;
+-          img.dataset.argonBadgeFixed = "1";
++          img.dataset.argonBadgeFixed = "1";
+         }
+       }
+     } catch (e) {
+@@ -257,10 +257,10 @@ class CustomBadges {
+ let instance: CustomBadges | null = null;
+ 
+ export default definePlugin({
+-  name: "Argon Badges",
+-  description: "Custom Badges Added Via Argon. Join -> https://discord.gg/Y33UjmdsER",
+-  tags: ["Fun", "Argon"],
+-  authors: [ArgonDevs.Zarak],
++  name: "Argon Badges",
++  description: "Custom Badges Added Via Argon. Join -> https://discord.gg/Y33UjmdsER",
++  tags: ["Fun", "Argon"],
++  authors: [ArgonDevs.Zarak],
+   start() {
+     if (!instance) instance = new CustomBadges();
+     void instance.onStart();
+diff --git a/src/argonplugins/ArgonCoreAPI/index.tsx b/src/argonplugins/ArgonCoreAPI/index.tsx
+similarity index 94%
+rename from src/argonplugins/ArgonCoreAPI/index.tsx
+rename to src/argonplugins/ArgonCoreAPI/index.tsx
+index 23195c5..9fef42e 100644
+--- a/src/argonplugins/ArgonCoreAPI/index.tsx
++++ b/src/argonplugins/ArgonCoreAPI/index.tsx
+@@ -1,6 +1,6 @@
+ // not adding notes because if you're snooping through this you should be able to al least guess what it does
+ import definePlugin from "@utils/types";
+-import { ArgonDevs, Devs, EquicordDevs } from "@utils/constants";
++import { ArgonDevs, Devs, EquicordDevs } from "@utils/constants";
+ import {
+     React, Modal, openModal, showToast,
+     FluxDispatcher, UserStore, ChannelStore, GuildStore,
+@@ -324,7 +324,7 @@ export class EventBus<Events extends Record<string, any> = Record<string, any>>
+             try {
+                 handler(payload);
+             } catch (e) {
+-                createLogger("ArgonCoreAPI").error(`EventBus handler for "${String(event)}" threw`, e);
++                createLogger("ArgonCoreAPI").error(`EventBus handler for "${String(event)}" threw`, e);
+             }
+         });
+     }
+@@ -335,7 +335,7 @@ export class EventBus<Events extends Record<string, any> = Record<string, any>>
+ }
+ 
+ export function createSimpleStore<T>(key: string, defaultValue: T) {
+-    const storageKey = `argon-${key}`;
++    const storageKey = `argon-${key}`;
+     return {
+         get(): T {
+             try {
+@@ -349,7 +349,7 @@ export function createSimpleStore<T>(key: string, defaultValue: T) {
+             try {
+                 localStorage.setItem(storageKey, JSON.stringify(value));
+             } catch (e) {
+-                createLogger("ArgonCoreAPI").error(`Failed to persist store "${key}"`, e);
++                createLogger("ArgonCoreAPI").error(`Failed to persist store "${key}"`, e);
+             }
+         },
+         clear(): void {
+@@ -390,9 +390,9 @@ export function wrapMethod<O extends object, K extends keyof O>(
+ }
+ 
+ export default definePlugin({
+-    name: "ArgonCoreAPI",
+-    description: "Shared helpers for building Argon plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, debounce/throttle/once/memoize, waitFor, a lightweight EventBus, simple localStorage-backed stores, managed React child mounting, and method wrapping).",
+-    authors: [ArgonDevs.Zarak],
++    name: "ArgonCoreAPI",
++    description: "Shared helpers for building Argon plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, debounce/throttle/once/memoize, waitFor, a lightweight EventBus, simple localStorage-backed stores, managed React child mounting, and method wrapping).",
++    authors: [ArgonDevs.Zarak],
+     required: true,
+     dependencies: ["ContextMenuAPI", "MessageEventsAPI"],
+ });
+diff --git a/src/argonplugins/ArgonTag/index.tsx b/src/argonplugins/ArgonTag/index.tsx
+similarity index 65%
+rename from src/argonplugins/ArgonTag/index.tsx
+rename to src/argonplugins/ArgonTag/index.tsx
+index feaeda5..db0338d 100644
+--- a/src/argonplugins/ArgonTag/index.tsx
++++ b/src/argonplugins/ArgonTag/index.tsx
+@@ -1,18 +1,18 @@
+ /*
+- * Argon, a Discord client mod
+- * Always-on: shows a purple "Argon" tag next to the specified developer account.
++ * Argon, a Discord client mod
++ * Always-on: shows a purple "Argon" tag next to the specified developer account.
+  * Not user-toggleable — lives in src/plugins/ like Settings/Updater.
+  */
+ 
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import definePlugin from "@utils/types";
+-import { ArgonIcon } from "@components/Icons"; // confirm this is where it actually lives
++import { ArgonIcon } from "@components/Icons"; // confirm this is where it actually lives
+ 
+ // Set this to your actual Discord user ID (right-click your name → Copy User ID,
+ // requires Developer Mode enabled in Discord's own settings).
+ const TARGET_USER_ID = "1212639964605718582";
+ 
+-function ArgonTag() {
++function ArgonTag() {
+     return (
+         <span
+             style={{
+@@ -34,28 +34,28 @@ function ArgonTag() {
+                 whiteSpace: "nowrap",
+             }}
+         >
+-            <ArgonIcon width={10} height={10} />
+-            Argon
++            <ArgonIcon width={10} height={10} />
++            Argon
+         </span>
+     );
+ }
+ 
+ export default definePlugin({
+-    name: "ArgonTag",
+-    description: "Shows a purple Argon tag next to the dev's name.",
+-    authors: [ArgonDevs.Zarak], // replace with your own { name, id } entry
++    name: "ArgonTag",
++    description: "Shows a purple Argon tag next to the dev's name.",
++    authors: [ArgonDevs.Zarak], // replace with your own { name, id } entry
+     required: true,
+     dependencies: ["MemberListDecoratorsAPI", "MessageDecorationsAPI", "NicknameIconsAPI"],
+ 
+     renderNicknameIcon(props: { userId: string; }) {
+-        return props.userId === TARGET_USER_ID ? <ArgonTag /> : null;
++        return props.userId === TARGET_USER_ID ? <ArgonTag /> : null;
+     },
+ 
+     renderMessageDecoration(props: { message: { author: { id: string; }; }; }) {
+-        return props.message.author.id === TARGET_USER_ID ? <ArgonTag /> : null;
++        return props.message.author.id === TARGET_USER_ID ? <ArgonTag /> : null;
+     },
+ 
+     renderMemberListDecorator(props: { user: { id: string; }; }) {
+-        return props.user.id === TARGET_USER_ID ? <ArgonTag /> : null;
++        return props.user.id === TARGET_USER_ID ? <ArgonTag /> : null;
+     },
+ });
+diff --git a/src/argonplugins/DontLimitMe/index.tsx b/src/argonplugins/DontLimitMe/index.tsx
+similarity index 100%
+rename from src/argonplugins/DontLimitMe/index.tsx
+rename to src/argonplugins/DontLimitMe/index.tsx
+diff --git a/src/argonplugins/Fake accounts/index.tsx b/src/argonplugins/Fake accounts/index.tsx
+similarity index 99%
+rename from src/argonplugins/Fake accounts/index.tsx
+rename to src/argonplugins/Fake accounts/index.tsx
+index 612fb97..5982035 100644
+--- a/src/argonplugins/Fake accounts/index.tsx	
++++ b/src/argonplugins/Fake accounts/index.tsx	
+@@ -458,7 +458,7 @@ function handleKeyDown(e: KeyboardEvent) {
+ 
+ export default definePlugin({
+     name: "Fake Accounts",
+-    tags: ["Fun", "Utility", "Argon"],
++    tags: ["Fun", "Utility", "Argon"],
+     description: "Fake accounts to larp",
+     authors: [{ name: "deracul", id: 1454853467783954444n }],
+     settings,
+diff --git a/src/argonplugins/GifSources/index.tsx b/src/argonplugins/GifSources/index.tsx
+similarity index 98%
+rename from src/argonplugins/GifSources/index.tsx
+rename to src/argonplugins/GifSources/index.tsx
+index eccd8fd..b0e4336 100644
+--- a/src/argonplugins/GifSources/index.tsx
++++ b/src/argonplugins/GifSources/index.tsx
+@@ -1,5 +1,5 @@
+ /*
+- * Argon, a Discord client mod
++ * Argon, a Discord client mod
+  * MultiGifSource — a /multi-gif command that searches GIF providers
+  * (Giphy, Klipy, etc.) directly and shows the results in a picker
+  * modal. Deliberately doesn't touch Discord's own GIF picker or its
+@@ -9,7 +9,7 @@
+ 
+ import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
+ import { definePluginSettings } from "@api/Settings";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { insertTextIntoChatInputBox } from "@utils/discord";
+ import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
+ import definePlugin, { OptionType } from "@utils/types";
+@@ -217,7 +217,7 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
+ export default definePlugin({
+     name: "MultiGifSource",
+     description: "Search GIFs across Giphy, Klipy, etc. directly with /multi-gif — bypasses Discord's own picker and filtering entirely.",
+-    authors: [ArgonDevs.Zarak], // replace with your own entry
++    authors: [ArgonDevs.Zarak], // replace with your own entry
+     settings,
+     dependencies: ["CommandsAPI"],
+ 
+diff --git a/src/argonplugins/HypeSquadSwitcher/index.tsx b/src/argonplugins/HypeSquadSwitcher/index.tsx
+similarity index 100%
+rename from src/argonplugins/HypeSquadSwitcher/index.tsx
+rename to src/argonplugins/HypeSquadSwitcher/index.tsx
+diff --git a/src/argonplugins/LyricStats/index.ts b/src/argonplugins/LyricStats/index.ts
+similarity index 99%
+rename from src/argonplugins/LyricStats/index.ts
+rename to src/argonplugins/LyricStats/index.ts
+index 9933f20..1b5eac2 100644
+--- a/src/argonplugins/LyricStats/index.ts
++++ b/src/argonplugins/LyricStats/index.ts
+@@ -1,7 +1,7 @@
+ import definePlugin, { OptionType } from "@utils/types";
+ import { definePluginSettings } from "@api/Settings";
+ import { FluxDispatcher } from "@webpack/common";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { Activity } from "@vencord/discord-types";
+ 
+ export const settings = definePluginSettings({
+@@ -306,7 +306,7 @@ function stopSyncLoop() {
+ export default definePlugin({
+     name: "LyricStats",
+     description: "Shows the current line of the song playing on Spotify directly in your Spotify listening activity, instead of your custom status.",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+ 
+     settings,
+ 
+diff --git a/src/argonplugins/MusicalThemes/index.tsx b/src/argonplugins/MusicalThemes/index.tsx
+similarity index 98%
+rename from src/argonplugins/MusicalThemes/index.tsx
+rename to src/argonplugins/MusicalThemes/index.tsx
+index dfe14d8..206e208 100644
+--- a/src/argonplugins/MusicalThemes/index.tsx
++++ b/src/argonplugins/MusicalThemes/index.tsx
+@@ -1,7 +1,7 @@
+ import { definePluginSettings } from "@api/Settings";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import definePlugin, { OptionType } from "@utils/types";
+-import { createStyleInjector, createLogger, subscribeFlux } from "../ArgonCoreAPI";
++import { createStyleInjector, createLogger, subscribeFlux } from "../ArgonCoreAPI";
+ 
+ interface Activity {
+     type: number;
+@@ -245,8 +245,8 @@ function onPresenceChange(dispatch: PresenceDispatch) {
+ export default definePlugin({
+     name: "MusicalThemes",
+     description: "Automatically changes Discord's theme colors based on the currently playing song's album artwork. Works with Spotify and YouTube Music.",
+-    authors: [ArgonDevs.Zarak],
+-    dependencies: ["ArgonCoreAPI"],
++    authors: [ArgonDevs.Zarak],
++    dependencies: ["ArgonCoreAPI"],
+     settings,
+ 
+     start() {
+diff --git a/src/argonplugins/NitroSniper/giftCode.ts b/src/argonplugins/NitroSniper/giftCode.ts
+similarity index 100%
+rename from src/argonplugins/NitroSniper/giftCode.ts
+rename to src/argonplugins/NitroSniper/giftCode.ts
+diff --git a/src/argonplugins/NitroSniper/index.tsx b/src/argonplugins/NitroSniper/index.tsx
+similarity index 100%
+rename from src/argonplugins/NitroSniper/index.tsx
+rename to src/argonplugins/NitroSniper/index.tsx
+diff --git a/src/argonplugins/NitroSniper/native.ts b/src/argonplugins/NitroSniper/native.ts
+similarity index 100%
+rename from src/argonplugins/NitroSniper/native.ts
+rename to src/argonplugins/NitroSniper/native.ts
+diff --git a/src/argonplugins/NitroSniper/settings.tsx b/src/argonplugins/NitroSniper/settings.tsx
+similarity index 100%
+rename from src/argonplugins/NitroSniper/settings.tsx
+rename to src/argonplugins/NitroSniper/settings.tsx
+diff --git a/src/argonplugins/NitroSniper/types.ts b/src/argonplugins/NitroSniper/types.ts
+similarity index 100%
+rename from src/argonplugins/NitroSniper/types.ts
+rename to src/argonplugins/NitroSniper/types.ts
+diff --git a/src/argonplugins/NitroSniper/webhook.ts b/src/argonplugins/NitroSniper/webhook.ts
+similarity index 100%
+rename from src/argonplugins/NitroSniper/webhook.ts
+rename to src/argonplugins/NitroSniper/webhook.ts
+diff --git a/src/argonplugins/Server Badges/index.tsx b/src/argonplugins/Server Badges/index.tsx
+similarity index 100%
+rename from src/argonplugins/Server Badges/index.tsx
+rename to src/argonplugins/Server Badges/index.tsx
+diff --git a/src/argonplugins/SilentEdit/index.tsx b/src/argonplugins/SilentEdit/index.tsx
+similarity index 99%
+rename from src/argonplugins/SilentEdit/index.tsx
+rename to src/argonplugins/SilentEdit/index.tsx
+index d099aac..27e33f8 100644
+--- a/src/argonplugins/SilentEdit/index.tsx
++++ b/src/argonplugins/SilentEdit/index.tsx
+@@ -107,7 +107,7 @@ export default definePlugin({
+     name: "SilentEdit",
+     description: "\"Silently\" edit a message without showing the edit tag and bypass Vencord's message logger.",
+     authors: [{ name: "Aurick", id: 1348025017233047634n }],
+-    IsArgonModified: true,
++    IsArgonModified: true,
+     dependencies: ["MessagePopoverAPI"],
+     settings,
+ 
+diff --git a/src/argonplugins/SnippetVault/index.tsx b/src/argonplugins/SnippetVault/index.tsx
+similarity index 99%
+rename from src/argonplugins/SnippetVault/index.tsx
+rename to src/argonplugins/SnippetVault/index.tsx
+index 63f82d9..0964021 100644
+--- a/src/argonplugins/SnippetVault/index.tsx
++++ b/src/argonplugins/SnippetVault/index.tsx
+@@ -1,4 +1,4 @@
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { DataStore } from "@api/index";
+ import { HeaderBarButton } from "@api/HeaderBar";
+ import { openModal, ModalRoot, ModalHeader, ModalContent, ModalCloseButton, ModalSize } from "@utils/modal";
+@@ -476,7 +476,7 @@ function ToolbarButton() {
+ export default definePlugin({
+     name: "SnippetVault",
+     description: "Save, tag, categorize, and rename text/code snippets from a toolbar button next to Help/Inbox.",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+     dependencies: ["HeaderBarAPI"],
+ 
+     headerBarButton: {
+diff --git a/src/argonplugins/Spaced out/index.ts b/src/argonplugins/Spaced out/index.ts
+similarity index 93%
+rename from src/argonplugins/Spaced out/index.ts
+rename to src/argonplugins/Spaced out/index.ts
+index e9f1cd9..b9a0810 100644
+--- a/src/argonplugins/Spaced out/index.ts	
++++ b/src/argonplugins/Spaced out/index.ts	
+@@ -1,9 +1,9 @@
+ /*
+- * Argon — A discord client modification.
++ * Argon — A discord client modification.
+  */
+ 
+ import definePlugin from "@utils/types";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ 
+ const CHANNEL_LINK_SELECTOR = 'a[data-list-item-id^="channels___"]';
+ const NAME_CONTAINER_SELECTOR = 'div[class*="name__"]';
+@@ -34,7 +34,7 @@ let observer: MutationObserver | null = null;
+ export default definePlugin({
+     name: "SpacedOut",
+     description: "Replaces hyphens with spaces in channel names.",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+ 
+     start() {
+         processAll(document);
+diff --git a/src/argonplugins/StatusCycler/index.tsx b/src/argonplugins/StatusCycler/index.tsx
+similarity index 100%
+rename from src/argonplugins/StatusCycler/index.tsx
+rename to src/argonplugins/StatusCycler/index.tsx
+diff --git a/src/argonplugins/StatusCycler/native.ts b/src/argonplugins/StatusCycler/native.ts
+similarity index 100%
+rename from src/argonplugins/StatusCycler/native.ts
+rename to src/argonplugins/StatusCycler/native.ts
+diff --git a/src/argonplugins/StatusCycler/style.css b/src/argonplugins/StatusCycler/style.css
+similarity index 100%
+rename from src/argonplugins/StatusCycler/style.css
+rename to src/argonplugins/StatusCycler/style.css
+diff --git a/src/argonplugins/ThreadHider/index.tsx b/src/argonplugins/ThreadHider/index.tsx
+similarity index 85%
+rename from src/argonplugins/ThreadHider/index.tsx
+rename to src/argonplugins/ThreadHider/index.tsx
+index f1540f9..07a4973 100644
+--- a/src/argonplugins/ThreadHider/index.tsx
++++ b/src/argonplugins/ThreadHider/index.tsx
+@@ -1,6 +1,6 @@
+ import definePlugin from "@utils/types";
+-import { ArgonDevs } from "@utils/constants";
+-import { createStyleInjector } from "../ArgonCoreAPI";
++import { ArgonDevs } from "@utils/constants";
++import { createStyleInjector } from "../ArgonCoreAPI";
+ 
+ const STYLE_ID = "thread-hider-styles";
+ 
+@@ -21,9 +21,9 @@ const injector = createStyleInjector(STYLE_ID, CSS);
+ 
+ export default definePlugin({
+     name: "ThreadHider",
+-    tags: ["Argon"],
++    tags: ["Argon"],
+     description: "Hides channel threads and shows them upon hovering over the channel",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+ 
+     start() {
+         injector.inject();
+diff --git a/src/argonplugins/guildPluginsFramework/index.ts b/src/argonplugins/guildPluginsFramework/index.ts
+similarity index 70%
+rename from src/argonplugins/guildPluginsFramework/index.ts
+rename to src/argonplugins/guildPluginsFramework/index.ts
+index bf9ba99..fee3c11 100644
+--- a/src/argonplugins/guildPluginsFramework/index.ts
++++ b/src/argonplugins/guildPluginsFramework/index.ts
+@@ -1,12 +1,12 @@
+ import definePlugin from "@utils/types";
+-import { ArgonDevs } from "@utils/constants";
+-import { initGuildPluginManager, stopGuildPluginManager } from "@argoncore/guildPluginManager";
+-import { registerGuildPluginsTab } from "@argoncore/registerGuildPluginsTab";
++import { ArgonDevs } from "@utils/constants";
++import { initGuildPluginManager, stopGuildPluginManager } from "@argoncore/guildPluginManager";
++import { registerGuildPluginsTab } from "@argoncore/registerGuildPluginsTab";
+ 
+ export default definePlugin({
+     name: "GuildPluginsFramework",
+     description: "Activates guild-gated plugins for guilds you're in, and adds the Guild Plugins settings tab.",
+-    authors: [ArgonDevs.Zarak],
++    authors: [ArgonDevs.Zarak],
+     required: true,
+ 
+     start() {
+diff --git a/src/argonplugins/richFormatting/ext.txt b/src/argonplugins/richFormatting/ext.txt
+similarity index 59%
+rename from src/argonplugins/richFormatting/ext.txt
+rename to src/argonplugins/richFormatting/ext.txt
+index f93e915..1ebe429 100644
+--- a/src/argonplugins/richFormatting/ext.txt
++++ b/src/argonplugins/richFormatting/ext.txt
+@@ -1,6 +1,6 @@
+ // Dm me on discord I'll add your shortcut, if it's useful, or for your own client
+-{{argondown}} = {{btn:Download Argon|https://github.com/VitalArgon/Argon/releases/|7700bc}}
+-{{argon}} = {{icon:argon}}
++{{argondown}} = {{btn:Download Argon|https://github.com/VitalArgon/Argon/releases/|7700bc}}
++{{argon}} = {{icon:argon}}
+ {{equicord}} = {{icon:equicord}}
+ {{vencord}} = {{icon:vencord}}
+ {{vesktop}} = {{icon:vesktop}}
+diff --git a/src/argonplugins/richFormatting/index.tsx b/src/argonplugins/richFormatting/index.tsx
+similarity index 96%
+rename from src/argonplugins/richFormatting/index.tsx
+rename to src/argonplugins/richFormatting/index.tsx
+index 9dac97c..cbf0a62 100644
+--- a/src/argonplugins/richFormatting/index.tsx
++++ b/src/argonplugins/richFormatting/index.tsx
+@@ -1,5 +1,5 @@
+ import definePlugin, { OptionType } from "@utils/types";
+-import { ArgonDevs } from "@utils/constants";
++import { ArgonDevs } from "@utils/constants";
+ import { definePluginSettings } from "@api/Settings";
+ import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
+ import { React } from "@webpack/common";
+@@ -14,7 +14,7 @@ import {
+     reactNodeToDom,
+     Plugins,
+     PluginMeta,
+-} from "../ArgonCoreAPI";
++} from "../ArgonCoreAPI";
+ 
+ const PROCESSED_ATTR = "data-rf-processed";
+ 
+@@ -107,7 +107,7 @@ const ICON_ALIASES: Record<string, string> = {
+     sticker: "StickerIcon",
+     updater: "UpdaterIcon",
+     user: "UserIcon",
+-    argon: "ArgonIcon",
++    argon: "ArgonIcon",
+     vencord: "VencordIcon",
+     vesktop: "VesktopSettingsIcon",
+     video: "VideoIcon",
+@@ -271,9 +271,9 @@ function buildPluginCardSpan(rawName: string) {
+ 
+     const pluginInfo = [
+         {
+-            condition: (plugin.isArgonModified ?? false) && PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
+-            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
+-            alt: "Argon Modified",
++            condition: (plugin.isArgonModified ?? false) && PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
++            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
++            alt: "Argon Modified",
+             title: "Modified Equicord Plugin"
+         },
+         {
+@@ -295,10 +295,10 @@ function buildPluginCardSpan(rawName: string) {
+             title: "Vencord Plugin"
+         },
+         {
+-            condition: PluginMeta[plugin.name]?.folderName?.startsWith("src/argonplugins/"),
+-            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/icon.png",
+-            alt: "Argon",
+-            title: "Argon Plugin"
++            condition: PluginMeta[plugin.name]?.folderName?.startsWith("src/argonplugins/"),
++            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/icon.png",
++            alt: "Argon",
++            title: "Argon Plugin"
+         },
+         {
+             condition: PluginMeta[plugin.name]?.userPlugin ?? false,
+@@ -391,7 +391,7 @@ function parseShortcuts(raw: string): Map<string, string> {
+     return map;
+ }
+ 
+-const SHORTCUTS_URL = "https://raw.githubusercontent.com/VitalArgon/Argon/refs/heads/main/src/argonplugins/richFormatting/ext.txt";
++const SHORTCUTS_URL = "https://raw.githubusercontent.com/VitalArgon/Argon/refs/heads/main/src/argonplugins/richFormatting/ext.txt";
+ 
+ let shortcuts = new Map<string, string>();
+ 
+@@ -598,10 +598,10 @@ let stopObservingMessages: (() => void) | null = null;
+ export default definePlugin({
+     name: "RichFormatting",
+     description: "Type-to-render buttons, badges, progress bars, collapsible folds, inline Discord icons, and embedded plugin cards in messages (client-side only).",
+-    tags: ["Utility", "Argon", "Fun"],
+-    authors: [ArgonDevs.Zarak],
++    tags: ["Utility", "Argon", "Fun"],
++    authors: [ArgonDevs.Zarak],
+     settings,
+-    dependencies: ["CommandsAPI", "ArgonCoreAPI"],
++    dependencies: ["CommandsAPI", "ArgonCoreAPI"],
+ 
+     commands: [
+         {
+diff --git a/src/components/Icons.tsx b/src/components/Icons.tsx
+index 6e1619c..8c7b24f 100644
+--- a/src/components/Icons.tsx
++++ b/src/components/Icons.tsx
+@@ -1139,7 +1139,7 @@ export function EquicordIcon(props: IconProps) {
+     );
+ }
+ 
+-export function ArgonIcon(props: IconProps) {
++export function ArgonIcon(props: IconProps) {
+     return (
+         <Icon
+             {...props}
+diff --git a/src/components/settings/tabs/plugins/PluginCard.tsx b/src/components/settings/tabs/plugins/PluginCard.tsx
+index 70199bc..61ff362 100644
+--- a/src/components/settings/tabs/plugins/PluginCard.tsx
++++ b/src/components/settings/tabs/plugins/PluginCard.tsx
+@@ -34,7 +34,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
+     const pluginMeta = PluginMeta[plugin.name];
+     const isEquicordPlugin = pluginMeta.folderName.startsWith("src/equicordplugins/") ?? false;
+     const isVencordPlugin = pluginMeta.folderName.startsWith("src/plugins/") ?? false;
+-    const isArgonPlugin = pluginMeta.folderName.startsWith("src/argonplugins/") ?? false;
++    const isArgonPlugin = pluginMeta.folderName.startsWith("src/argonplugins/") ?? false;
+     const isUserPlugin = pluginMeta?.userPlugin ?? false;
+     const isModifiedPlugin = plugin.isModified ?? false;
+ 
+@@ -92,10 +92,10 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
+ 
+     const pluginInfo = [
+         {
+-            condition: (plugin.isArgonModified ?? false) && isEquicordPlugin,
+-            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
+-            alt: "Argon Modified",
+-            title: "Equicord plugin modified by Argon"
++            condition: (plugin.isArgonModified ?? false) && isEquicordPlugin,
++            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
++            alt: "Argon Modified",
++            title: "Equicord plugin modified by Argon"
+         },
+         {
+             condition: isModifiedPlugin,
+@@ -116,10 +116,10 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
+             title: "Vencord Plugin"
+         },
+         {
+-            condition: isArgonPlugin,
+-            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/icon.png",
+-            alt: "Argon",
+-            title: "Argon Plugin"
++            condition: isArgonPlugin,
++            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/icon.png",
++            alt: "Argon",
++            title: "Argon Plugin"
+         },
+         {
+             condition: isUserPlugin,
+diff --git a/src/components/settings/tabs/vencord/index.tsx b/src/components/settings/tabs/vencord/index.tsx
+index 7a2961c..ed69707 100644
+--- a/src/components/settings/tabs/vencord/index.tsx
++++ b/src/components/settings/tabs/vencord/index.tsx
+@@ -283,7 +283,7 @@ function EquicordSettings() {
+     );
+ }
+ 
+-export default wrapTab(EquicordSettings, "Argon Settings");
++export default wrapTab(EquicordSettings, "Argon Settings");
+ 
+ export function isEquicordDonor(userId: string): boolean {
+     const donorBadges = BadgeAPI.getEquicordDonorBadges(userId);
+diff --git a/src/equicordplugins/discordDevBanner/components/consts.ts b/src/equicordplugins/discordDevBanner/components/consts.ts
+index abe7dd8..cae9d94 100644
+--- a/src/equicordplugins/discordDevBanner/components/consts.ts
++++ b/src/equicordplugins/discordDevBanner/components/consts.ts
+@@ -13,7 +13,7 @@ export const settings = definePluginSettings({
+     format: {
+         component: ({ setValue }) => FormatSetting(setValue),
+         type: OptionType.COMPONENT,
+-        default: "{argonIcon} Argon {equicordVersion} ({equicordHash})",
++        default: "{argonIcon} Argon {equicordVersion} ({equicordHash})",
+         restartNeeded: true
+     }
+ });
+@@ -33,11 +33,11 @@ export const settingVariables = [
+     "{buildNumber} - Discord build number (e.g. 123456)",
+     "{buildHash} - Discord build hash (e.g. 123456789)",
+     "",
+-    "Argon Variables:",
+-    "{argonIcon} - Argon icon",
+-    "{equicordVersion} - Version of Argon (e.g. 1.0.0)",
+-    "{equicordHash} - Argon build hash (e.g. 123456789)",
+-    "{equicordPlatform} - Platform Argon is running on (e.g. Dev Build)",
++    "Argon Variables:",
++    "{argonIcon} - Argon icon",
++    "{equicordVersion} - Version of Argon (e.g. 1.0.0)",
++    "{equicordHash} - Argon build hash (e.g. 123456789)",
++    "{equicordPlatform} - Platform Argon is running on (e.g. Dev Build)",
+     "",
+     "Equibop Specific Variables:",
+     "{equibopHash} - Equibop build hash (e.g. 123456789)",
+diff --git a/src/equicordplugins/discordDevBanner/components/icons.tsx b/src/equicordplugins/discordDevBanner/components/icons.tsx
+index 24ef489..39eba6c 100644
+--- a/src/equicordplugins/discordDevBanner/components/icons.tsx
++++ b/src/equicordplugins/discordDevBanner/components/icons.tsx
+@@ -68,7 +68,7 @@ export const ElectronIcon = (props: React.PropsWithChildren<SVGProps<SVGSVGEleme
+         <path d="M2.648 11.678c-1.038-1.81-1.249-3.504-.511-4.781.988-1.712 3.468-2.31 6.604-1.739a.322.322 0 1 1-.115.633c-2.9-.528-5.111.005-5.932 1.428-.605 1.047-.423 2.509.512 4.14a.322.322 0 1 1-.558.32zm14.92-6.069c1.835.024 3.156.596 3.751 1.626.82 1.419.18 3.595-1.718 5.837a.322.322 0 1 0 .49.416c2.054-2.426 2.771-4.866 1.785-6.575-.726-1.257-2.26-1.92-4.299-1.947a.322.322 0 1 0-.008.643zm-1.854 15.239a.322.322 0 0 0-.442.11c-.934 1.553-2.08 2.399-3.26 2.399-1.642 0-3.208-1.647-4.2-4.418a.322.322 0 1 0-.606.217C8.279 22.154 10.036 24 12.01 24c1.44 0 2.773-.982 3.813-2.71a.322.322 0 0 0-.11-.442zm7.356-2.594a1.54 1.54 0 0 1-2.436 1.25c-2.455 1.445-7.146.71-11.56-1.84-1.88-1.085-3.527-2.392-4.795-3.785a.322.322 0 1 1 .476-.433c1.222 1.343 2.817 2.609 4.64 3.661 4.167 2.406 8.553 3.12 10.797 1.906a1.54 1.54 0 1 1 2.878-.759zm-19.062 0a1.54 1.54 0 1 1-2.285-1.345c-.233-2.877 2.79-6.734 7.36-9.372 1.898-1.096 3.874-1.874 5.731-2.271a.322.322 0 0 1 .135.628c-1.79.384-3.703 1.137-5.545 2.2-4.304 2.485-7.148 6.067-7.048 8.627.038-.003.075-.006.113-.006.85 0 1.54.69 1.54 1.54zM10.472 1.54a1.54 1.54 0 0 1 3.078 0c0 .023-.002.045-.003.067 2.549 1.317 4.32 5.81 4.32 11.003 0 2.135-.298 4.184-.854 5.96a.322.322 0 1 1-.614-.192c.536-1.712.825-3.697.825-5.768 0-4.89-1.626-9.095-3.847-10.363a1.538 1.538 0 0 1-2.905-.707zm1.304 9.981a1.114 1.114 0 1 0 .47 2.178 1.114 1.114 0 0 0-.47-2.178z" />    </svg>
+ );
+ 
+-export const argonIcon = (props: React.PropsWithChildren<SVGProps<SVGSVGElement>>) => (
++export const argonIcon = (props: React.PropsWithChildren<SVGProps<SVGSVGElement>>) => (
+     <svg
+             {...props}
+             viewBox="0 0 309 309"
+diff --git a/src/equicordplugins/discordDevBanner/components/makeDevBanner.tsx b/src/equicordplugins/discordDevBanner/components/makeDevBanner.tsx
+index 6bc9c11..eb0492b 100644
+--- a/src/equicordplugins/discordDevBanner/components/makeDevBanner.tsx
++++ b/src/equicordplugins/discordDevBanner/components/makeDevBanner.tsx
+@@ -10,13 +10,13 @@ import { gitHashShort } from "@shared/vencordUserAgent";
+ import { React } from "@webpack/common";
+ import { JSX } from "react";
+ 
+-import { ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, argonIcon, names, settings } from ".";
++import { ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, argonIcon, names, settings } from ".";
+ 
+ export function makeDevBanner(state?: string): string | JSX.Element {
+     const { RELEASE_CHANNEL, BUILD_NUMBER, VERSION_HASH } = window.GLOBAL_ENV;
+     const buildChannel = names[RELEASE_CHANNEL] || RELEASE_CHANNEL.charAt(0).toUpperCase() + RELEASE_CHANNEL.slice(1);
+     const { chromiumVersion, electronVersion, getVersionInfo } = SettingsPlugin;
+-    const format = settings.store.format ?? "{devbannerIcon} {buildChannel} {buildNumber} ({buildHash}) | {argonIcon} {equicordName} {equicordVersion} ({equicordHash})";
++    const format = settings.store.format ?? "{devbannerIcon} {buildChannel} {buildNumber} ({buildHash}) | {argonIcon} {equicordName} {equicordVersion} ({equicordHash})";
+     const baseFormat = state ?? format;
+ 
+     const clientInfo = detectClient();
+diff --git a/src/equicordplugins/title/index.ts b/src/equicordplugins/title/index.ts
+index 88fed0e..e60e8cd 100644
+--- a/src/equicordplugins/title/index.ts
++++ b/src/equicordplugins/title/index.ts
+@@ -15,7 +15,7 @@ const rootTitle = { base: null as string | null };
+ export const settings = definePluginSettings({
+     title: {
+         type: OptionType.STRING,
+-        default: "Argon",
++        default: "Argon",
+         description: "Window title prefix",
+         onChange: setTitle,
+     },
+diff --git a/src/main/about.html b/src/main/about.html
+index a921d0a..b43140e 100644
+--- a/src/main/about.html
++++ b/src/main/about.html
+@@ -2,7 +2,7 @@
+ <meta charset="utf-8" />
+ 
+ <head>
+-    <title>About Argon</title>
++    <title>About Argon</title>
+     <style>
+         body {
+             padding: 2em;
+@@ -149,7 +149,7 @@
+     </section>
+     <section>
+         <h2>Acknowledgements</h2>
+-        <p>These awesome libraries/projects empower Argon</p>
++        <p>These awesome libraries/projects empower Argon</p>
+         <ul>
+             <li>
+                 <a href="https://github.com/Vendicated/Vencord" target="_blank">Vencord</a>
+diff --git a/src/main/trayMenu.ts b/src/main/trayMenu.ts
+index 44c1c97..f4e8164 100644
+--- a/src/main/trayMenu.ts
++++ b/src/main/trayMenu.ts
+@@ -94,18 +94,18 @@ function openAboutWindow() {
+ function createEquicordMenuItems(): MenuItemConstructorOptions[] {
+     return [
+         {
+-            label: "Argon",
++            label: "Argon",
+             submenu: [
+                 {
+-                    label: "About Argon",
++                    label: "About Argon",
+                     click: () => openAboutWindow()
+                 },
+                 {
+-                    label: cachedUpdateAvailable ? "Update Argon" : "Check for Updates",
++                    label: cachedUpdateAvailable ? "Update Argon" : "Check for Updates",
+                     click: () => sendToRenderer(IpcEvents.TRAY_CHECK_UPDATES)
+                 },
+                 {
+-                    label: "Repair Argon",
++                    label: "Repair Argon",
+                     click: () => sendToRenderer(IpcEvents.TRAY_REPAIR)
+                 },
+                 { type: "separator" },
+diff --git a/src/plugins/_core/settings.tsx b/src/plugins/_core/settings.tsx
+index 528d35c..4fda615 100644
+--- a/src/plugins/_core/settings.tsx
++++ b/src/plugins/_core/settings.tsx
+@@ -98,7 +98,7 @@ interface SettingsLayoutBuilder {
+ const settings = definePluginSettings({
+     settingsLocation: {
+         type: OptionType.SELECT,
+-        description: "Where to put the Argon settings section",
++        description: "Where to put the Argon settings section",
+         options: [
+             { label: "At the very top", value: "top" },
+             { label: "Above Billing section", value: "aboveNitro", default: true },
+@@ -110,7 +110,7 @@ const settings = definePluginSettings({
+     },
+     includeVencordInfoWhenCopying: {
+         type: OptionType.BOOLEAN,
+-        description: "Also copy Argon info (Argon, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
++        description: "Also copy Argon info (Argon, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
+         default: true
+     }
+ });
+@@ -193,8 +193,8 @@ export default definePlugin({
+         const equicordEntries: SettingsLayoutNode[] = [
+             buildEntry({
+                 key: "equicord_main",
+-                title: "Argon",
+-                panelTitle: "Argon Settings",
++                title: "Argon",
++                panelTitle: "Argon Settings",
+                 Component: VencordTab,
+                 Icon: MainSettingsIcon
+             }),
+@@ -248,7 +248,7 @@ export default definePlugin({
+         const equicordSection: SettingsLayoutNode = {
+             key: "equicord_section",
+             type: LayoutTypes.SECTION,
+-            useTitle: () => "Argon Settings",
++            useTitle: () => "Argon Settings",
+             buildLayout: () => equicordEntries
+         };
+ 
+diff --git a/src/utils/constants.ts b/src/utils/constants.ts
+index ac94873..63ac741 100644
+--- a/src/utils/constants.ts
++++ b/src/utils/constants.ts
+@@ -1415,8 +1415,8 @@ export const EquicordDevs = Object.freeze({
+         id: 255004979637649408n
+     },
+ } satisfies Record<string, Dev>);
+-// Argon plugin authors
+-export const ArgonDevs = /* #__PURE__*/ Object.freeze({
++// Argon plugin authors
++export const ArgonDevs = /* #__PURE__*/ Object.freeze({
+      Zarak: {
+          name: "Zarak",
+          id: 1212639964605718582n
+@@ -1440,9 +1440,9 @@ export const EquicordDevsById = /* #__PURE__*/ (() =>
+     ))
+ )() as Record<string, Dev>;
+ 
+-export const ArgonDevsById = /* #__PURE__*/ (() =>
++export const ArgonDevsById = /* #__PURE__*/ (() =>
+     Object.freeze(Object.fromEntries(
+-        Object.entries(ArgonDevs)
++        Object.entries(ArgonDevs)
+             .filter(d => d[1].id !== 0n)
+             .map(([_, v]) => [v.id, v] as const)
+     ))
+diff --git a/src/utils/types.ts b/src/utils/types.ts
+index 5a0d32a..2e9a79e 100644
+--- a/src/utils/types.ts
++++ b/src/utils/types.ts
+@@ -72,7 +72,7 @@ export const PluginTags = [
+     "Voice",
+     "Equicord",
+     "Vencord",
+-    "Argon"
++    "Argon"
+ ] as const;
+ 
+ export type PluginTag = typeof PluginTags[number];
+@@ -248,9 +248,9 @@ export interface PluginDef {
+     isModified?: boolean;
+ 
+     /**
+-     * An Equicord plugin that has been further modified by Argon
++     * An Equicord plugin that has been further modified by Argon
+      */
+-    isArgonModified?: boolean;
++    isArgonModified?: boolean;
+ }
+ 
+ export const enum StartAt {
+diff --git a/tsconfig.json b/tsconfig.json
+index be5d9ab..d58739f 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -62,11 +62,11 @@
+             "@equicordplugins/*": [
+                 "./src/equicordplugins/*"
+             ],
+-            "@argoncore/*": [
+-                "./src/argoncore/*"
++            "@argoncore/*": [
++                "./src/argoncore/*"
+             ],
+-            "@argonplugins/*": [
+-                "./src/argonplugins/*"
++            "@argonplugins/*": [
++                "./src/argonplugins/*"
+             ]
+         },
+         "plugins": [

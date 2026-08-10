@@ -1,11 +1,8 @@
-# [<img src="./browser/icon.png" width="40" align="left" alt="Veil">](https://github.com/Zarak199076/Veil) Veil
+# [<img src="./browser/icon.png" width="40" align="left" alt="Argon">](https://github.com/VitalArgon/Argon) Argon
 
+Argon is a fork of Equicord, Which is a fork or Vencord. Forkception. Anyways, if you want to use this then figure it out yourself, I'm making this for me and my friends so no reason... though if you do use this then thanks ig, just a passion project really.
 
-Veil is a fork of Equicord, Which is a fork or Vencord. Forkception. Anyways, if you want to use this then figure it out yourself, I'm making this for me and my friends so no reason... though if you do use this then thanks ig, just a passion project really.
-
-Veil is not a cord, or a wire, or a line, or a cable.
-[Equicord Plugins](https://equicord.org/plugins)
-||ps. We have actual custom plugins rather than userplugins (unlike *some* forks)||
+Argon is not a cord, or a wire, or a line, or a cable. [Equicord Plugins](https://equicord.org/plugins) ||ps. We have actual custom plugins rather than userplugins (unlike *some* forks)||
 
 We have GUILD PLUGINS, yep you heard me right guild plugins, plugins that are exclusively enabled via guilds that function ON the guild, I'm not that creative for a use for this though so please make your own and donate them.
 
@@ -13,20 +10,20 @@ We have GUILD PLUGINS, yep you heard me right guild plugins, plugins that are ex
 
 1. Discord is trademark of Discord Inc., and solely mentioned for the sake of descriptivity.
 Mentioning it does not imply any affiliation with or endorsement by Discord Inc.
-Vencord is not connected to Veil and as such, all donation links go to Vendicated's donation link.
+Vencord is not connected to Argon and as such, all donation links go to Vendicated's donation link.
 
-2. If you plan on taking any plugins then take VeilCoreAPI aswell, some of them will require it.
+2. If you plan on taking any plugins then take ArgonCoreAPI aswell, some of them will require it.
 
 3. Currently I'm ONLY building for web, because that's kinda the only place I use discord I rarely use the app, also Idk how.
-<details>
-<summary>Using Veil violates Discord's terms of service</summary>
+
+<summary>Using Argon violates Discord's terms of service</summary>
 
 Client Modifications are against Discord’s Terms of Service.
 
 However, Discord is pretty indifferent about them and there are no known cases of users getting banned for using client mods! So you should generally be fine if you don’t use plugins that implement abusive behavior. (though, idgaf about discords TOS, but be careful if you wish to abide by it)
 
-Regardless, if your account is essential to you and getting disabled would be a disaster for you, you should probably not use any client mods (not exclusive to Veil), just to be safe.
+Regardless, if your account is essential to you and getting disabled would be a disaster for you, you should probably not use any client mods (not exclusive to Argon), just to be safe.
 
-Additionally, make sure not to post screenshots with Veil in a server where you might get banned for it.
+Additionally, make sure not to post screenshots with Argon in a server where you might get banned for it.
 
 </details>

@@ -1139,7 +1139,7 @@ export function EquicordIcon(props: IconProps) {
     );
 }
 
-export function VeilIcon(props: IconProps) {
+export function ArgonIcon(props: IconProps) {
     return (
         <Icon
             {...props}

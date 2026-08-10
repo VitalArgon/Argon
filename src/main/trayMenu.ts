@@ -94,18 +94,18 @@ function openAboutWindow() {
 function createEquicordMenuItems(): MenuItemConstructorOptions[] {
     return [
         {
-            label: "Veil",
+            label: "Argon",
             submenu: [
                 {
-                    label: "About Veil",
+                    label: "About Argon",
                     click: () => openAboutWindow()
                 },
                 {
-                    label: cachedUpdateAvailable ? "Update Veil" : "Check for Updates",
+                    label: cachedUpdateAvailable ? "Update Argon" : "Check for Updates",
                     click: () => sendToRenderer(IpcEvents.TRAY_CHECK_UPDATES)
                 },
                 {
-                    label: "Repair Veil",
+                    label: "Repair Argon",
                     click: () => sendToRenderer(IpcEvents.TRAY_REPAIR)
                 },
                 { type: "separator" },

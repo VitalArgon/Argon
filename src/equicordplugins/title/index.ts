@@ -15,7 +15,7 @@ const rootTitle = { base: null as string | null };
 export const settings = definePluginSettings({
     title: {
         type: OptionType.STRING,
-        default: "Veil",
+        default: "Argon",
         description: "Window title prefix",
         onChange: setTitle,
     },

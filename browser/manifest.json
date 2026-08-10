@@ -1,10 +1,10 @@
 {
     "manifest_version": 3,
     "minimum_chrome_version": "111",
-    "name": "Veil Web",
-    "description": "Veil. That one random discord client that you do honestly don't need.",
+    "name": "Argon Web",
+    "description": "Argon. That one random discord client that you do honestly don't need.",
     "author": "Zarak",
-    "homepage_url": "https://github.com/Zarak199076/Veil",
+    "homepage_url": "https://github.com/VitalArgon/Argon",
     "icons": {
         "128": "icon.png"
     },
