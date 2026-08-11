@@ -1,8 +1,8 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore } from "@webpack/common";
 
-const STYLE_ID = "veil-guild-theme";
+const STYLE_ID = "argon-guild-theme";
 const CSS_CHANNEL_NAME = "css";
 
 let watchedGuildId: string | null = null;
@@ -39,7 +39,7 @@ function applyThemeIfActive() {
 
 function onChannelUpdate({ channel }: any) {
     // live-refresh if the owner edits #css topic while you're actively
-    // sitting in that guild — same pattern as the veil-plugins channel
+    // sitting in that guild — same pattern as the argon-plugins channel
     if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === CSS_CHANNEL_NAME) {
         applyThemeIfActive();
     }
@@ -48,7 +48,7 @@ function onChannelUpdate({ channel }: any) {
 export default defineGuildPlugin({
     name: "GuildTheme",
     description: "Applies CSS from this guild's #css channel topic while you're viewing it, reverts the moment you switch away.",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
 
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
