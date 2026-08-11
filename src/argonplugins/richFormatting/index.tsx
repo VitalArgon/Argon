@@ -272,7 +272,7 @@ function buildPluginCardSpan(rawName: string) {
     const pluginInfo = [
         {
             condition: (plugin.isVeilModified ?? false) && PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
-            src: "https://raw.githubusercontent.com/VitalVeil/Veil/main/browser/Modified.png",
+            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
             alt: "Veil Modified",
             title: "Modified Equicord Plugin"
         },
