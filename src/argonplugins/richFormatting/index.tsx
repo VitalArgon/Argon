@@ -391,7 +391,7 @@ function parseShortcuts(raw: string): Map<string, string> {
     return map;
 }
 
-const SHORTCUTS_URL = "https://raw.githubusercontent.com/Zarak199076/veil/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
+const SHORTCUTS_URL = "https://raw.githubusercontent.com/VitalArgon/Argon/refs/heads/main/src/veilplugins/richFormatting/ext.txt";
 
 let shortcuts = new Map<string, string>();
 
