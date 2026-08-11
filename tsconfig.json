@@ -62,11 +62,11 @@
             "@equicordplugins/*": [
                 "./src/equicordplugins/*"
             ],
-            "@veilcore/*": [
-                "./src/veilcore/*"
+            "@argoncore/*": [
+                "./src/argoncore/*"
             ],
-            "@veilplugins/*": [
-                "./src/veilplugins/*"
+            "@argonplugins/*": [
+                "./src/argonplugins/*"
             ]
         },
         "plugins": [
