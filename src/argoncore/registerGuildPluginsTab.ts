@@ -1,12 +1,12 @@
 import { PluginsIcon } from "@components/Icons"; // swap for a custom icon later if you want
 import GuildPluginsSettings from "./guildPluginsSettings";
 
-const ENTRY_KEY = "veil_guild_plugins";
+const ENTRY_KEY = "argon_guild_plugins";
 
 export function registerGuildPluginsTab() {
     const settingsPlugin = (window as any).Vencord?.Plugins?.plugins?.["Settings"];
     if (!settingsPlugin) {
-        console.warn("[Veil] Settings plugin not found — Guild Plugins tab not registered");
+        console.warn("[Argon] Settings plugin not found — Guild Plugins tab not registered");
         return;
     }
 
