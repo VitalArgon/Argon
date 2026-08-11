@@ -3,10 +3,8 @@ import * as DataStore from "@api/DataStore";
 import { GuildPlugins } from "@argoncore/guildplugins";
 import { getEntryForGuild } from "./manifestSource";
 
-const userEnabledKey = (guildId: string, pluginId: string) => `Veil_guildPlugin_${guildId}_${pluginId}`;
+const userEnabledKey = (guildId: string, pluginId: string) => `argon_guildPlugin_${guildId}_${pluginId}`;
 
-// default true: absence of a stored value means "not yet turned off",
-// i.e. still auto-enabled. Only an explicit `false` disables it.
 export async function isUserOptedIn(guildId: string, pluginId: string): Promise<boolean> {
     const stored = await DataStore.get(userEnabledKey(guildId, pluginId));
     return stored !== false;
