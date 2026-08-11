@@ -8,7 +8,7 @@ import { definePluginSettings } from "@api/Settings";
 import { VeilDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps } from "@webpack";
-import { subscribeFlux, createLogger } from "../VeilCoreAPI";
+import { subscribeFlux, createLogger } from "../ArgonCoreAPI";
 
 import { banlist } from "./banlist";
 
