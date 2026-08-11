@@ -1,9 +1,9 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { FluxDispatcher, ChannelStore, Button, Text } from "@webpack/common";
 import { ModalRoot, ModalHeader, ModalContent, ModalFooter, openModal } from "@utils/modal";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
-import { h, findPluginByName } from "../../../veilplugins/VeilCoreAPI";
+import { h, findPluginByName } from "../../../argonplugins/ArgonCoreAPI";
 
 interface ParsedPopup {
     title: string;
@@ -49,8 +49,6 @@ function renderPluginCard(pluginId: string) {
         return <Text color="text-danger">Unknown plugin id in popup: {pluginId}</Text>;
     }
 
-    // same component the real Settings > Plugins tab renders — handles its
-    // own enable/disable toggle, click-to-open-full-settings, everything
     return h(PluginCard, {
         plugin,
         disabled: plugin.required ?? false,
@@ -100,7 +98,7 @@ function onChannelSelect({ channelId }: any) {
 export default defineGuildPlugin({
     name: "ChannelPopups",
     description: "Shows a custom popup defined in a channel's description, the first time you open that channel each session.",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
 
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
