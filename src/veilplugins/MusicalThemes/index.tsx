@@ -1,7 +1,7 @@
 import { definePluginSettings } from "@api/Settings";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { createStyleInjector, createLogger, subscribeFlux } from "../VeilCoreAPI";
+import { createStyleInjector, createLogger, subscribeFlux } from "../ArgonCoreAPI";
 
 interface Activity {
     type: number;
@@ -245,8 +245,8 @@ function onPresenceChange(dispatch: PresenceDispatch) {
 export default definePlugin({
     name: "MusicalThemes",
     description: "Automatically changes Discord's theme colors based on the currently playing song's album artwork. Works with Spotify and YouTube Music.",
-    authors: [VeilDevs.Zarak],
-    dependencies: ["VeilCoreAPI"],
+    authors: [ArgonDevs.Zarak],
+    dependencies: ["ArgonCoreAPI"],
     settings,
 
     start() {
