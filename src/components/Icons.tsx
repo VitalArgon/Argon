@@ -1141,12 +1141,15 @@ export function EquicordIcon(props: IconProps) {
 
 export function ArgonIcon(props: IconProps) {
     return (
-        <icon viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
-  <rect x="10" y="10" width="280" height="280" rx="64" fill="#AE00FF"/>
-  <text x="34" y="70" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" fill="#FFFFFF">18</text>
-  <text x="150" y="200" font-family="Arial, Helvetica, sans-serif" font-size="130" font-weight="800" fill="#FFFFFF" text-anchor="middle">Ar</text>
-  <text x="150" y="252" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="500" fill="#FFFFFF" text-anchor="middle">39.948</text>
-</icon>
+        <Icon
+            {...props}
+            viewBox="0 0 1154 706"
+        >
+            <path
+                fill={props.fill || "currentColor"}
+                d="M0 706 280 0H422L699 706H533L321 120H378L163 706ZM159 578V450H544V578Z M768 706V220H921V706ZM921 439 857 389Q876 304 921.0 257.0Q966 210 1046 210Q1081 210 1107.5 220.5Q1134 231 1154 253L1063 368Q1053 357 1038.0 351.0Q1023 345 1004 345Q966 345 943.5 368.5Q921 392 921 439Z"
+            />
+        </Icon>
     );
 }
 
