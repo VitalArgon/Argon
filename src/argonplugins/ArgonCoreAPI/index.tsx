@@ -390,9 +390,9 @@ export function wrapMethod<O extends object, K extends keyof O>(
 }
 
 export default definePlugin({
-    name: "VeilCoreAPI",
+    name: "ArgonCoreAPI",
     description: "Shared helpers for building Veil plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, debounce/throttle/once/memoize, waitFor, a lightweight EventBus, simple localStorage-backed stores, managed React child mounting, and method wrapping).",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
     required: true,
     dependencies: ["ContextMenuAPI", "MessageEventsAPI"],
 });
