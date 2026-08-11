@@ -1,6 +1,6 @@
 // Dm me on discord I'll add your shortcut, if it's useful, or for your own client
-{{veildown}} = {{btn:Download Veil|https://github.com/VitalVeil/Veil/releases/|7700bc}}
-{{veil}} = {{icon:veil}}
+{{argondown}} = {{btn:Download Argon|https://github.com/VitalArgon/Argon/releases/|7700bc}}
+{{argon}} = {{icon:argon}}
 {{equicord}} = {{icon:equicord}}
 {{vencord}} = {{icon:vencord}}
 {{vesktop}} = {{icon:vesktop}}
