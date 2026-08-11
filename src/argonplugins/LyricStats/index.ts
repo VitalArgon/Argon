@@ -1,7 +1,7 @@
 import definePlugin, { OptionType } from "@utils/types";
 import { definePluginSettings } from "@api/Settings";
 import { FluxDispatcher } from "@webpack/common";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { Activity } from "@vencord/discord-types";
 
 export const settings = definePluginSettings({
@@ -306,7 +306,7 @@ function stopSyncLoop() {
 export default definePlugin({
     name: "LyricStats",
     description: "Shows the current line of the song playing on Spotify directly in your Spotify listening activity, instead of your custom status.",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
 
     settings,
 
