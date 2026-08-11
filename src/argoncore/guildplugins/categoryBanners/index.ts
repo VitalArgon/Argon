@@ -1,21 +1,21 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
 
 console.log("[CategoryBanners] module loaded");
 
 const BANNER_CHANNEL_NAME = "categorybanners";
-const BANNER_CLASS = "veil-category-banner";
+const BANNER_CLASS = "argon-category-banner";
 // Mapping syntax: {categoryName = messageId}
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*(\d{17,20})\s*\}/g;
 
-const SPACER_DATA_ATTR = "veilBannerSpacer";
-const SHIFT_DATA_ATTR = "veilBannerShift";
-const PREV_POSITION_ATTR = "veilPrevPosition";
-const PREV_MARGIN_ATTR = "veilPrevMargin";
-const PREV_TOP_ATTR = "veilPrevTop";
-const PREV_Z_ATTR = "veilPrevZ";
-const PREV_TRANSFORM_ATTR = "veilPrevTransform";
+const SPACER_DATA_ATTR = "argonBannerSpacer";
+const SHIFT_DATA_ATTR = "argonBannerShift";
+const PREV_POSITION_ATTR = "argonPrevPosition";
+const PREV_MARGIN_ATTR = "argonPrevMargin";
+const PREV_TOP_ATTR = "argonPrevTop";
+const PREV_Z_ATTR = "argonPrevZ";
+const PREV_TRANSFORM_ATTR = "argonPrevTransform";
 
 let watchedGuildId: string | null = null;
 let bannerMap: Map<string, string> = new Map(); // name|id → image URL
@@ -228,7 +228,7 @@ function onChannelUpdate({ channel }: any) {
 export default defineGuildPlugin({
     name: "CategoryBanners",
     description: "Shows a banner image above each category, based on mappings in #categorybanners (topic format: {categoryName = messageId}).",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
         FluxDispatcher.subscribe("CHANNEL_SELECT", applyIfActive);
