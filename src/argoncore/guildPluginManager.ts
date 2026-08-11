@@ -1,6 +1,6 @@
 import { FluxDispatcher, GuildStore } from "@webpack/common";
 import * as DataStore from "@api/DataStore";
-import { GuildPlugins } from "@veilcore/guildplugins";
+import { GuildPlugins } from "@argoncore/guildplugins";
 import { getEntryForGuild } from "./manifestSource";
 
 const userEnabledKey = (guildId: string, pluginId: string) => `Veil_guildPlugin_${guildId}_${pluginId}`;
