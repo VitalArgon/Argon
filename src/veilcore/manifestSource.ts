@@ -1,15 +1,12 @@
 import { ChannelStore } from "@webpack/common";
-import { GuildManifestEntry, StaticOverrides } from "@veilcore/guildplugins/manifest";
-import { GuildPlugins } from "@veilcore/guildplugins";
+import { GuildManifestEntry, StaticOverrides } from "@argoncore/guildplugins/manifest";
+import { GuildPlugins } from "@argoncore/guildplugins";
 
 export type { GuildManifestEntry };
 
 const CONFIG_CHANNEL_NAME = "rules";
 
 function findConfigChannel(guildId: string): any | null {
-    // returns { channelId: Channel } for the guild — verify this exact
-    // method name against your ChannelStore export; it's the common one
-    // used across Vencord plugins but confirm before relying on it
     const channels = ChannelStore.getMutableGuildChannelsForGuild(guildId);
     return Object.values(channels).find(
         (c: any) => c.name?.toLowerCase() === CONFIG_CHANNEL_NAME
@@ -23,9 +20,6 @@ function parseConfig(topic: string | undefined, guildId: string): GuildManifestE
         const parsed = JSON.parse(topic);
         if (!Array.isArray(parsed.pluginIds)) return null;
 
-        // only allow plugin ids that actually exist and ship with the
-        // client — the config channel can select from what's already
-        // bundled, it can never introduce new code
         const validIds = parsed.pluginIds.filter((id: string) => id in GuildPlugins);
         if (validIds.length === 0) return null;
 
