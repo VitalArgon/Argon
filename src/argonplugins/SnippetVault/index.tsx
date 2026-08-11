@@ -1,4 +1,4 @@
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { DataStore } from "@api/index";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { openModal, ModalRoot, ModalHeader, ModalContent, ModalCloseButton, ModalSize } from "@utils/modal";
@@ -476,7 +476,7 @@ function ToolbarButton() {
 export default definePlugin({
     name: "SnippetVault",
     description: "Save, tag, categorize, and rename text/code snippets from a toolbar button next to Help/Inbox.",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
     dependencies: ["HeaderBarAPI"],
 
     headerBarButton: {
