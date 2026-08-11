@@ -1,5 +1,5 @@
 import definePlugin from "@utils/types";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { createStyleInjector } from "../ArgonCoreAPI";
 
 const STYLE_ID = "thread-hider-styles";
