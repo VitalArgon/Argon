@@ -5,7 +5,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps } from "@webpack";
 import { subscribeFlux, createLogger } from "../ArgonCoreAPI";
@@ -81,9 +81,9 @@ const REDACTION_STRATEGIES = {
 
 export default definePlugin({
     name: "AntiBadWords",
-    author: [VeilDevs.Zarak],
+    author: [ArgonDevs.Zarak],
     description: "Use Roblox chat filter directly in Discord!",
-    dependencies: ["UserSettingsAPI", "VeilCoreAPI"],
+    dependencies: ["UserSettingsAPI", "ArgonCoreAPI"],
     settings,
     start: () => {
         const unsubscribe = subscribeFlux("MESSAGE_CREATE", (e: any) => {
