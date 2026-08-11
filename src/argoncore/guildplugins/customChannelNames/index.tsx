@@ -1,5 +1,5 @@
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
-import { VeilDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import { ChannelStore, FluxDispatcher } from "@webpack/common";
 
 const NAMES_CHANNEL_NAME = "customnames";
@@ -112,7 +112,7 @@ function onChannelUpdate({ channel }: any) {
 export default defineGuildPlugin({
     name: "CustomChannelNames",
     description: "Renders custom shorthand substitutions in this guild's channel names via a ChannelStore patch, defined in #customnames' topic as {shorthand = replacement} (display-only, cosmeti[...]",
-    authors: [VeilDevs.Zarak],
+    authors: [ArgonDevs.Zarak],
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
 
