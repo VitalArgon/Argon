@@ -158,12 +158,18 @@ function getAllIconsLower(): Record<string, any> {
     return cachedAllIconsLower;
 }
 
+// Suffixes tried in order when a bare name (or "...icon") doesn't resolve.
+// Covers cases like brand icons that come in variants, e.g. "spotify" ->
+// "SpotifyNeutralIcon" -> "SpotifyBrandIcon".
+const ICON_FALLBACK_SUFFIXES = ["icon", "neutralicon", "brandicon"];
+
 // Resolves a user-typed icon name to a component. Case-insensitive, and
 // doesn't require the trailing "Icon" suffix real export names usually have.
 // Lookup order:
 //   1. ICON_ALIASES hit (e.g. "gear" -> "CogWheel")
 //   2. exact case-insensitive match on whatever was typed
-//   3. same, with "icon" appended (e.g. "pencil" -> "PencilIcon")
+//   3. same, trying each suffix in ICON_FALLBACK_SUFFIXES in turn
+//      (e.g. "spotify" -> "spotifyicon" -> "spotifyneutralicon" -> "spotifybrandicon")
 function getIconComponent(name: string) {
     const lowerInput = name.toLowerCase();
     const pool = getAllIconsLower();
@@ -178,8 +184,10 @@ function getIconComponent(name: string) {
     if (exact) return exact;
 
     if (!lowerInput.endsWith("icon")) {
-        const withSuffix = pool[`${lowerInput}icon`];
-        if (withSuffix) return withSuffix;
+        for (const suffix of ICON_FALLBACK_SUFFIXES) {
+            const candidate = pool[`${lowerInput}${suffix}`];
+            if (candidate) return candidate;
+        }
     }
 
     return null;
