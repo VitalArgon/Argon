@@ -4,6 +4,7 @@ import { definePluginSettings } from "@api/Settings";
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { React } from "@webpack/common";
 import * as Icons from "@components/Icons";
+import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
 import {
     h,
@@ -117,10 +118,34 @@ const ICON_ALIASES: Record<string, string> = {
 
 };
 
+// Full icon pool (500+), lazily built from Equicord's pre-built concatenated
+// icon module. Falls back gracefully if the module ever moves/renames.
+let cachedAllIcons: Record<string, any> | null = null;
+
+function getAllIcons(): Record<string, any> {
+    if (cachedAllIcons) return cachedAllIcons;
+
+    let fromConcatenated: Record<string, any> = {};
+    try {
+        fromConcatenated = Object.fromEntries(
+            Object.entries(iconsModule ?? {}).filter(
+                ([name, fn]) => typeof fn === "function" && name.endsWith("Icon")
+            )
+        );
+    } catch (e) {
+        console.error("[RichFormatting] failed to read iconsModule from concatenatedModules:", e);
+    }
+
+    // Merge: concatenated module first, curated @components/Icons barrel on top
+    // (in case of name collisions, prefer the explicitly-typed barrel export).
+    cachedAllIcons = { ...fromConcatenated, ...Icons };
+
+    return cachedAllIcons;
+}
+
 function getIconComponent(name: string) {
     const exportName = ICON_ALIASES[name.toLowerCase()] ?? name;
-
-    return Icons[exportName] ?? null;
+    return getAllIcons()[exportName] ?? null;
 }
 
 function renderIconInto(container: HTMLElement, name: string) {
@@ -576,8 +601,8 @@ function buildHelpText() {
         "any text here, can nest other tags too",
         ":::",
         "```",
-        `**Icon:** \`${zw}icon:name}}\``,
-        `Available icon names: ${iconNames}`,
+        `**Icon:** \`${zw}icon:name}}\` — use an alias below, or any exact icon export name (500+ available; browse with iconsViewer)`,
+        `Icon aliases: ${iconNames}`,
         `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
         `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
         "",
@@ -630,7 +655,7 @@ export default definePlugin({
         rfStyles.inject();
 
         if (settings.store.logIconsOnStart) {
-            console.log("[RichFormatting] Available icons in this build:", Object.keys(Icons).sort());
+            console.log("[RichFormatting] Available icons in this build:", Object.keys(getAllIcons()).sort());
         }
 
         loadShortcuts();
