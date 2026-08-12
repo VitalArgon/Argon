@@ -158,11 +158,31 @@ function getAllIconsLower(): Record<string, any> {
     return cachedAllIconsLower;
 }
 
+// Resolves a user-typed icon name to a component. Case-insensitive, and
+// doesn't require the trailing "Icon" suffix real export names usually have.
+// Lookup order:
+//   1. ICON_ALIASES hit (e.g. "gear" -> "CogWheel")
+//   2. exact case-insensitive match on whatever was typed
+//   3. same, with "icon" appended (e.g. "pencil" -> "PencilIcon")
 function getIconComponent(name: string) {
     const lowerInput = name.toLowerCase();
+    const pool = getAllIconsLower();
+
     const aliasTarget = ICON_ALIASES[lowerInput];
-    const lookupKey = (aliasTarget ?? name).toLowerCase();
-    return getAllIconsLower()[lookupKey] ?? null;
+    if (aliasTarget) {
+        const hit = pool[aliasTarget.toLowerCase()];
+        if (hit) return hit;
+    }
+
+    const exact = pool[lowerInput];
+    if (exact) return exact;
+
+    if (!lowerInput.endsWith("icon")) {
+        const withSuffix = pool[`${lowerInput}icon`];
+        if (withSuffix) return withSuffix;
+    }
+
+    return null;
 }
 
 function renderIconInto(container: HTMLElement, name: string) {
@@ -618,7 +638,7 @@ function buildHelpText() {
         "any text here, can nest other tags too",
         ":::",
         "```",
-        `**Icon:** \`${zw}icon:name}}\` — case-insensitive, use an alias below or any icon export name (500+ available; browse with iconsViewer)`,
+        `**Icon:** \`${zw}icon:name}}\` — case-insensitive, "Icon" suffix optional. Use an alias below, or any icon export name (500+ available; browse with iconsViewer)`,
         `Icon aliases: ${iconNames}`,
         `**Plugin card:** \`${zw}plugin:"Plugin Name"}}\` (quotes optional)`,
         `**Colored text:** \`${zw}colored:A259FF:some text}}\` — hex code, # optional`,
