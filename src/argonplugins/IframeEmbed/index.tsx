@@ -1,11 +1,22 @@
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
-import { definePluginSettings } from "@api/Settings";
 import { ArgonDevs } from "@utils/constants";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin from "@utils/types";
 import { FluxDispatcher } from "@webpack/common";
 import { Message } from "discord-types/general";
 
 const ACCESSORY_ID = "MessageIframes";
+
+// Hardcoded config — edit these directly, no in-app settings.
+const ALLOWED_HOSTS = [
+    "discord.com",
+    "youtube.com",
+    "youtube-nocookie.com",
+    "open.spotify.com",
+    "codepen.io",
+    "codesandbox.io",
+];
+const MAX_HEIGHT = 500;
+const FORCE_SANDBOX = false;
 
 // Matches a single <iframe ...></iframe> (or self-closed) tag, non-greedy.
 const IFRAME_REGEX = /<iframe\b[^>]*>[\s\S]*?<\/iframe>|<iframe\b[^>]*\/>/gi;
@@ -51,32 +62,10 @@ function isAllowedHost(src: string, allowlist: string[]): boolean {
     }
 }
 
-const settings = definePluginSettings({
-    allowedHosts: {
-        type: OptionType.STRING,
-        description: "Comma-separated list of hostnames allowed to render as iframes (subdomains included). Iframes pointing anywhere else are shown as a plain link instead.",
-        default: "discord.com,youtube.com,youtube-nocookie.com,open.spotify.com,codepen.io,codesandbox.io",
-        restartNeeded: false,
-    },
-    maxHeight: {
-        type: OptionType.NUMBER,
-        description: "Maximum height (px) an embedded iframe is allowed to render at",
-        default: 500,
-        restartNeeded: false,
-    },
-    forceSandbox: {
-        type: OptionType.BOOLEAN,
-        description: "Ignore the sandbox attribute from the message and always use a safe default sandbox policy",
-        default: true,
-        restartNeeded: false,
-    },
-});
-
 const SAFE_SANDBOX = "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms";
 
 function IframeEmbed({ src, width, height, allowtransparency, sandbox }: ParsedIframe) {
-    const maxH = settings.store.maxHeight;
-    const h = Math.min(parseInt(height || "350", 10) || 350, maxH);
+    const h = Math.min(parseInt(height || "350", 10) || 350, MAX_HEIGHT);
     const w = Math.min(parseInt(width || "500", 10) || 500, 700);
 
     return (
@@ -86,7 +75,7 @@ function IframeEmbed({ src, width, height, allowtransparency, sandbox }: ParsedI
             height={h}
             allowTransparency={allowtransparency !== "false"}
             frameBorder={0}
-            sandbox={settings.store.forceSandbox ? SAFE_SANDBOX : (sandbox || SAFE_SANDBOX)}
+            sandbox={FORCE_SANDBOX ? SAFE_SANDBOX : (sandbox || SAFE_SANDBOX)}
             style={{ borderRadius: 8, border: "none", marginTop: 4, display: "block" }}
             loading="lazy"
         />
@@ -126,9 +115,6 @@ function extractIframes(content: string): { parsed: ParsedIframe[]; stripped: st
     return { parsed, stripped };
 }
 
-// Called on every message the client receives/loads, BEFORE it reaches
-// MessageStore/the renderer, so the mutation is reflected everywhere the
-// message is displayed.
 function processMessage(message: any) {
     if (!message || typeof message.content !== "string" || !message.content.includes("<iframe")) return;
 
@@ -143,7 +129,6 @@ function processMessages(messages: any[] | undefined) {
     messages?.forEach(processMessage);
 }
 
-// Flux events that hand us message objects we can mutate in place.
 function interceptor(payload: any) {
     switch (payload?.type) {
         case "MESSAGE_CREATE":
@@ -154,16 +139,14 @@ function interceptor(payload: any) {
             processMessages(payload.messages);
             break;
     }
-    // Never swallow the event — we're only observing/mutating, not blocking.
     return false;
 }
 
 export default definePlugin({
-    name: "MessageIframes",
-    description: "Strips <iframe> tags out of message text and renders them as real embedded iframes instead, similar to rich embeds",
-    authors: [ArgonDevs.Ven], // replace with your own ArgonDevs entry, e.g. { name: "You", id: 0n }
-
-    settings,
+    name: "CoreIframes",
+    description: "Iframes In Messages",
+    authors: [ArgonDevs.Ven],
+    required: true,
 
     start() {
         FluxDispatcher.addInterceptor(interceptor);
@@ -172,12 +155,10 @@ export default definePlugin({
             const parsedList = iframesByMessageId.get(props.message.id);
             if (!parsedList || parsedList.length === 0) return null;
 
-            const allowlist = settings.store.allowedHosts.split(",");
-
             return (
                 <>
                     {parsedList.map((iframe, i) =>
-                        isAllowedHost(iframe.src, allowlist)
+                        isAllowedHost(iframe.src, ALLOWED_HOSTS)
                             ? <IframeEmbed key={i} {...iframe} />
                             : <BlockedEmbed key={i} src={iframe.src} />
                     )}
@@ -187,10 +168,6 @@ export default definePlugin({
     },
 
     stop() {
-        // Discord's Flux dispatcher doesn't expose a public removeInterceptor;
-        // best-effort splice it out of the internal array. Harmless if this
-        // fails or the field is named differently — the interceptor is a
-        // no-op once content no longer contains "<iframe".
         try {
             const interceptors = (FluxDispatcher as any)._interceptors;
             if (Array.isArray(interceptors)) {
