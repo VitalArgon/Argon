@@ -144,23 +144,29 @@ function processMessages(messages: any[] | undefined) {
 }
 
 // Flux events that hand us message objects we can mutate in place.
-const fluxHandlers: Record<string, (data: any) => void> = {
-    MESSAGE_CREATE: data => processMessage(data.message),
-    MESSAGE_UPDATE: data => processMessage(data.message),
-    LOAD_MESSAGES_SUCCESS: data => processMessages(data.messages),
-};
+function interceptor(payload: any) {
+    switch (payload?.type) {
+        case "MESSAGE_CREATE":
+        case "MESSAGE_UPDATE":
+            processMessage(payload.message);
+            break;
+        case "LOAD_MESSAGES_SUCCESS":
+            processMessages(payload.messages);
+            break;
+    }
+    // Never swallow the event — we're only observing/mutating, not blocking.
+    return false;
+}
 
 export default definePlugin({
     name: "MessageIframes",
-    description: "Strips <iframe> tags out of message text and renders them as real embedded iframes instead",
-    authors: [ArgonDevs.Zarak],
+    description: "Strips <iframe> tags out of message text and renders them as real embedded iframes instead, similar to rich embeds",
+    authors: [ArgonDevs.Ven], // replace with your own ArgonDevs entry, e.g. { name: "You", id: 0n }
 
     settings,
 
     start() {
-        for (const [event, handler] of Object.entries(fluxHandlers)) {
-            FluxDispatcher.subscribe(event as any, handler);
-        }
+        FluxDispatcher.addInterceptor(interceptor);
 
         addMessageAccessory(ACCESSORY_ID, (props: { message: Message; }) => {
             const parsedList = iframesByMessageId.get(props.message.id);
@@ -181,9 +187,18 @@ export default definePlugin({
     },
 
     stop() {
-        for (const [event, handler] of Object.entries(fluxHandlers)) {
-            FluxDispatcher.unsubscribe(event as any, handler);
-        }
+        // Discord's Flux dispatcher doesn't expose a public removeInterceptor;
+        // best-effort splice it out of the internal array. Harmless if this
+        // fails or the field is named differently — the interceptor is a
+        // no-op once content no longer contains "<iframe".
+        try {
+            const interceptors = (FluxDispatcher as any)._interceptors;
+            if (Array.isArray(interceptors)) {
+                const idx = interceptors.indexOf(interceptor);
+                if (idx !== -1) interceptors.splice(idx, 1);
+            }
+        } catch { /* ignore */ }
+
         removeMessageAccessory(ACCESSORY_ID);
         iframesByMessageId.clear();
     },
