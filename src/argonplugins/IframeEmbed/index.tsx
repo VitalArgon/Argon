@@ -1,5 +1,5 @@
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
-import { ArgonDevs } from "@utils/constants";
+import { ZarakDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { FluxDispatcher } from "@webpack/common";
 import { Message } from "discord-types/general";
@@ -16,7 +16,7 @@ const ALLOWED_HOSTS = [
     "codesandbox.io",
 ];
 const MAX_HEIGHT = 500;
-const FORCE_SANDBOX = false;
+const FORCE_SANDBOX = true;
 
 // Matches a single <iframe ...></iframe> (or self-closed) tag, non-greedy.
 const IFRAME_REGEX = /<iframe\b[^>]*>[\s\S]*?<\/iframe>|<iframe\b[^>]*\/>/gi;
@@ -60,6 +60,41 @@ function isAllowedHost(src: string, allowlist: string[]): boolean {
     } catch {
         return false;
     }
+}
+
+// Discord auto-generates message.embeds server-side from any URL found in
+// the original content, independent of the text itself — so stripping the
+// <iframe> tag out of the displayed text doesn't remove Discord's own embed
+// for that same link. These helpers find which embeds correspond to a src
+// we're stripping so we can filter them out too.
+function normalizeUrl(u: string): string {
+    try {
+        const url = new URL(u);
+        return (url.hostname + url.pathname).replace(/\/$/, "").toLowerCase();
+    } catch {
+        return u.toLowerCase();
+    }
+}
+
+function extractYouTubeId(u: string): string | null {
+    try {
+        const url = new URL(u);
+        const host = url.hostname.replace(/^www\./, "");
+        if (host === "youtube.com" || host === "youtube-nocookie.com") {
+            if (url.pathname.startsWith("/embed/")) return url.pathname.split("/embed/")[1] || null;
+            const v = url.searchParams.get("v");
+            if (v) return v;
+        }
+        if (host === "youtu.be") return url.pathname.slice(1) || null;
+    } catch { /* ignore */ }
+    return null;
+}
+
+function urlsRoughlyMatch(a: string, b: string): boolean {
+    if (normalizeUrl(a) === normalizeUrl(b)) return true;
+    const idA = extractYouTubeId(a);
+    const idB = extractYouTubeId(b);
+    return !!idA && !!idB && idA === idB;
 }
 
 const SAFE_SANDBOX = "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms";
@@ -115,6 +150,9 @@ function extractIframes(content: string): { parsed: ParsedIframe[]; stripped: st
     return { parsed, stripped };
 }
 
+// Called on every message the client receives/loads, BEFORE it reaches
+// MessageStore/the renderer, so the mutation is reflected everywhere the
+// message is displayed.
 function processMessage(message: any) {
     if (!message || typeof message.content !== "string" || !message.content.includes("<iframe")) return;
 
@@ -123,12 +161,24 @@ function processMessage(message: any) {
 
     iframesByMessageId.set(message.id, parsed);
     message.content = stripped;
+
+    // Drop any of Discord's own auto-generated embeds that correspond to
+    // one of the iframe srcs we just stripped, so it doesn't show up
+    // alongside our rendered iframe.
+    if (Array.isArray(message.embeds) && message.embeds.length) {
+        message.embeds = message.embeds.filter((embed: any) => {
+            const embedUrl = embed?.url;
+            if (!embedUrl) return true;
+            return !parsed.some(iframe => urlsRoughlyMatch(iframe.src, embedUrl));
+        });
+    }
 }
 
 function processMessages(messages: any[] | undefined) {
     messages?.forEach(processMessage);
 }
 
+// Flux events that hand us message objects we can mutate in place.
 function interceptor(payload: any) {
     switch (payload?.type) {
         case "MESSAGE_CREATE":
@@ -139,13 +189,14 @@ function interceptor(payload: any) {
             processMessages(payload.messages);
             break;
     }
+    // Never swallow the event — we're only observing/mutating, not blocking.
     return false;
 }
 
 export default definePlugin({
     name: "CoreIframes",
-    description: "Iframes In Messages",
-    authors: [ArgonDevs.Ven],
+    description: "Iframes in messages",
+    authors: [ArgonDevs.Zarak],
     required: true,
 
     start() {
