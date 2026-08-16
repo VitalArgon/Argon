@@ -17,7 +17,7 @@ Vencord is not connected to Argon and as such, all donation links go to Vendicat
 3. Currently I'm ONLY building for web, because that's kinda the only place I use discord I rarely use the app, also Idk how.
 
 <summary>Using Argon violates Discord's terms of service</summary>
-
+</details>
 Client Modifications are against Discord’s Terms of Service.
 
 However, Discord is pretty indifferent about them and there are no known cases of users getting banned for using client mods! So you should generally be fine if you don’t use plugins that implement abusive behavior. (though, idgaf about discords TOS, but be careful if you wish to abide by it)
