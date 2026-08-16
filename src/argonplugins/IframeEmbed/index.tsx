@@ -18,7 +18,6 @@ const ALLOWED_HOSTS = [
 const MAX_HEIGHT = 500;
 const FORCE_SANDBOX = true;
 
-// Matches a single <iframe ...></iframe> (or self-closed) tag, non-greedy.
 const IFRAME_REGEX = /<iframe\b[^>]*>[\s\S]*?<\/iframe>|<iframe\b[^>]*\/>/gi;
 
 interface ParsedIframe {
@@ -29,12 +28,8 @@ interface ParsedIframe {
     sandbox?: string;
 }
 
-// messageId -> iframes we stripped out of that message's content, so the
-// accessory can still render them even though message.content no longer
-// contains the raw tag.
 const iframesByMessageId = new Map<string, ParsedIframe[]>();
 
-// Very small attribute parser — good enough for iframe tags, not a general HTML parser.
 function parseAttrs(tag: string): Record<string, string> {
     const attrs: Record<string, string> = {};
     const attrRegex = /([a-zA-Z-]+)\s*=\s*"([^"]*)"|([a-zA-Z-]+)\s*=\s*'([^']*)'/g;
@@ -62,11 +57,6 @@ function isAllowedHost(src: string, allowlist: string[]): boolean {
     }
 }
 
-// Discord auto-generates message.embeds server-side from any URL found in
-// the original content, independent of the text itself — so stripping the
-// <iframe> tag out of the displayed text doesn't remove Discord's own embed
-// for that same link. These helpers find which embeds correspond to a src
-// we're stripping so we can filter them out too.
 function normalizeUrl(u: string): string {
     try {
         const url = new URL(u);
@@ -130,8 +120,6 @@ function BlockedEmbed({ src }: { src: string; }) {
     );
 }
 
-// Pulls <iframe> tags out of raw content, returns the parsed list (if any)
-// and the content with those tags removed (surrounding blank lines collapsed).
 function extractIframes(content: string): { parsed: ParsedIframe[]; stripped: string; } {
     const matches = content.match(IFRAME_REGEX);
     if (!matches || matches.length === 0) return { parsed: [], stripped: content };
@@ -150,9 +138,6 @@ function extractIframes(content: string): { parsed: ParsedIframe[]; stripped: st
     return { parsed, stripped };
 }
 
-// Called on every message the client receives/loads, BEFORE it reaches
-// MessageStore/the renderer, so the mutation is reflected everywhere the
-// message is displayed.
 function processMessage(message: any) {
     if (!message || typeof message.content !== "string" || !message.content.includes("<iframe")) return;
 
@@ -162,9 +147,6 @@ function processMessage(message: any) {
     iframesByMessageId.set(message.id, parsed);
     message.content = stripped;
 
-    // Drop any of Discord's own auto-generated embeds that correspond to
-    // one of the iframe srcs we just stripped, so it doesn't show up
-    // alongside our rendered iframe.
     if (Array.isArray(message.embeds) && message.embeds.length) {
         message.embeds = message.embeds.filter((embed: any) => {
             const embedUrl = embed?.url;
@@ -178,16 +160,19 @@ function processMessages(messages: any[] | undefined) {
     messages?.forEach(processMessage);
 }
 
-// Flux events that hand us message objects we can mutate in place.
 function interceptor(payload: any) {
-    switch (payload?.type) {
-        case "MESSAGE_CREATE":
-        case "MESSAGE_UPDATE":
-            processMessage(payload.message);
-            break;
-        case "LOAD_MESSAGES_SUCCESS":
-            processMessages(payload.messages);
-            break;
+    try {
+        switch (payload?.type) {
+            case "MESSAGE_CREATE":
+            case "MESSAGE_UPDATE":
+                processMessage(payload.message);
+                break;
+            case "LOAD_MESSAGES_SUCCESS":
+                processMessages(payload.messages);
+                break;
+        }
+    } catch (e) {
+        console.error("[MessageIframes] interceptor error", e);
     }
     // Never swallow the event — we're only observing/mutating, not blocking.
     return false;
@@ -200,22 +185,30 @@ export default definePlugin({
     required: true,
 
     start() {
-        FluxDispatcher.addInterceptor(interceptor);
+        try {
+            FluxDispatcher.addInterceptor(interceptor);
+        } catch (e) {
+            console.error("[MessageIframes] failed to add Flux interceptor", e);
+        }
 
-        addMessageAccessory(ACCESSORY_ID, (props: { message: Message; }) => {
-            const parsedList = iframesByMessageId.get(props.message.id);
-            if (!parsedList || parsedList.length === 0) return null;
+        try {
+            addMessageAccessory(ACCESSORY_ID, (props: { message: Message; }) => {
+                const parsedList = iframesByMessageId.get(props.message.id);
+                if (!parsedList || parsedList.length === 0) return null;
 
-            return (
-                <>
-                    {parsedList.map((iframe, i) =>
-                        isAllowedHost(iframe.src, ALLOWED_HOSTS)
-                            ? <IframeEmbed key={i} {...iframe} />
-                            : <BlockedEmbed key={i} src={iframe.src} />
-                    )}
-                </>
-            );
-        });
+                return (
+                    <>
+                        {parsedList.map((iframe, i) =>
+                            isAllowedHost(iframe.src, ALLOWED_HOSTS)
+                                ? <IframeEmbed key={i} {...iframe} />
+                                : <BlockedEmbed key={i} src={iframe.src} />
+                        )}
+                    </>
+                );
+            });
+        } catch (e) {
+            console.error("[MessageIframes] failed to register message accessory", e);
+        }
     },
 
     stop() {
