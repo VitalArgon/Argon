@@ -1,5 +1,5 @@
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
-import { ZarakDevs } from "@utils/constants";
+import { ArgonDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { FluxDispatcher } from "@webpack/common";
 import { Message } from "discord-types/general";
