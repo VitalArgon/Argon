@@ -2,12 +2,26 @@ import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccesso
 import { definePluginSettings } from "@api/Settings";
 import { ArgonDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
+import { FluxDispatcher } from "@webpack/common";
 import { Message } from "discord-types/general";
 
 const ACCESSORY_ID = "MessageIframes";
 
 // Matches a single <iframe ...></iframe> (or self-closed) tag, non-greedy.
 const IFRAME_REGEX = /<iframe\b[^>]*>[\s\S]*?<\/iframe>|<iframe\b[^>]*\/>/gi;
+
+interface ParsedIframe {
+    src: string;
+    width?: string;
+    height?: string;
+    allowtransparency?: string;
+    sandbox?: string;
+}
+
+// messageId -> iframes we stripped out of that message's content, so the
+// accessory can still render them even though message.content no longer
+// contains the raw tag.
+const iframesByMessageId = new Map<string, ParsedIframe[]>();
 
 // Very small attribute parser — good enough for iframe tags, not a general HTML parser.
 function parseAttrs(tag: string): Record<string, string> {
@@ -60,9 +74,7 @@ const settings = definePluginSettings({
 
 const SAFE_SANDBOX = "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms";
 
-function IframeEmbed({ src, width, height, allowtransparency, sandbox }: {
-    src: string; width?: string; height?: string; allowtransparency?: string; sandbox?: string;
-}) {
+function IframeEmbed({ src, width, height, allowtransparency, sandbox }: ParsedIframe) {
     const maxH = settings.store.maxHeight;
     const h = Math.min(parseInt(height || "350", 10) || 350, maxH);
     const w = Math.min(parseInt(width || "500", 10) || 500, 700);
@@ -94,52 +106,85 @@ function BlockedEmbed({ src }: { src: string; }) {
     );
 }
 
-function getIframeAccessories(message: Message) {
-    const content = message?.content;
-    if (!content || !content.includes("<iframe")) return null;
-
+// Pulls <iframe> tags out of raw content, returns the parsed list (if any)
+// and the content with those tags removed (surrounding blank lines collapsed).
+function extractIframes(content: string): { parsed: ParsedIframe[]; stripped: string; } {
     const matches = content.match(IFRAME_REGEX);
-    if (!matches || matches.length === 0) return null;
+    if (!matches || matches.length === 0) return { parsed: [], stripped: content };
 
-    const allowlist = settings.store.allowedHosts.split(",");
-
-    return matches.map((tag, i) => {
+    const parsed: ParsedIframe[] = [];
+    for (const tag of matches) {
         const attrs = parseAttrs(tag);
-        if (!attrs.src) return null;
+        if (attrs.src) parsed.push(attrs as unknown as ParsedIframe);
+    }
 
-        if (!isAllowedHost(attrs.src, allowlist)) {
-            return <BlockedEmbed key={i} src={attrs.src} />;
-        }
+    const stripped = content
+        .replace(IFRAME_REGEX, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 
-        return (
-            <IframeEmbed
-                key={i}
-                src={attrs.src}
-                width={attrs.width}
-                height={attrs.height}
-                allowtransparency={attrs.allowtransparency}
-                sandbox={attrs.sandbox}
-            />
-        );
-    }).filter(Boolean);
+    return { parsed, stripped };
 }
+
+// Called on every message the client receives/loads, BEFORE it reaches
+// MessageStore/the renderer, so the mutation is reflected everywhere the
+// message is displayed.
+function processMessage(message: any) {
+    if (!message || typeof message.content !== "string" || !message.content.includes("<iframe")) return;
+
+    const { parsed, stripped } = extractIframes(message.content);
+    if (parsed.length === 0) return;
+
+    iframesByMessageId.set(message.id, parsed);
+    message.content = stripped;
+}
+
+function processMessages(messages: any[] | undefined) {
+    messages?.forEach(processMessage);
+}
+
+// Flux events that hand us message objects we can mutate in place.
+const fluxHandlers: Record<string, (data: any) => void> = {
+    MESSAGE_CREATE: data => processMessage(data.message),
+    MESSAGE_UPDATE: data => processMessage(data.message),
+    LOAD_MESSAGES_SUCCESS: data => processMessages(data.messages),
+};
 
 export default definePlugin({
     name: "MessageIframes",
-    description: "Renders <iframe> tags in message content as real embedded iframes",
-    authors: [ArgonDevs.Ven],
+    description: "Strips <iframe> tags out of message text and renders them as real embedded iframes instead",
+    authors: [ArgonDevs.Zarak],
 
     settings,
 
     start() {
-        addMessageAccessory(ACCESSORY_ID, props => {
-            const accessories = getIframeAccessories(props.message);
-            if (!accessories || accessories.length === 0) return null;
-            return <>{accessories}</>;
+        for (const [event, handler] of Object.entries(fluxHandlers)) {
+            FluxDispatcher.subscribe(event as any, handler);
+        }
+
+        addMessageAccessory(ACCESSORY_ID, (props: { message: Message; }) => {
+            const parsedList = iframesByMessageId.get(props.message.id);
+            if (!parsedList || parsedList.length === 0) return null;
+
+            const allowlist = settings.store.allowedHosts.split(",");
+
+            return (
+                <>
+                    {parsedList.map((iframe, i) =>
+                        isAllowedHost(iframe.src, allowlist)
+                            ? <IframeEmbed key={i} {...iframe} />
+                            : <BlockedEmbed key={i} src={iframe.src} />
+                    )}
+                </>
+            );
         });
     },
 
     stop() {
+        for (const [event, handler] of Object.entries(fluxHandlers)) {
+            FluxDispatcher.unsubscribe(event as any, handler);
+        }
         removeMessageAccessory(ACCESSORY_ID);
+        iframesByMessageId.clear();
     },
 });
