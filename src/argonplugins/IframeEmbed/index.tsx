@@ -1,4 +1,4 @@
-import { addAccessory, removeAccessory } from "@api/MessageAccessories";
+import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
 import { definePluginSettings } from "@api/Settings";
 import { ArgonDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
@@ -127,11 +127,12 @@ function getIframeAccessories(message: Message) {
 export default definePlugin({
     name: "MessageIframes",
     description: "Renders <iframe> tags in message content as real embedded iframes",
-    authors: [ArgonDevs.Zarak],
+    authors: [ArgonDevs.Ven],
+
     settings,
 
     start() {
-        addAccessory(ACCESSORY_ID, props => {
+        addMessageAccessory(ACCESSORY_ID, props => {
             const accessories = getIframeAccessories(props.message);
             if (!accessories || accessories.length === 0) return null;
             return <>{accessories}</>;
@@ -139,6 +140,6 @@ export default definePlugin({
     },
 
     stop() {
-        removeAccessory(ACCESSORY_ID);
+        removeMessageAccessory(ACCESSORY_ID);
     },
 });
