@@ -93,7 +93,7 @@ pnpm test         # typecheck + lint
 pnpm lint:fix     # format and fix
 ```
 
-`pnpm test` never touches the network and never writes files, so it is safe in CI and before a commit.
+`pnpm test` runs the desktop build, the typecheck, lint, the formatters, the intl and patch linters and the plugin list generation. It never touches the network, so it is safe in CI and before a commit.
 
 ## Credits
 
