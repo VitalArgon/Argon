@@ -10,13 +10,13 @@ import { gitHashShort } from "@shared/vencordUserAgent";
 import { React } from "@webpack/common";
 import { JSX } from "react";
 
-import { ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, veilIcon, names, settings } from ".";
+import { ArgonIcon, ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, names, settings } from ".";
 
 export function makeDevBanner(state?: string): string | JSX.Element {
     const { RELEASE_CHANNEL, BUILD_NUMBER, VERSION_HASH } = window.GLOBAL_ENV;
     const buildChannel = names[RELEASE_CHANNEL] || RELEASE_CHANNEL.charAt(0).toUpperCase() + RELEASE_CHANNEL.slice(1);
     const { chromiumVersion, electronVersion, getVersionInfo } = SettingsPlugin;
-    const format = settings.store.format ?? "{devbannerIcon} {buildChannel} {buildNumber} ({buildHash}) | {veilIcon} {equicordName} {equicordVersion} ({equicordHash})";
+    const format = settings.store.format ?? "{devbannerIcon} {buildChannel} {buildNumber} ({buildHash}) | {argonIcon} {equicordName} {equicordVersion} ({equicordHash})";
     const baseFormat = state ?? format;
 
     const clientInfo = detectClient();
@@ -44,8 +44,8 @@ export function makeDevBanner(state?: string): string | JSX.Element {
         switch (part) {
             case "{discordIcon}":
                 return <span key={`icon-discord-${i}`} className="vc-discord-dev-banner-icons"><DiscordIcon /></span>;
-            case "{equicordIcon}":
-                return <span key={`icon-equicord-${i}`} className="vc-discord-dev-banner-icons"><EquicordIcon /></span>;
+            case "{argonIcon}":
+                return <span key={`icon-equicord-${i}`} className="vc-discord-dev-banner-icons"><ArgonIcon /></span>;
             case "{electronIcon}":
                 return <span key={`icon-electron-${i}`} className="vc-discord-dev-banner-icons"><ElectronIcon /></span>;
             case "{chromiumIcon}":

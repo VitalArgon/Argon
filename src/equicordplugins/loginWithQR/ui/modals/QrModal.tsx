@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
 import { QrCodeIcon } from "@components/Icons";
 import { wrapTab } from "@components/settings";
+import { Text } from "@components/Text";
 import loginWithQR from "@equicordplugins/loginWithQR";
 import { images } from "@equicordplugins/loginWithQR/images";
-import { findByPropsLazy } from "@webpack";
 import {
     RestAPI,
     useEffect,
@@ -17,7 +16,7 @@ import {
     useState,
 } from "@webpack/common";
 import jsQR, { QRCode } from "jsqr";
-import { MutableRefObject, ReactElement } from "react";
+import type { ReactElement, RefObject } from "react";
 
 import { cl, Spinner, SpinnerTypes } from "..";
 import openVerifyModal from "./VerifyModal";
@@ -43,7 +42,7 @@ interface QrModalProps {
         location?: QRCode["location"]
     ) => Promise<void>;
 }
-type QrModalPropsRef = MutableRefObject<QrModalProps>;
+type QrModalPropsRef = RefObject<QrModalProps>;
 
 const limitSize = (width: number, height: number) => {
     if (width > height) {
@@ -55,14 +54,11 @@ const limitSize = (width: number, height: number) => {
     }
 };
 
-const { getVideoDeviceId } = findByPropsLazy("getVideoDeviceId");
-
 const tokenRegex = /^https:\/\/discord\.com\/ra\/([\w-]+)$/;
 const verifyUrl = async (
     token: string,
     { current: modalProps }: QrModalPropsRef
 ) => {
-    // yay
     let handshake: string | null = null;
     try {
         const res = await RestAPI.post({
@@ -354,17 +350,17 @@ function QrModal() {
                 ) : state === LoginStateType.Loading ? (
                     <Spinner type={SpinnerTypes.WANDERING_CUBES} />
                 ) : error.current ? (
-                    <BaseText size="md" weight="semibold" color="text-danger">
+                    <Text size="md" weight="semibold" color="text-danger">
                         {error.current}
-                    </BaseText>
+                    </Text>
                 ) : (
                     <>
-                        <BaseText size="md" weight="semibold" color="text-strong">
+                        <Text size="md" weight="semibold" color="text-strong">
                             Drag and drop an image here, or click to select an image
-                        </BaseText>
-                        <BaseText size="sm" weight="medium" color="text-muted">
+                        </Text>
+                        <Text size="sm" weight="medium" color="text-muted">
                             Or paste an image from your clipboard!
-                        </BaseText>
+                        </Text>
                         <br />
                         <QrCodeIcon />
                     </>

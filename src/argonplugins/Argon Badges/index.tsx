@@ -1,5 +1,11 @@
-import definePlugin, { OptionType } from "@utils/types";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { ArgonDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
 
 type Badge = {
   id: string;
@@ -70,7 +76,7 @@ class CustomBadges {
       } catch {}
     }
     this.abortController = new AbortController();
-    const signal = this.abortController.signal;
+    const { signal } = this.abortController;
 
     try {
       const res = await fetch(this.BADGE_DATA_URL, { cache: "no-store", signal });
@@ -157,21 +163,21 @@ class CustomBadges {
 
   private startImageFixerObserver() {
     try {
-      document.querySelectorAll(BADGE_IMG_SELECTOR).forEach((el) => {
+      document.querySelectorAll(BADGE_IMG_SELECTOR).forEach(el => {
         if (el instanceof HTMLImageElement) this.tryFixImage(el);
       });
     } catch (e) {}
 
     if (this.observer) return;
 
-    this.observer = new MutationObserver((mutations) => {
+    this.observer = new MutationObserver(mutations => {
       for (const mut of mutations) {
-        mut.addedNodes.forEach((node) => {
+        mut.addedNodes.forEach(node => {
           if (node.nodeType !== Node.ELEMENT_NODE) return;
           const el = node as Element;
           try {
             if (el.matches?.(BADGE_IMG_SELECTOR) && el instanceof HTMLImageElement) this.tryFixImage(el as HTMLImageElement);
-            el.querySelectorAll?.(BADGE_IMG_SELECTOR).forEach((child) => {
+            el.querySelectorAll?.(BADGE_IMG_SELECTOR).forEach(child => {
               if (child instanceof HTMLImageElement) this.tryFixImage(child);
             });
           } catch {}

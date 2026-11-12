@@ -7,9 +7,9 @@
 import "./tidalStyles.css";
 
 import { Settings } from "@api/Settings";
-import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
 import { ImageIcon, LinkIcon, OpenExternalIcon } from "@components/Icons";
+import { Text } from "@components/Text";
 import { SeekBar } from "@equicordplugins/musicControls/spotify/SeekBar";
 import { debounce } from "@shared/debounce";
 import { copyWithToast, openImageModal } from "@utils/discord";
@@ -82,6 +82,7 @@ function CopyContextMenu({ name, path }: { name: string; path: string; }) {
                 label={`Copy ${name} Link`}
                 action={() => copyWithToast(path.replace("http://", "https://"))}
                 icon={LinkIcon}
+                leadingAccessory={{ type: "icon", icon: LinkIcon }}
             />
             <Menu.MenuItem
                 key={openId}
@@ -89,6 +90,7 @@ function CopyContextMenu({ name, path }: { name: string; path: string; }) {
                 label={`Open ${name} in Tidal`}
                 action={() => TidalStore.openExternal(path)}
                 icon={OpenExternalIcon}
+                leadingAccessory={{ type: "icon", icon: OpenExternalIcon }}
             />
         </Menu.Menu>
     );
@@ -181,14 +183,14 @@ function TdlSeekBar() {
 
     return (
         <div id={cl("progress-bar")}>
-            <BaseText
+            <Text
                 size="xs"
                 weight="medium"
                 className={`${cl("progress-time")} ${cl("time-left")}`}
                 aria-label="Progress"
             >
                 {msToHuman(position)}
-            </BaseText>
+            </Text>
             <SeekBar
                 initialValue={position}
                 minValue={0}
@@ -197,14 +199,14 @@ function TdlSeekBar() {
                 asValueChanges={onChange}
                 onValueRender={msToHuman}
             />
-            <BaseText
+            <Text
                 size="xs"
                 weight="medium"
                 className={`${cl("progress-time")} ${cl("time-right")}`}
                 aria-label="Total Duration"
             >
                 {msToHuman(songDuration * 1000)}
-            </BaseText>
+            </Text>
         </div>
     );
 }
@@ -222,6 +224,7 @@ function AlbumContextMenu({ track }: { track: PlayerState["track"]; }) {
                 label="View Album Cover"
                 action={() => track?.imageSrc && openImageModal({ url: track.imageSrc })}
                 icon={ImageIcon}
+                leadingAccessory={{ type: "icon", icon: ImageIcon }}
             />
             <Menu.MenuControlItem
                 id="tdl-volume"
@@ -283,7 +286,7 @@ function Info({ track }: { track: NonNullable<PlayerState["track"]>; }) {
         <div id={cl("info-wrapper")}>
             {i}
             <div id={cl("titles")}>
-                <BaseText
+                <Text
                     size="sm"
                     weight="semibold"
                     id={cl("song-title")}
@@ -292,17 +295,17 @@ function Info({ track }: { track: NonNullable<PlayerState["track"]>; }) {
                     {...makeLinkProps(`"${track.name}"`, track?.id, track?.url || `https://tidal.com/track/${track?.id}`)}
                 >
                     {track?.name}
-                </BaseText>
+                </Text>
                 {track.artist && (
-                    <BaseText size="sm" className={cl("ellipoverflow")}>
+                    <Text size="sm" className={cl("ellipoverflow")}>
                         by&nbsp;
                         <span className={cl("artist")} style={{ fontSize: "inherit" }} title={track.artist}>
                             {track.artist}
                         </span>
-                    </BaseText>
+                    </Text>
                 )}
                 {track.album && (
-                    <BaseText size="sm" className={cl("ellipoverflow")}>
+                    <Text size="sm" className={cl("ellipoverflow")}>
                         on&nbsp;
                         <span
                             id={cl("album-title")}
@@ -312,7 +315,7 @@ function Info({ track }: { track: NonNullable<PlayerState["track"]>; }) {
                         >
                             {track.album}
                         </span>
-                    </BaseText>
+                    </Text>
                 )}
             </div>
         </div>

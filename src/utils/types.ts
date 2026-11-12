@@ -1,26 +1,13 @@
 /*
- * Vencord, a modification for Discord's desktop app
- * Copyright (c) 2022 Vendicated and contributors
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import { AudioProcessor } from "@api/AudioPlayer";
 import type { ProfileBadge } from "@api/Badges";
 import type { ChatBarButtonData, ChatBarButtonWrapperData } from "@api/ChatButtons";
 import type { NavContextMenuPatchCallback } from "@api/ContextMenu";
-import type { GifPickerContextMenuItemFactory } from "@api/GifPickerContextMenu";
 import { HeaderBarButtonData } from "@api/HeaderBar";
 import type { MemberListDecoratorFactory } from "@api/MemberListDecorators";
 import type { MessageAccessoryFactory } from "@api/MessageAccessories";
@@ -240,7 +227,6 @@ export interface PluginDef {
     renderProfileCollection?: ProfileCollectionData;
     chatBarButtonWrapper?: ChatBarButtonWrapperData;
     renderProfileSection?: ProfileSectionData;
-    gifPickerContextMenu?: GifPickerContextMenuItemFactory;
 
     /**
      * A Vencord plugin that is modified for extra features in Equicord
@@ -248,9 +234,9 @@ export interface PluginDef {
     isModified?: boolean;
 
     /**
-     * An Equicord plugin that has been further modified by Veil
+     * An Equicord plugin that has been further modified by Argon
      */
-    isVeilModified?: boolean;
+    isArgonModified?: boolean;
 }
 
 export const enum StartAt {
@@ -343,10 +329,18 @@ export interface PluginSettingStringDef extends PluginSettingDefCommon {
 export interface PluginSettingNumberDef extends PluginSettingDefCommon {
     type: OptionType.NUMBER;
     default?: number;
+    /** The minimum allowed value (inclusive) */
+    min?: number;
+    /** The maximum allowed value (inclusive) */
+    max?: number;
 }
 export interface PluginSettingBigIntDef extends PluginSettingDefCommon {
     type: OptionType.BIGINT;
     default?: BigInt;
+    /** The minimum allowed value (inclusive) */
+    min?: bigint;
+    /** The maximum allowed value (inclusive) */
+    max?: bigint;
 }
 export interface PluginSettingBooleanDef extends PluginSettingDefCommon {
     type: OptionType.BOOLEAN;

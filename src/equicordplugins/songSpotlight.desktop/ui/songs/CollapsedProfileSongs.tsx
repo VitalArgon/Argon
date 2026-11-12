@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/index";
+import { Text } from "@components/Text";
 import { Native } from "@equicordplugins/songSpotlight.desktop/service";
 import {
     ContainerClasses,
@@ -16,14 +16,14 @@ import {
 import { RenderSongInfo } from "@song-spotlight/api/handlers";
 import { UserData } from "@song-spotlight/api/structs";
 import { sid } from "@song-spotlight/api/util";
-import { classes } from "@utils/index";
+import { classes } from "@utils/misc";
 import { User } from "@vencord/discord-types";
 import {
+    openUserProfileModal,
     SelectedChannelStore,
     SelectedGuildStore,
     useEffect,
     useMemo,
-    UserProfileActions,
     UserStore,
     useState,
 } from "@webpack/common";
@@ -34,9 +34,10 @@ interface CollapsedProfileSongsProps {
     data?: UserData;
     user: User;
     isSideBar: boolean;
+    isRedesignEnabled?: boolean;
 }
 
-export default function CollapsedProfileSongs({ data, user, isSideBar }: CollapsedProfileSongsProps) {
+export default function CollapsedProfileSongs({ data, user, isSideBar, isRedesignEnabled = false }: CollapsedProfileSongsProps) {
     const [renders, setRenders] = useState(new Map<string, RenderSongInfo>());
     const previews = useMemo(() => data?.slice(0, shownSongs), [data]);
     const userId = user?.id;
@@ -69,20 +70,20 @@ export default function CollapsedProfileSongs({ data, user, isSideBar }: Collaps
                             if (!user) return;
 
                             const guildId = SelectedGuildStore.getGuildId();
-                            UserProfileActions.openUserProfileModal({
+                            openUserProfileModal({
                                 userId,
                                 guildId,
                                 channelId: SelectedChannelStore.getChannelId(),
-                                analyticsLocation: {
-                                    page: guildId ? "Guild Channel" : "DM Channel",
-                                    section: "Profile Popout",
-                                },
+                                sourceAnalyticsLocations: [
+                                    "username",
+                                    "user profile popout",
+                                ],
                                 tabSection: "SONG_SPOTLIGHT",
                             });
                         }}
                     >
                         <div className={classes(OverlayClasses.overlay, ContainerClasses.innerContainer, ProfileCardClasses.card)}>
-                            <BaseText size={isSideBar ? "sm" : "xs"} weight="medium">Song Spotlight</BaseText>
+                            <Text size={isSideBar ? "sm" : "xs"} weight="medium">Song Spotlight</Text>
                             <div className={ContainerClasses.icons}>
                                 {previews && data
                                     ? previews.map((song, i) => {
@@ -100,7 +101,7 @@ export default function CollapsedProfileSongs({ data, user, isSideBar }: Collaps
                                                 )}
                                                 {extra && (
                                                     <div className={ContainerClasses.displayCountText}>
-                                                        <BaseText size={isSideBar ? "sm" : "xs"} weight="medium">+{data.length - shownSongs}</BaseText>
+                                                        <Text size={isSideBar ? "sm" : "xs"} weight="medium">+{data.length - shownSongs}</Text>
                                                     </div>
                                                 )}
                                             </div>
@@ -115,7 +116,7 @@ export default function CollapsedProfileSongs({ data, user, isSideBar }: Collaps
         </section>
     );
 
-    return isSideBar
+    return isSideBar && !isRedesignEnabled
         ? <div className={DMSideBarClasses.widgetPreviews}>{songsSection}</div>
         : songsSection;
 }

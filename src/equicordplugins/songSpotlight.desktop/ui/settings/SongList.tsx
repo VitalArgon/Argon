@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
 import { LinkIcon } from "@components/Icons";
 import { Link } from "@components/Link";
+import { Text } from "@components/Text";
 import { apiConstants } from "@equicordplugins/songSpotlight.desktop/lib/api";
 import { cl } from "@equicordplugins/songSpotlight.desktop/lib/utils";
 import { useRender } from "@equicordplugins/songSpotlight.desktop/service";
@@ -68,6 +68,7 @@ function EditableSong({ index, song, insert, setSongRef, onDrag, onDrop, onRemov
                             id="copy-link"
                             label="Copy link"
                             icon={LinkIcon}
+                            leadingAccessory={{ type: "icon", icon: LinkIcon }}
                             action={() => render && copyWithToast(render.link)}
                             disabled={!render}
                         />
@@ -76,6 +77,7 @@ function EditableSong({ index, song, insert, setSongRef, onDrag, onDrop, onRemov
                             color="danger"
                             label="Remove song"
                             icon={TrashIcon}
+                            leadingAccessory={{ type: "icon", icon: TrashIcon }}
                             action={() => onRemove(song)}
                         />
                     </Menu.Menu>
@@ -92,15 +94,15 @@ function EditableSong({ index, song, insert, setSongRef, onDrag, onDrop, onRemov
             <Flex alignItems="center" gap="12px" className={cl("editable-song")}>
                 <ServiceIcon width={28} height={28} service={song.service} />
                 {failed
-                    ? <BaseText size="md" weight="normal" className={cl("errored")}>Failed to load!</BaseText>
+                    ? <Text size="md" weight="normal" className={cl("errored")}>Failed to load!</Text>
                     : (
                         <Flex flexDirection="column" justifyContent="center" gap={0}>
-                            <BaseText size="md" weight="medium" className={cl("clamped")}>
+                            <Text size="md" weight="medium" className={cl("clamped")}>
                                 {render ? render.label : "..."}
-                            </BaseText>
-                            <BaseText size="sm" weight="normal" className={cl("clamped", "sub")}>
+                            </Text>
+                            <Text size="sm" weight="normal" className={cl("clamped", "sub")}>
                                 {render ? render.sublabel : "..."}
-                            </BaseText>
+                            </Text>
                         </Flex>
                     )}
             </Flex>
@@ -194,7 +196,7 @@ export default function SongList({ localData, setLocalData }: SongListProps) {
         if (localData.length >= apiConstants.songLimit) return "Not enough space";
         if (localData.some(x => sid(x) === sid(song))) return "You've already added this song";
 
-        showToast("Added song!");
+        showToast({ text: "Added song!" });
         setLocalData([
             ...localData,
             song,
@@ -205,7 +207,7 @@ export default function SongList({ localData, setLocalData }: SongListProps) {
         const i = localData.indexOf(song);
         if (i === -1) return;
 
-        showToast("Removed song!");
+        showToast({ text: "Removed song!" });
         setLocalData(localData.toSpliced(i, 1));
     }, [localData]);
 

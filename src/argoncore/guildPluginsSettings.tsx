@@ -1,6 +1,13 @@
-import { useEffect, useState, GuildStore } from "@webpack/common";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import { GuildStore,useEffect, useState } from "@webpack/common";
+
+import { isUserOptedIn,setUserOptIn } from "./guildPluginManager";
 import { getEntryForGuild, GuildManifestEntry } from "./manifestSource";
-import { setUserOptIn, isUserOptedIn } from "./guildPluginManager";
 
 export default function GuildPluginsSettings() {
     const relevantEntries: GuildManifestEntry[] = Object.values(GuildStore.getGuilds())

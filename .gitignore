@@ -35,3 +35,12 @@ ExtensionCache/
 
 # wakatime related stuff
 .wakatime-project
+
+# discord modules cache
+misc/bundle
+
+# intl scripts
+misc/scripts
+
+# tunnel binary downloaded by the dev server script
+cloudflared

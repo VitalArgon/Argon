@@ -20,14 +20,29 @@ const GIFT_LINK_REGEX = /(?:discord\.gift\/|discord\.com\/gifts?\/)([a-zA-Z0-9]{
 const logger = new Logger("NitroSniper");
 const GiftActions = findByPropsLazy("redeemGiftCode");
 
+/** How long a redeem may stay silent before the queue moves on. */
+const CLAIM_TIMEOUT_MS = 30_000;
+
 let startTime = 0;
 let claiming = false;
+let claimTimer: ReturnType<typeof setTimeout> | undefined;
 const claimQueue: ClaimRequest[] = [];
+/** Codes already seen this session, so a duplicated message cannot be queued twice. */
+const handledCodes = new Set<string>();
 
 function resetState() {
     startTime = Date.now();
     claimQueue.length = 0;
+    handledCodes.clear();
     claiming = false;
+    stopClaimTimer();
+}
+
+function stopClaimTimer() {
+    if (claimTimer !== undefined) {
+        clearTimeout(claimTimer);
+        claimTimer = undefined;
+    }
 }
 
 function toError(error: unknown) {
@@ -83,6 +98,7 @@ function notifyClaim(result: WebhookResult, request: ClaimRequest, giftType: str
 }
 
 function continueQueue() {
+    stopClaimTimer();
     claiming = false;
     processQueue();
 }
@@ -106,6 +122,15 @@ function processQueue() {
     if (!request) return;
 
     claiming = true;
+
+    // A code that never calls back would otherwise leave `claiming` stuck true
+    // and kill the queue for the rest of the session.
+    stopClaimTimer();
+    claimTimer = setTimeout(() => {
+        logger.warn(`No response after ${CLAIM_TIMEOUT_MS}ms for ${request.code}, moving on`);
+        continueQueue();
+    }, CLAIM_TIMEOUT_MS);
+
     const giftType = settings.store.webhookUrl.trim()
         ? resolveGiftType(request.code)
         : Promise.resolve(null);
@@ -137,8 +162,9 @@ export default definePlugin({
             if (!message.content || shouldSkipMessage(message) || isMessageOlderThanStart(message)) return;
 
             const request = createClaimRequest(message);
-            if (!request) return;
+            if (!request || handledCodes.has(request.code)) return;
 
+            handledCodes.add(request.code);
             claimQueue.push(request);
             processQueue();
         }

@@ -1,8 +1,14 @@
-import definePlugin, { OptionType } from "@utils/types";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { definePluginSettings } from "@api/Settings";
-import { FluxDispatcher } from "@webpack/common";
 import { ArgonDevs } from "@utils/constants";
+import definePlugin, { OptionType } from "@utils/types";
 import { Activity } from "@vencord/discord-types";
+import { FluxDispatcher } from "@webpack/common";
 
 export const settings = definePluginSettings({
     lyricsPrefix: {
@@ -74,7 +80,7 @@ function getPrefixSetting(): string {
 
 function getTargetFieldSetting(): "state" | "details" {
     try {
-        return settings.store.targetField ?? "state";
+        return (settings.store.targetField ?? "state") as "state" | "details";
     } catch {
         return "state";
     }

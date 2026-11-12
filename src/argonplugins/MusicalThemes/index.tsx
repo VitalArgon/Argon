@@ -1,7 +1,14 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { definePluginSettings } from "@api/Settings";
 import { ArgonDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { createStyleInjector, createLogger, subscribeFlux } from "../ArgonCoreAPI";
+
+import { createLogger, createStyleInjector, subscribeFlux } from "../ArgonCoreAPI";
 
 interface Activity {
     type: number;
@@ -93,7 +100,7 @@ async function vibrantColorFromUrl(
             if (!ctx) { reject(new Error("No canvas context")); return; }
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const pixels: [number, number, number][] = [];
             const skippedPixels: [number, number, number][] = [];
 

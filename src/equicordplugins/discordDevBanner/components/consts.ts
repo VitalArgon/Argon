@@ -13,7 +13,7 @@ export const settings = definePluginSettings({
     format: {
         component: ({ setValue }) => FormatSetting(setValue),
         type: OptionType.COMPONENT,
-        default: "{veilIcon} Veil {equicordVersion} ({equicordHash})",
+        default: "{argonIcon} Argon {equicordVersion} ({equicordHash})",
         restartNeeded: true
     }
 });
@@ -33,11 +33,11 @@ export const settingVariables = [
     "{buildNumber} - Discord build number (e.g. 123456)",
     "{buildHash} - Discord build hash (e.g. 123456789)",
     "",
-    "Veil Variables:",
-    "{veilIcon} - Veil icon",
-    "{equicordVersion} - Version of Veil (e.g. 1.0.0)",
-    "{equicordHash} - Veil build hash (e.g. 123456789)",
-    "{equicordPlatform} - Platform Veil is running on (e.g. Dev Build)",
+    "Argon Variables:",
+    "{argonIcon} - Argon icon",
+    "{equicordVersion} - Version of Argon (e.g. 1.0.0)",
+    "{equicordHash} - Argon build hash (e.g. 123456789)",
+    "{equicordPlatform} - Platform Argon is running on (e.g. Dev Build)",
     "",
     "Equibop Specific Variables:",
     "{equibopHash} - Equibop build hash (e.g. 123456789)",

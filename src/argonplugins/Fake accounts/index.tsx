@@ -5,10 +5,13 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
+import { Button } from "@components/Button";
+import { Heading } from "@components/Heading";
+import { Paragraph } from "@components/Paragraph";
 import definePlugin, { OptionType } from "@utils/types";
+import { RenderModalProps } from "@vencord/discord-types";
 import { findByPropsLazy, waitFor } from "@webpack";
-import { Button, Forms, React, RestAPI, TextInput, Toasts } from "@webpack/common";
+import { Modal, openModal, React, RestAPI, showToast, TextInput } from "@webpack/common";
 
 const UserStore = findByPropsLazy("getCurrentUser", "getUser");
 const GuildStore = findByPropsLazy("getGuilds", "getGuildCount");
@@ -110,12 +113,7 @@ export function activateFakeSession(acc: FakeAccount) {
 
     const fakeUser = buildUserObject(acc);
     if (!fakeUser) {
-        Toasts.show({
-            message: "Failed to build user object, try again.",
-            id: "fakeaccount-notready",
-            type: Toasts.Type.FAILURE,
-            options: { position: Toasts.Position.BOTTOM }
-        });
+        showToast({ text: "Failed to build user object, try again.", variant: "critical" });
         return;
     }
 
@@ -165,12 +163,7 @@ export function activateFakeSession(acc: FakeAccount) {
     _originals.getRelationshipType = RelationshipStore.getRelationshipType.bind(RelationshipStore);
     RelationshipStore.getRelationshipType = () => 0;
 
-    Toasts.show({
-        message: `Switched to ${acc.username}`,
-        id: "fakeaccount-switch",
-        type: Toasts.Type.SUCCESS,
-        options: { position: Toasts.Position.BOTTOM }
-    });
+    showToast({ text: `Switched to ${acc.username}`, variant: "success" });
 }
 
 export function deactivateFakeSession() {
@@ -198,12 +191,7 @@ export function deactivateFakeSession() {
     _fakeSessionActive = false;
     _fakeSessionUser = null;
 
-    Toasts.show({
-        message: "Switched back to real account",
-        id: "fakeaccount-restore",
-        type: Toasts.Type.SUCCESS,
-        options: { position: Toasts.Position.BOTTOM }
-    });
+    showToast({ text: "Switched back to real account", variant: "success" });
 }
 
 function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
@@ -223,7 +211,7 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const fetchAndAdd = async () => {
         if (!userId.trim()) return;
         if (accounts.some(a => a.id === userId.trim())) {
-            Toasts.show({ message: "Already added!", id: "fa-dupe", type: Toasts.Type.FAILURE, options: { position: Toasts.Position.BOTTOM } });
+            showToast({ text: "Already added!", variant: "critical" });
             return;
         }
         setLoading(true);
@@ -238,9 +226,9 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                 globalName: u.global_name ?? u.username,
             }]);
             setUserId("");
-            Toasts.show({ message: `Added ${u.username}!`, id: "fa-add", type: Toasts.Type.SUCCESS, options: { position: Toasts.Position.BOTTOM } });
+            showToast({ text: `Added ${u.username}!`, variant: "success" });
         } catch {
-            Toasts.show({ message: "Failed to fetch user. Check the ID.", id: "fa-fail", type: Toasts.Type.FAILURE, options: { position: Toasts.Position.BOTTOM } });
+            showToast({ text: "Failed to fetch user. Check the ID.", variant: "critical" });
         }
         setLoading(false);
     };
@@ -260,32 +248,31 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-
-            {/* ── Header ── */}
-<ModalHeader separator>
-    <svg
+        <Modal
+            {...modalProps}
+            size="md"
+            title={
+                <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <svg
         width="18"
         height="18"
         viewBox="0 0 24 24"
         fill="currentColor"
         style={{ marginRight: "8px", flexShrink: 0, color: "var(--interactive-normal)" }}
     >
-        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5.33 0-8 2.67-8 4v1h16v-1c0-1.33-2.67-4-8-4z"/>
-    </svg>
-    <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>
-        Fake Accounts
-        {_fakeSessionActive && (
-            <span style={{ color: "var(--status-danger)", fontSize: "12px", marginLeft: "8px" }}>
-                ● Active as {_fakeSessionUser?.username}
-            </span>
-        )}
-    </Forms.FormTitle>
-    <ModalCloseButton onClick={modalProps.onClose} />
-</ModalHeader>
-            {/* ── Body ── */}
-            <ModalContent>
-                <div style={{ padding: "16px" }}>
+                        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-5.33 0-8 2.67-8 4v1h16v-1c0-1.33-2.67-4-8-4z" />
+                    </svg>
+                    Fake Accounts
+                </span>
+            }
+            subtitle={
+                _fakeSessionActive
+                    ? <span style={{ color: "var(--status-danger)" }}>● Active as {_fakeSessionUser?.username}</span>
+                    : undefined
+            }
+            actions={[{ text: "Close", variant: "secondary", onClick: modalProps.onClose }]}
+        >
+            <div style={{ padding: "16px" }}>
 
                     {/* Tab bar row */}
                     <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
@@ -302,8 +289,8 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
                         {_fakeSessionActive && (
                             <Button
-                                size={Button.Sizes.SMALL}
-                                color={Button.Colors.RED}
+                                size="small"
+                                variant="dangerPrimary"
                                 style={{ marginLeft: "12px", flexShrink: 0 }}
                                 onClick={() => { deactivateFakeSession(); setActiveId(null); }}
                             >
@@ -323,8 +310,7 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 />
                             </div>
                             <Button
-                                size={Button.Sizes.MEDIUM}
-                                color={Button.Colors.GREEN}
+                                variant="positive"
                                 disabled={loading || !userId.trim()}
                                 onClick={fetchAndAdd}
                             >
@@ -351,8 +337,7 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 />
                             </div>
                             <Button
-                                size={Button.Sizes.MEDIUM}
-                                color={Button.Colors.GREEN}
+                                variant="positive"
                                 disabled={!manualUsername.trim()}
                                 onClick={addManual}
                             >
@@ -362,12 +347,12 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     )}
 
                     {/* Account list */}
-                    <Forms.FormTitle tag="h5">Fake Accounts ({accounts.length})</Forms.FormTitle>
+                    <Heading tag="h5">Fake Accounts ({accounts.length})</Heading>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "300px", overflowY: "auto" }}>
                         {accounts.length === 0 && (
-                            <Forms.FormText style={{ padding: "8px 0" }}>
+                            <Paragraph style={{ padding: "8px 0" }}>
                                 No fake accounts added yet.
-                            </Forms.FormText>
+                            </Paragraph>
                         )}
                         {accounts.map(acc => {
                             const isActive = activeId === acc.id;
@@ -405,8 +390,8 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                         </div>
                                     </div>
                                     <Button
-                                        size={Button.Sizes.SMALL}
-                                        color={isActive ? Button.Colors.RED : Button.Colors.BRAND}
+                                        size="small"
+                                        variant={isActive ? "dangerPrimary" : "primary"}
                                         onClick={() => {
                                             if (isActive) {
                                                 deactivateFakeSession();
@@ -420,8 +405,8 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                         {isActive ? "Exit" : "Switch"}
                                     </Button>
                                     <Button
-                                        size={Button.Sizes.SMALL}
-                                        color={Button.Colors.RED}
+                                        size="small"
+                                        variant="dangerSecondary"
                                         onClick={() => {
                                             if (isActive) { deactivateFakeSession(); setActiveId(null); }
                                             updateAccounts(accounts.filter(a => a.id !== acc.id));
@@ -433,20 +418,8 @@ function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             );
                         })}
                     </div>
-                </div>
-            </ModalContent>
-
-            {/* ── Footer ── */}
-            <ModalFooter>
-                <Button
-                    color={Button.Colors.TRANSPARENT}
-                    look={Button.Looks.FILLED}
-                    onClick={modalProps.onClose}
-                >
-                    Close
-                </Button>
-            </ModalFooter>
-        </ModalRoot>
+            </div>
+        </Modal>
     );
 }
 

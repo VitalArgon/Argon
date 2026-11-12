@@ -6,11 +6,10 @@
 
 import { pluginRequiresRestart, startPlugin, stopPlugin } from "@api/PluginManager";
 import { useSettings } from "@api/Settings";
-import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { CheckedTextInput } from "@components/CheckedTextInput";
-import { HeadingTertiary } from "@components/Heading";
+import { Heading } from "@components/Heading";
 import { DeleteIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
 import { AddonCard } from "@components/settings";
@@ -18,9 +17,10 @@ import {
     SettingsTab as STab,
     wrapTab,
 } from "@components/settings/tabs/BaseTab";
+import { Text } from "@components/Text";
 import { classes, isObjectEmpty } from "@utils/misc";
 import { relaunch } from "@utils/native";
-import { Alerts, closeAllModals,NavigationRouter, Toasts, useEffect, useState } from "@webpack/common";
+import { Alerts, closeAllModals, NavigationRouter, showToast,useEffect, useState } from "@webpack/common";
 
 import userpluginInstaller, { Native } from "..";
 import {
@@ -84,15 +84,15 @@ function UserPluginsTab() {
             <div className={cl("update-check-container")}>
                 {isObjectEmpty(pluginsWithUpdates) ? (
                     !updatesLoaded && (
-                        <BaseText>Checking for updates...</BaseText>
+                        <Text>Checking for updates...</Text>
                     )
                 ) : (
                     <Card
                         className={classes(cl("info-card"), "vc-warning-card")}
                     >
-                        <HeadingTertiary className={cl("install-title")}>
+                        <Heading tag="h4" className={cl("install-title")}>
                             Plugin Updates Available
-                        </HeadingTertiary>
+                        </Heading>
                         <Paragraph className={cl("install-desc")}>
                             The following plugins are out-of-date:
                             <ul className={cl("outdated-list")}>
@@ -110,9 +110,9 @@ function UserPluginsTab() {
                 )}
             </div>
             <Card className={cl("info-card")}>
-                <HeadingTertiary className={cl("install-title")}>
+                <Heading tag="h4" className={cl("install-title")}>
                     Install Plugin
-                </HeadingTertiary>
+                </Heading>
                 <Paragraph className={cl("install-desc")}>
                     You can install a plugin from GitHub, GitLab, Codeberg,
                     git.nin0.dev, or plugins.nin0.dev by pasting its clone URL
@@ -236,11 +236,7 @@ function UserPluginsTab() {
                                     setEnabled={t => {
                                         Vencord.Settings.plugins[pl.name].enabled = t;
                                         if (pluginRequiresRestart(pl)) {
-                                            Toasts.show({
-                                                id: Toasts.genId(),
-                                                message: "Restart to apply changes!",
-                                                type: Toasts.Type.MESSAGE
-                                            });
+                                            showToast({ text: "Restart to apply changes!" });
                                         } else {
                                             (t ? startPlugin : stopPlugin)(pl);
                                         }
@@ -329,7 +325,7 @@ function UserPluginsTab() {
                             })}
                     </div>
                 ) : (
-                    <BaseText>Loading plugins...</BaseText>
+                    <Text>Loading plugins...</Text>
                 )}
             </div>
         </STab>

@@ -1,26 +1,15 @@
 /*
- * Vencord, a modification for Discord's desktop app
- * Copyright (c) 2023 Vendicated and contributors
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { Dirent, readdirSync, readFileSync, writeFileSync } from "fs";
+import { PluginTarget, PluginTargets } from "@utils/pluginTargets";
+import { Dirent, readFileSync } from "fs";
 import { access, readFile } from "fs/promises";
 import { join, sep } from "path";
 import { normalize as posixNormalize, sep as posixSep } from "path/posix";
-import { BigIntLiteral, createSourceFile, Identifier, isArrayLiteralExpression, isCallExpression, isExportAssignment, isIdentifier, isObjectLiteralExpression, isPropertyAccessExpression, isPropertyAssignment, isSatisfiesExpression, isStringLiteral, isVariableStatement, NodeArray, NamedDeclaration, ObjectLiteralExpression, PropertyAssignment, ScriptTarget, StringLiteral, SyntaxKind } from "typescript";
+import { BigIntLiteral, createSourceFile, Identifier, isArrayLiteralExpression, isCallExpression, isExportAssignment, isIdentifier, isObjectLiteralExpression, isPropertyAccessExpression, isPropertyAssignment, isSatisfiesExpression, isStringLiteral, isVariableStatement, NamedDeclaration, NodeArray, ObjectLiteralExpression, PropertyAssignment, ScriptTarget, StringLiteral, SyntaxKind } from "typescript";
 
 import { getPluginTarget } from "./utils.mjs";
 
@@ -46,11 +35,11 @@ export interface PluginData {
     commands: Command[];
     required: boolean;
     enabledByDefault: boolean;
-    target: "discordDesktop" | "vesktop" | "equibop" | "desktop" | "web" | "browser" | "dev";
+    target?: PluginTarget;
     filePath: string;
     dirName: string;
     isModified: boolean;
-    isVeilModified: boolean;
+    isArgonModified: boolean;
 }
 
 export const devs = {} as Record<string, Dev>;
@@ -154,7 +143,7 @@ export async function parseFile(fileName: string) {
             enabledByDefault: false,
             required: false,
             isModified: false,
-            isVeilModified: false,
+            isArgonModified: false,
             tags: [] as string[],
             searchTerms: [] as string[],
         } as PluginData;
@@ -175,7 +164,7 @@ export async function parseFile(fileName: string) {
                 case "commands":
                     data.hasCommands = true;
                     if (isArrayLiteralExpression(value)) {
-                        data.commands = value.elements.map((e) => {
+                        data.commands = value.elements.map(e => {
                             if (isObjectLiteralExpression(e)) {
                                 const nameProperty = e.properties.find((p): p is PropertyAssignment =>
                                     isPropertyAssignment(p) && isIdentifier(p.name) && p.name.escapedText === "name"
@@ -227,7 +216,7 @@ export async function parseFile(fileName: string) {
                     break;
                 case "required":
                 case "isModified":
-                case "isVeilModified":
+                case "isArgonModified":
                 case "enabledByDefault":
                     data[key] = value.kind === SyntaxKind.TrueKeyword;
                     break;
@@ -238,7 +227,7 @@ export async function parseFile(fileName: string) {
 
         const target = getPluginTarget(fileName);
         if (target) {
-            if (!["web", "browser", "discordDesktop", "vesktop", "equibop", "desktop", "dev"].includes(target)) throw fail(`invalid target ${target}`);
+            if (!PluginTargets.includes(target as PluginTarget)) throw fail(`invalid target ${target}`);
             data.target = target as any;
         }
 

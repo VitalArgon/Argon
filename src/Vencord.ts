@@ -20,6 +20,8 @@
 import "~plugins";
 import "./fixWeirdAppRegionBug.css";
 
+import nativeTitleBarStyles from "./nativeTitleBar.css?managed";
+
 export * as Api from "./api";
 export * as Plugins from "./api/PluginManager";
 export * as Components from "./components";
@@ -29,22 +31,20 @@ export * as Webpack from "./webpack";
 export * as WebpackPatcher from "./webpack/patchWebpack";
 export { PlainSettings, Settings };
 
-import { coreStyleRootNode, initStyles } from "@api/Styles";
+import { enableStyle, initStyles } from "@api/Styles";
 import { openSettingsTabModal, UpdaterTab } from "@components/settings";
 import { debounce } from "@shared/debounce";
-import { IS_WINDOWS } from "@utils/constants";
-import { createAndAppendStyle } from "@utils/css";
 import { StartAt } from "@utils/types";
 import { SettingsRouter } from "@webpack/common";
 
 import { get as dsGet } from "./api/DataStore";
-import { popNotice, showNotice } from "./api/Notices";
-import { NotificationData, showNotification } from "./api/Notifications";
+import { showNotice } from "./api/Notices";
+import { showNotification } from "./api/Notifications";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
-import { checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
+import { checkForUpdates, update, UpdateLogger } from "./utils/updater";
 import { onceReady } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
@@ -80,7 +80,8 @@ async function syncSettings() {
             body: "We've noticed you have cloud integrations enabled in another client! Due to limitations, you will " +
                 "need to re-authenticate to continue using them. Click here to go to the settings page to do so!",
             color: "var(--yellow-360)",
-            onClick: () => SettingsRouter.openUserSettings("equicord_cloud_panel")
+            onClick: () => SettingsRouter.openUserSettings("equicord_cloud_panel"),
+            noPersist: true
         });
         return;
     }
@@ -123,20 +124,8 @@ let notifiedForUpdatesThisSession = false;
 async function runUpdateCheck() {
     if (IS_UPDATER_DISABLED) return;
 
-    const notify = (data: NotificationData) => {
-        if (notifiedForUpdatesThisSession) return;
-        notifiedForUpdatesThisSession = true;
-
-        setTimeout(() => showNotification({
-            permanent: true,
-            noPersist: true,
-            ...data
-        }), 10_000);
-    };
-
     try {
         const isOutdated = await checkForUpdates();
-        if (IS_DISCORD_DESKTOP) VencordNative.tray.setUpdateState(isOutdated);
         if (!isOutdated) return;
 
         if (Settings.autoUpdate) {
@@ -146,7 +135,7 @@ async function runUpdateCheck() {
                 notifiedForUpdatesThisSession = true;
 
                 showNotice(
-                    "Veil has been updated!",
+                    "Equicord has been updated!",
                     "Restart",
                     relaunch
                 );
@@ -158,7 +147,7 @@ async function runUpdateCheck() {
         notifiedForUpdatesThisSession = true;
 
         showNotice(
-            "A new version of Veil is available!",
+            "A new version of Equicord is available!",
             "View Update",
             () => openSettingsTabModal(UpdaterTab!)
         );
@@ -167,43 +156,11 @@ async function runUpdateCheck() {
     }
 }
 
-function initTrayIpc() {
-    if (IS_WEB || IS_UPDATER_DISABLED) return;
-
-    VencordNative.tray.onCheckUpdates(async () => {
-        try {
-            const isOutdated = await checkForUpdates();
-            VencordNative.tray.setUpdateState(isOutdated);
-
-            if (isOutdated) {
-                showNotice("An Veil update is available!", "View Update", () => openSettingsTabModal(UpdaterTab!));
-            } else {
-                showNotice("No updates available, you're on the latest version!", "OK", popNotice);
-            }
-        } catch (err) {
-            UpdateLogger.error("Failed to check for updates from tray", err);
-            showNotice("Failed to check for updates, check the console for more info", "OK", popNotice);
-        }
-    });
-
-    VencordNative.tray.onRepair(async () => {
-        try {
-            await update();
-            relaunch();
-        } catch (err) {
-            UpdateLogger.error("Failed to repair Veil", err);
-        }
-    });
-
-    VencordNative.tray.setUpdateState(getIsOutdated);
-}
-
 async function init() {
     await onceReady;
     startAllPlugins(StartAt.WebpackReady);
 
     syncSettings();
-    initTrayIpc();
 
     if (!IS_DEV && !IS_WEB && !IS_UPDATER_DISABLED) {
         runUpdateCheck();
@@ -221,7 +178,7 @@ async function init() {
                 "Webpack has finished initialising, but some patches haven't been applied yet.",
                 "This might be expected since some Modules are lazy loaded, but please verify",
                 "that all plugins are working as intended.",
-                "You are seeing this warning because this is a Development build of Veil.",
+                "You are seeing this warning because this is a Development build of Equicord.",
                 "\nThe following patches have not been applied:",
                 "\n\n" + pendingPatches.map(p => `${p.plugin}: ${p.find}`).join("\n")
             );
@@ -236,8 +193,7 @@ init();
 document.addEventListener("DOMContentLoaded", () => {
     startAllPlugins(StartAt.DOMContentLoaded);
 
-    // FIXME
-    if (IS_DISCORD_DESKTOP && Settings.winNativeTitleBar && IS_WINDOWS) {
-        createAndAppendStyle("vencord-native-titlebar-style", coreStyleRootNode).textContent = "[class*=titleBar]{display: none!important}";
+    if (IS_DISCORD_DESKTOP && Settings.nativeTitleBar) {
+        enableStyle(nativeTitleBarStyles);
     }
 }, { once: true });

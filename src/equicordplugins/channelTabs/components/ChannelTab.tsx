@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
+import { Text } from "@components/Text";
 import { ChannelTabsProps, closeTab, ensureUnreadFallbackCountsLoaded, getNotificationDotState, getUnreadFallbackCounts, isTabSelected, moveDraggedTabs, moveToTab, openedTabs, settings, updateUnreadFallbackCounts } from "@equicordplugins/channelTabs/util";
 import { ActivityIcon, CircleQuestionIcon, DiscoveryIcon, EnvelopeIcon, FriendsIcon, ICYMIIcon, NitroIcon, QuestIcon, ShopIcon } from "@equicordplugins/channelTabs/util/icons";
 import { getActiveAutoCompletes } from "@equicordplugins/questify/utils/completion";
 import { classNameFactory } from "@utils/css";
-import { getGuildAcronym, getIntlMessage, getUniqueUsername } from "@utils/discord";
+import { getGuildAcronym, getIntlMessage } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { Channel, Guild, User } from "@vencord/discord-types";
 import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
@@ -56,7 +56,7 @@ const GuildIcon = ({ guild }: { guild: Guild; }) => {
             className={cl("icon")}
         />
         : <div className={cl("guild-acronym-icon")}>
-            <BaseText size="xs" weight="semibold" tag="span">{getGuildAcronym(guild)}</BaseText>
+            <Text size="xs" weight="semibold" tag="span">{getGuildAcronym(guild)}</Text>
         </div>;
 };
 
@@ -64,7 +64,7 @@ const ChannelIcon = ({ channel }: { channel: Channel; }) =>
     <img
         src={channel?.icon
             ? `https://${window.GLOBAL_ENV.CDN_HOST}/channel-icons/${channel?.id}/${channel?.icon}.png`
-            : "https://discord.com/assets/c6851bd0b03f1cca5a8c1e720ea6ea17.png" // Default Group Icon
+            : "/assets/c6851bd0b03f1cca5a8c1e720ea6ea17.png" // Default Group Icon
         }
         className={cl("icon")}
     />;
@@ -170,13 +170,12 @@ function ChannelTabContent(props: ChannelTabsProps & {
     guild?: Guild,
     channel?: Channel;
 }) {
-    const { guild, guildId, channel, channelId, compact } = props;
+    const { guild, guildId, channel, channelId } = props;
     const userId = UserStore.getCurrentUser()?.id;
     const recipients = channel?.recipients;
     const {
-        noPomeloNames,
         showStatusIndicators
-    } = settings.use(["noPomeloNames", "showStatusIndicators"]);
+    } = settings.use(["showStatusIndicators"]);
 
     const [isTyping, status, isMobile] = useStateFromStores(
         [TypingStore, PresenceStore],
@@ -197,7 +196,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
                 <>
                     <GuildIcon guild={guild} />
                     <ChannelTypeIcon channel={channel} guild={guild} />
-                    <BaseText className={cl("name-text")}>{channel.name}</BaseText>
+                    <Text className={cl("name-text")}>{channel.name}</Text>
                     <NotificationDot channelIds={[channel.id]} />
                     <TypingIndicator isTyping={isTyping} />
                 </>
@@ -224,7 +223,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
             return (
                 <>
                     <GuildIcon guild={guild} />
-                    <BaseText className={cl("name-text")}>{name}</BaseText>
+                    <Text className={cl("name-text")}>{name}</Text>
                 </>
             );
         }
@@ -233,9 +232,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
     if (channel && recipients?.length) {
         if (recipients.length === 1) {
             const user = UserStore.getUser(recipients[0]) as User & { globalName: string; };
-            const username = noPomeloNames
-                ? user.globalName || user.username
-                : getUniqueUsername(user);
+            const username = user.globalName || user.username;
 
             return (
                 <>
@@ -246,9 +243,9 @@ function ChannelTabContent(props: ChannelTabsProps & {
                         isTyping={isTyping}
                         isMobile={isMobile}
                     />
-                    <BaseText className={cl("name-text")}>
+                    <Text className={cl("name-text")}>
                         {username}
-                    </BaseText>
+                    </Text>
                     <NotificationDot channelIds={[channel.id]} />
                     {!showStatusIndicators && <TypingIndicator isTyping={isTyping} />}
                 </>
@@ -258,7 +255,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
             return (
                 <>
                     <ChannelIcon channel={channel} />
-                    <BaseText className={cl("name-text")}>{channel?.name || getIntlMessage("GROUP_DM")}</BaseText>
+                    <Text className={cl("name-text")}>{channel?.name || getIntlMessage("GROUP_DM")}</Text>
                     <NotificationDot channelIds={[channel.id]} />
                     <TypingIndicator isTyping={isTyping} />
                 </>
@@ -286,7 +283,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
             return (
                 <>
                     <Icon />
-                    <BaseText className={cl("name-text")}>{label}</BaseText>
+                    <Text className={cl("name-text")}>{label}</Text>
                 </>
             );
         }
@@ -296,7 +293,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
         return (
             <>
                 <FriendsIcon />
-                <BaseText className={cl("name-text")}>{getIntlMessage("FRIENDS")}</BaseText>
+                <Text className={cl("name-text")}>{getIntlMessage("FRIENDS")}</Text>
             </>
         );
     }
@@ -304,7 +301,7 @@ function ChannelTabContent(props: ChannelTabsProps & {
     return (
         <>
             <CircleQuestionIcon />
-            <BaseText className={cl("name-text")}>{getIntlMessage("UNKNOWN_CHANNEL")}</BaseText>
+            <Text className={cl("name-text")}>{getIntlMessage("UNKNOWN_CHANNEL")}</Text>
         </>
     );
 }

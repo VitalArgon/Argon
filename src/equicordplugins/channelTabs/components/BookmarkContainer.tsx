@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
-import { BasicChannelTabsProps, Bookmark, BookmarkFolder, BookmarkProps, getDiscordFolderIcon, isBookmarkFolder, isTabSelected, navigateToBookmark, openedTabs, settings, switchChannel, UseBookmarkMethods, useBookmarks } from "@equicordplugins/channelTabs/util";
+import { Text } from "@components/Text";
+import { BasicChannelTabsProps, Bookmark, BookmarkFolder, BookmarkProps, getDiscordFolderIcon, isBookmarkFolder, isTabSelected, navigateToBookmark, openedTabs, settings, UseBookmarkMethods, useBookmarks } from "@equicordplugins/channelTabs/util";
 import { CircleQuestionIcon, DiscoveryIcon, EnvelopeIcon, FriendsIcon, NitroIcon, QuestIcon, ShopIcon } from "@equicordplugins/channelTabs/util/icons";
 import { classNameFactory } from "@utils/css";
 import { getGuildAcronym, getIntlMessage } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { findComponentByCodeLazy } from "@webpack";
-import { Avatar, ChannelStore, closeModal, ContextMenuApi, FluxDispatcher, GuildStore, Menu, openModal,React, ReadStateStore, ReadStateUtils, SelectedChannelStore, SelectedGuildStore, TextInput, Tooltip, useDrag, useDrop, useEffect, useRef, UserStore, useState } from "@webpack/common";
+import { Avatar, ChannelStore, closeModal, ContextMenuApi, FluxDispatcher, GuildStore, Menu, openModal, React, ReadStateStore, ReadStateUtils, SelectedChannelStore, SelectedGuildStore, TextInput, Tooltip, useDrag, useDrop, useEffect, useRef, UserStore, useState } from "@webpack/common";
 
 import { NotificationDot } from "./ChannelTab";
 import { BookmarkContextMenu, EditModal } from "./ContextMenus";
@@ -97,7 +97,7 @@ function BookmarkIcon({ bookmark }: { bookmark: Bookmark | BookmarkFolder; }) {
             className={cl("bookmark-icon")}
         />
         : <div className={cl("bookmark-icon")}>
-            <BaseText size="xxs" weight="semibold" tag="span">{getGuildAcronym(guild)}</BaseText>
+            <Text size="xxs" weight="semibold" tag="span">{getGuildAcronym(guild)}</Text>
         </div>;
 
     if (channel?.recipients?.length) {
@@ -120,100 +120,6 @@ function BookmarkIcon({ bookmark }: { bookmark: Bookmark | BookmarkFolder; }) {
 
     return (
         <CircleQuestionIcon height={16} width={16} />
-    );
-}
-
-function BookmarkFolderOpenMenu(props: BookmarkProps) {
-    const { bookmarks, index, methods } = props;
-    const bookmark = bookmarks[index] as BookmarkFolder;
-    const { bookmarkNotificationDot } = settings.use(["bookmarkNotificationDot"]);
-
-    return (
-        <Menu.Menu
-            navId="bookmark-folder-menu"
-            onClose={() => FluxDispatcher.dispatch({ type: "CONTEXT_MENU_CLOSE" })}
-            aria-label="Bookmark Folder Menu"
-        >
-            {bookmark.bookmarks.map((b, i) => (
-                <Menu.MenuItem
-                    key={`bookmark-folder-entry-${b.channelId}`}
-                    id={`bookmark-folder-entry-${b.channelId}`}
-                    label={
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "0.25rem"
-                            }}>
-                            <span
-                                style={{
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis"
-                                }}>
-                                {b.name}
-                            </span>
-                            {bookmarkNotificationDot && <NotificationDot channelIds={[b.channelId]} />}
-                        </div>
-                    }
-                    icon={() => <BookmarkIcon bookmark={b} />}
-                    showIconFirst={true}
-                    action={() => switchChannel(b)}
-                >
-                    {bookmarkNotificationDot && (
-                        <Menu.MenuGroup>
-                            <Menu.MenuItem
-                                key="mark-as-read"
-                                id="mark-as-read"
-                                label={getIntlMessage("MARK_AS_READ")}
-                                disabled={!ReadStateStore.hasUnread(b.channelId)}
-                                action={() => ReadStateUtils.ackChannel(ChannelStore.getChannel(b.channelId))}
-                            />
-                        </Menu.MenuGroup>
-                    )}
-                    <Menu.MenuGroup key="bookmarks">
-                        <Menu.MenuItem
-                            key="edit-bookmark"
-                            id="edit-bookmark"
-                            label="Edit Bookmark"
-                            action={() => {
-                                const key = openModal(modalProps =>
-                                    <EditModal
-                                        modalProps={modalProps}
-                                        modalKey={key}
-                                        bookmark={b}
-                                        onSave={name => {
-                                            const newBookmarks = [...bookmark.bookmarks];
-                                            newBookmarks[i].name = name;
-                                            methods.editBookmark(index, { bookmarks: newBookmarks });
-                                            closeModal(key);
-                                        }}
-                                    />
-                                );
-                            }}
-                        />
-                        <Menu.MenuItem
-                            key="delete-bookmark"
-                            id="delete-bookmark"
-                            label="Delete Bookmark"
-                            action={() => {
-                                methods.deleteBookmark(i, index);
-                            }}
-                        />
-                        <Menu.MenuItem
-                            key="remove-bookmark-from-folder"
-                            id="remove-bookmark-from-folder"
-                            label="Remove Bookmark from Folder"
-                            action={() => {
-                                const newBookmarks = [...bookmark.bookmarks];
-                                newBookmarks.splice(i, 1);
-                                methods.addBookmark(b);
-                                methods.editBookmark(index, { bookmarks: newBookmarks });
-                            }}
-                        />
-                    </Menu.MenuGroup>
-                </Menu.MenuItem>
-            ))}
-        </Menu.Menu>
     );
 }
 
@@ -367,9 +273,9 @@ function FolderBookmarkItem({ bookmark, bookmarks, folderIndex, bookmarkIndex, m
                 <path fill="currentColor" d="M10 17l5-5-5-5z" />
             </svg>
             <BookmarkIcon bookmark={bookmark} />
-            <BaseText size="sm" className={cl("name-text")}>
+            <Text size="sm" className={cl("name-text")}>
                 {bookmark.name}
-            </BaseText>
+            </Text>
             {bookmarkNotificationDot && <NotificationDot channelIds={[bookmark.channelId]} />}
         </div>
     );
@@ -476,13 +382,11 @@ function Bookmark(props: BookmarkProps & { isExpanded?: boolean; onToggleFolder?
                 if (item.isFromFolder) {
                     // coming from a folder
                     methods.deleteBookmark(item.index, item.folderIndex);
+                    methods.addBookmark(sourceBookmark, index);
                 } else {
-                    // coming from bar level
                     methods.deleteBookmark(item.index);
+                    methods.addBookmark(sourceBookmark, item.index < index ? index - 1 : index);
                 }
-
-                // add to this folder
-                methods.addBookmark(sourceBookmark, index);
             }
         },
         collect: monitor => ({
@@ -531,9 +435,9 @@ function Bookmark(props: BookmarkProps & { isExpanded?: boolean; onToggleFolder?
                     />
                 </svg>
             )}
-            <BaseText size="sm" className={cl("name-text")}>
+            <Text size="sm" className={cl("name-text")}>
                 {bookmark.name}
-            </BaseText>
+            </Text>
             {bookmarkNotificationDot && <NotificationDot channelIds={isBookmarkFolder(bookmark)
                 ? bookmark.bookmarks.map(b => b.channelId)
                 : [bookmark.channelId]
@@ -666,12 +570,12 @@ export default function BookmarkContainer(props: BasicChannelTabsProps & { userI
     return (
         <div className={cl("bookmark-container")}>
             <HorizontalScroller className={classes(cl("bookmarks"), isOver && cl("bookmarks-drop-target"))} customRef={dropRef}>
-                {!bookmarks && <BaseText className={cl("bookmark-placeholder-text")} size="xs">
+                {!bookmarks && <Text className={cl("bookmark-placeholder-text")} size="xs">
                     Loading bookmarks...
-                </BaseText>}
-                {bookmarks && !bookmarks.length && <BaseText className={cl("bookmark-placeholder-text")} size="xs">
+                </Text>}
+                {bookmarks && !bookmarks.length && <Text className={cl("bookmark-placeholder-text")} size="xs">
                     You have no bookmarks. You can add an open tab or hide this by right clicking it
-                </BaseText>}
+                </Text>}
                 {Array.isArray(bookmarks) && bookmarks.length > 0 &&
                     bookmarks.flatMap((bookmark, i) => {
                         if (!isBookmarkFolder(bookmark)) {

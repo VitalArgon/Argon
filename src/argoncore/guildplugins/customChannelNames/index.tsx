@@ -1,6 +1,13 @@
-import { defineGuildPlugin } from "../_api/defineGuildPlugin";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { ArgonDevs } from "@utils/constants";
 import { ChannelStore, FluxDispatcher } from "@webpack/common";
+
+import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 
 const NAMES_CHANNEL_NAME = "customnames";
 // {shorthand = replacement} — value can contain spaces/symbols, just not { or }

@@ -1,6 +1,13 @@
-import { defineGuildPlugin } from "../_api/defineGuildPlugin";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { ArgonDevs } from "@utils/constants";
-import { FluxDispatcher, SelectedGuildStore, ChannelStore, RestAPI } from "@webpack/common";
+import { ChannelStore, FluxDispatcher, RestAPI,SelectedGuildStore } from "@webpack/common";
+
+import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 
 console.log("[CategoryBanners] module loaded");
 

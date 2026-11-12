@@ -1,12 +1,12 @@
 /*
- * Argon, a Discord client mod
- * Always-on: shows a purple "Argon" tag next to the specified developer account.
- * Not user-toggleable — lives in src/plugins/ like Settings/Updater.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { ArgonIcon } from "@components/Icons"; // confirm this is where it actually lives
 import { ArgonDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { ArgonIcon } from "@components/Icons"; // confirm this is where it actually lives
 
 // Set this to your actual Discord user ID (right-click your name → Copy User ID,
 // requires Developer Mode enabled in Discord's own settings).

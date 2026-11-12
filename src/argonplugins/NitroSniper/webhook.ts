@@ -31,12 +31,9 @@ function parseWebhookUrl(webhookUrl: string) {
 }
 
 function getNative() {
-    const native = (globalThis as any).VencordNative?.pluginHelpers?.NitroSniper as PluginNative<typeof import("./native")> | undefined;
-    if (!native) {
-        throw new Error("Webhook sending requires desktop native support.");
-    }
-
-    return native;
+    return (globalThis as any).VencordNative?.pluginHelpers?.NitroSniper as
+        | PluginNative<typeof import("./native")>
+        | undefined;
 }
 
 function createPayload(embeds: WebhookEmbed[]): WebhookPayload {
@@ -188,7 +185,26 @@ function parseWebhookError(data: string, status: number) {
 }
 
 async function postWebhook(url: URL, payload: WebhookPayload) {
-    const { status, data } = await getNative().sendWebhook(url.toString(), JSON.stringify(payload));
+    const body = JSON.stringify(payload);
+    const native = getNative();
+
+    // Web builds have no native helper, so post straight from the renderer.
+    if (!native?.sendWebhook) {
+        const response = await fetch(url.toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body
+        });
+
+        if (!response.ok) {
+            const data = await response.text().catch(() => "");
+            throw new Error(parseWebhookError(data, response.status));
+        }
+
+        return;
+    }
+
+    const { status, data } = await native.sendWebhook(url.toString(), body);
 
     if (status < 200 || status >= 300) {
         throw new Error(parseWebhookError(data, status));
