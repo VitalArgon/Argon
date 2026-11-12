@@ -1,71 +1,67 @@
 name: Build Web & Release
 
 on:
-    push:
-        branches: [main]
-    workflow_dispatch:
-        inputs:
-            tag:
-                description: "Custom release tag (leave blank for auto-generated)"
-                required: false
-                default: ""
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Custom release tag (leave blank for auto-generated)"
+        required: false
+        default: ""
 
 permissions:
-    contents: write
-
-concurrency:
-    group: release-${{ github.ref }}
-    cancel-in-progress: true
+  contents: write
 
 jobs:
-    build-and-release:
-        runs-on: ubuntu-latest
+  build-and-release:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Setup pnpm
-              uses: pnpm/action-setup@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
-            - name: Setup Node
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 24
-                  cache: "pnpm"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
 
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
-            - name: Build web
-              run: pnpm buildWeb
+      - name: Build web
+        run: pnpm buildWeb
 
-            - name: Verify build output exists
-              run: |
-                  for f in dist/extension-chrome.zip dist/extension-firefox.zip; do
-                    if [ ! -f "$f" ]; then
-                      echo "::error::$f not found — update this workflow's file paths to match your actual build output."
-                      exit 1
-                    fi
-                  done
+      - name: Verify build output exists
+        run: |
+          for f in dist/extension-chrome.zip dist/extension-firefox.zip; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f not found — update this workflow's file paths to match your actual build output."
+              exit 1
+            fi
+          done
 
-            - name: Determine release tag
-              id: tag
-              run: |
-                  if [ -n "${{ github.event.inputs.tag }}" ]; then
-                    echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "tag=build-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-                  fi
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=build-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
 
-            - name: Create release
-              uses: softprops/action-gh-release@v2
-              with:
-                  tag_name: ${{ steps.tag.outputs.tag }}
-                  name: ${{ steps.tag.outputs.tag }}
-                  files: |
-                      dist/extension-chrome.zip
-                      dist/extension-firefox.zip
-                  generate_release_notes: true
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          files: |
+            dist/extension-chrome.zip
+            dist/extention-firefox.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -8,8 +8,6 @@ on:
         branches:
             - main
             - dev
-permissions:
-    contents: read
 
 jobs:
     Test:
@@ -17,14 +15,23 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - name: Checkout repository
-              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
 
-            - name: Setup PNPM
-              uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+            - name: Use Node.js 24
+              uses: actions/setup-node@v6
               with:
-                  runtime: node@v24
-                  require-lockfile: true
+                  node-version: 24
+                  cache: "pnpm"
 
-            - name: Run Tests
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Lint & Test if desktop version compiles
               run: pnpm test
+
+            - name: Test if web version compiles
+              run: pnpm buildWeb
+
+            - name: Test if plugin structure is valid
+              run: pnpm generatePluginJson

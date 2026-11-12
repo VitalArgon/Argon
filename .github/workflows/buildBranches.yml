@@ -3,12 +3,8 @@ name: Build Branches
 on:
     push:
         branches:
-            - main
-            - dev
-            - i18n_translation
-            - translation
-            - bun
-            - dev2
+            - "**"
+            - "!pr-**"
     workflow_dispatch:
         inputs:
             branch:
@@ -40,12 +36,19 @@ jobs:
               with:
                   ref: ${{ github.event.inputs.branch || github.ref }}
 
-            - name: Setup PNPM
+            - uses: pnpm/action-setup@v6
               if: github.ref_name != 'bun'
-              uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+
+            - name: Use Node.js 24
+              if: github.ref_name != 'bun'
+              uses: actions/setup-node@v6
               with:
-                  runtime: node@v24
-                  require-lockfile: true
+                  node-version: 24
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              if: github.ref_name != 'bun'
+              run: pnpm install --frozen-lockfile
 
             - name: Build web
               if: github.ref_name != 'bun'
