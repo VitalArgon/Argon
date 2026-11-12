@@ -21,152 +21,172 @@ function h(type: any, props?: any, ...children: any[]) {
     return React.createElement(type, props, ...children);
 }
 
+// Discord's own GIF endpoints, the ones its picker calls. No key, no account
+// setup, no third party: the client already talks to these, and being on
+// discord.com they are same origin, so there is no CORS problem either.
+// `limit` is capped at 100 by the server and there is no offset, so "more"
+// means asking the same query for a bigger page rather than paging.
+const ENDPOINT = "https://discord.com/api/v9/gifs";
+const MIN_LIMIT = 20;
+const MAX_LIMIT = 100;
+const LOAD_MORE_STEP = 40;
+
 const settings = definePluginSettings({
-    enableGiphy: {
-        type: OptionType.BOOLEAN,
-        description: "Include results from Giphy",
-        default: true,
-    },
-    giphyApiKey: {
-        type: OptionType.STRING,
-        description: "Giphy API key — get a free one at developers.giphy.com (choose 'API', not 'SDK', when creating the app).",
-        default: "",
-    },
-    enableKlipy: {
-        type: OptionType.BOOLEAN,
-        description: "Include results from Klipy (free, no usage costs — get a key at klipy.com/developers)",
-        default: false,
-    },
-    klipyApiKey: {
-        type: OptionType.STRING,
-        description: "Klipy API key — get one at klipy.com/developers.",
-        default: "",
-    },
-    resultsPerProvider: {
+    resultsPerSearch: {
         type: OptionType.NUMBER,
-        description: "How many results to pull from each provider per search",
-        default: 15,
+        description: "How many GIFs a search loads. Discord serves between 20 and 100 per request; anything outside that is clamped.",
+        default: 50,
+    },
+    trendingOnEmpty: {
+        type: OptionType.BOOLEAN,
+        description: "Show trending GIFs when the search box is empty or the query is blank",
+        default: true,
     },
 });
 
-interface NormalizedGif {
+interface Gif {
+    /** The .gif itself, which is what gets inserted into the chat box. */
     url: string;
-    src: string;
+    /** Lighter webp used for the grid, so a page of 50 does not pull 50 full GIFs. */
+    preview: string;
+    /** The gif's page on the provider, kept for the tooltip. */
+    page: string;
+    title: string;
     width: number;
     height: number;
-    format?: string;
+}
+
+interface DiscordGif {
+    id?: string;
     title?: string;
+    url?: string;
+    src?: string;
+    gif_src?: string;
+    preview?: string;
+    width?: number;
+    height?: number;
 }
 
-async function fetchGiphy(query: string, limit: number): Promise<NormalizedGif[]> {
-    const key = settings.store.giphyApiKey;
-    if (!key) return [];
-    const res = await fetch(
-        `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&limit=${limit}&rating=pg-13`
-    );
-    if (!res.ok) throw new Error(`Giphy HTTP ${res.status}`);
-    const data = await res.json();
-    return (data.data ?? []).map((g: any) => ({
-        url: g.images?.original?.url ?? g.url,
-        src: g.images?.original?.url,
-        width: Number(g.images?.original?.width) || 0,
-        height: Number(g.images?.original?.height) || 0,
-        format: "gif",
-        title: g.title,
-    }));
+function clampLimit(n: number) {
+    const value = Math.round(Number(n) || 0);
+    return Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, value));
 }
 
-async function fetchKlipy(query: string, limit: number): Promise<NormalizedGif[]> {
-    const key = settings.store.klipyApiKey;
-    if (!key) return [];
-    const res = await fetch(
-        `https://api.klipy.com/api/v1/${encodeURIComponent(key)}/gifs/search?q=${encodeURIComponent(query)}&per_page=${Math.min(Math.max(limit, 8), 50)}`
-    );
-    if (!res.ok) throw new Error(`Klipy HTTP ${res.status}`);
-    const json = await res.json();
-    const items = json?.data?.data ?? [];
-    return items.map((g: any) => {
-        // Klipy exposes GIF variants under a `files` object; the exact
-        // sub-key names aren't in their public docs (JS-rendered page),
-        // so this tries the most likely shapes. If results come back
-        // empty, console.log(g) here once you have a working key to see
-        // the real field names and adjust.
-        const files = g.files ?? {};
-        const variant = files.gif ?? files.hd ?? files.md ?? files.sm ?? files.original ?? {};
-        const url = variant.url ?? variant.src ?? g.url;
-        return {
-            url,
-            src: url,
-            width: Number(variant.width) || 0,
-            height: Number(variant.height) || 0,
-            format: "gif",
-            title: g.title,
-        };
-    }).filter((g: NormalizedGif) => !!g.url);
+function toGif(item: DiscordGif): Gif | null {
+    const url = item.src ?? item.preview;
+    if (!url) return null;
+    return {
+        url,
+        preview: item.gif_src ?? item.preview ?? url,
+        page: item.url ?? url,
+        title: item.title ?? "",
+        width: Number(item.width) || 0,
+        height: Number(item.height) || 0,
+    };
 }
 
-// Add more providers here as you find ones you like — same shape as
-// fetchGiphy/fetchKlipy: (query, limit) => Promise<NormalizedGif[]>
-const ALL_PROVIDERS: Record<string, (query: string, limit: number) => Promise<NormalizedGif[]>> = {
-    giphy: fetchGiphy,
-    klipy: fetchKlipy,
-};
-
-function activeProviders() {
-    const list: Array<(q: string, l: number) => Promise<NormalizedGif[]>> = [];
-    if (settings.store.enableGiphy) list.push(ALL_PROVIDERS.giphy);
-    if (settings.store.enableKlipy) list.push(ALL_PROVIDERS.klipy);
-    return list;
+function retryAfterSeconds(res: Response, body: any) {
+    const header = Number(res.headers.get("retry-after"));
+    if (Number.isFinite(header) && header > 0) return Math.ceil(header);
+    const fromBody = Number(body?.retry_after);
+    if (Number.isFinite(fromBody) && fromBody > 0) return Math.ceil(fromBody);
+    return 0;
 }
 
-async function searchAllProviders(query: string): Promise<NormalizedGif[]> {
-    const providers = activeProviders();
-    if (!providers.length || !query.trim()) return [];
-
-    const limit = settings.store.resultsPerProvider;
-    const settled = await Promise.allSettled(providers.map(fn => fn(query, limit)));
-
-    const out: NormalizedGif[] = [];
-    for (const r of settled) {
-        if (r.status === "fulfilled") out.push(...r.value);
-        else console.error("[MultiGifSource] Provider failed:", r.reason);
+function explainError(status: number, body: any) {
+    if (status === 429) {
+        const wait = Number(body?.retry_after) > 0 ? Math.ceil(Number(body.retry_after)) : 0;
+        return wait
+            ? `Discord is rate limiting GIF searches. Try again in ${wait} second${wait === 1 ? "" : "s"}.`
+            : "Discord is rate limiting GIF searches. Wait a moment and try again.";
     }
-    return out;
+    if (status === 400) return "Discord rejected that search. Try a shorter or simpler query.";
+    if (status === 401 || status === 403) return "Discord would not answer the GIF request. Try again, and if it keeps happening, reload the client.";
+    if (status === 404) return "Discord's GIF service returned nothing for that search. Try another word.";
+    if (status >= 500) return `Discord's GIF service is having trouble (HTTP ${status}). Try again shortly.`;
+    const message = body?.message ? `: ${body.message}` : ".";
+    return `Discord returned HTTP ${status}${message}`;
+}
+
+async function searchGifs(query: string, limit: number, signal: AbortSignal): Promise<Gif[]> {
+    const count = clampLimit(limit);
+    const q = query.trim();
+    const params = new URLSearchParams({ limit: String(count), media_format: "gif" });
+
+    const trending = !q && settings.store.trendingOnEmpty;
+    if (!trending) params.set("q", q);
+
+    const res = await fetch(`${ENDPOINT}/${trending ? "trending-gifs" : "search"}?${params}`, { signal });
+    const body = await res.json().catch(() => null);
+
+    if (!res.ok) {
+        const timeLeft = retryAfterSeconds(res, body);
+        if (res.status === 429 && timeLeft) throw new Error(`Discord is rate limiting GIF searches. Try again in ${timeLeft} second${timeLeft === 1 ? "" : "s"}.`);
+        throw new Error(explainError(res.status, body));
+    }
+
+    const items: DiscordGif[] = Array.isArray(body) ? body : [];
+    return items.map(toGif).filter((gif): gif is Gif => gif !== null);
 }
 
 function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initialQuery: string; }) {
     const [query, setQuery] = React.useState(initialQuery);
-    const [pending, setPending] = React.useState(true);
-    const [results, setResults] = React.useState<NormalizedGif[]>([]);
+    const [pending, setPending] = React.useState(false);
+    const [results, setResults] = React.useState<Gif[]>([]);
     const [error, setError] = React.useState<string | null>(null);
+    const [limit, setLimit] = React.useState(() => clampLimit(settings.store.resultsPerSearch));
 
-    const runSearch = async (q: string) => {
+    const inflight = React.useRef<AbortController | null>(null);
+
+    const run = React.useCallback(async (q: string, nextLimit: number) => {
+        inflight.current?.abort();
+        const controller = new AbortController();
+        inflight.current = controller;
+
         setPending(true);
         setError(null);
         try {
-            setResults(await searchAllProviders(q));
+            const gifs = await searchGifs(q, nextLimit, controller.signal);
+            setResults(gifs);
+            setLimit(nextLimit);
         } catch (e) {
-            setError(String(e));
+            if (controller.signal.aborted) return;
+            setResults([]);
+            setError(e instanceof Error ? e.message : String(e));
         } finally {
-            setPending(false);
+            if (!controller.signal.aborted) setPending(false);
         }
-    };
+    }, []);
 
-    React.useEffect(() => { runSearch(initialQuery); }, []);
+    React.useEffect(() => {
+        run(initialQuery, clampLimit(settings.store.resultsPerSearch));
+        return () => inflight.current?.abort();
+    }, []);
+
+    const canLoadMore = limit < MAX_LIMIT && results.length >= limit && !pending && !error;
 
     return (
         <Modal
             {...modalProps}
             size="lg"
             title="Search GIFs"
-            actions={[{ text: "Close", variant: "secondary", onClick: () => modalProps.onClose() }]}
+            actions={[
+                ...(canLoadMore
+                    ? [{
+                        text: "Load more",
+                        variant: "primary" as const,
+                        onClick: () => run(query, Math.min(MAX_LIMIT, limit + LOAD_MORE_STEP)),
+                    }]
+                    : []),
+                { text: "Close", variant: "secondary" as const, onClick: () => modalProps.onClose() },
+            ]}
         >
             <input
                 type="text"
                 value={query}
                 onChange={(e: any) => setQuery(e.target.value)}
-                onKeyDown={(e: any) => { if (e.key === "Enter") runSearch(query); }}
-                placeholder="Search GIFs…"
+                onKeyDown={(e: any) => { if (e.key === "Enter") run(query, clampLimit(settings.store.resultsPerSearch)); }}
+                placeholder="Search GIFs, or press Enter for trending…"
                 autoFocus
                 style={{
                     width: "100%",
@@ -184,7 +204,7 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
                 : error
                     ? <div style={{ color: "var(--text-danger)" }}>{error}</div>
                     : !results.length
-                        ? <div>No results — check that at least one provider is enabled and has a valid API key in plugin settings.</div>
+                        ? <div>No GIFs came back. Try a different word.</div>
                         : (
                             <div style={{
                                 display: "grid",
@@ -193,9 +213,9 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
                             }}>
                                 {results.map((gif, i) => (
                                     <img
-                                        key={`${gif.url}-${i}`}
-                                        src={gif.src || gif.url}
-                                        title={gif.title ?? ""}
+                                        key={`${gif.page}-${i}`}
+                                        src={gif.preview}
+                                        title={gif.title || gif.page}
                                         loading="lazy"
                                         style={{
                                             width: "100%",
@@ -217,23 +237,23 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
 }
 
 export default definePlugin({
-    name: "MultiGifSource",
-    description: "Search GIFs across Giphy, Klipy, etc. directly with /multi-gif — bypasses Discord's own picker and filtering entirely.",
-    authors: [ArgonDevs.Zarak], // replace with your own entry
+    name: "GifSources",
+    description: "Search GIFs with /gif and drop the result straight into the chat box. Uses Discord's own GIF service, so there is no API key to fetch, no quota, and none of the picker's own filtering.",
+    authors: [ArgonDevs.Zarak],
     settings,
     dependencies: ["CommandsAPI"],
 
     commands: [
         {
-            name: "multi-gif",
-            description: "Search GIFs across your configured providers directly — bypasses Discord's picker and its filtering entirely",
+            name: "gif",
+            description: "Search GIFs and put one in the chat box",
             inputType: ApplicationCommandInputType.BUILT_IN,
             options: [
                 {
                     name: "query",
-                    description: "What to search for",
+                    description: "What to search for. Leave empty for trending.",
                     type: ApplicationCommandOptionType.STRING,
-                    required: true,
+                    required: false,
                 },
             ],
             execute: async (opts, _ctx) => {
