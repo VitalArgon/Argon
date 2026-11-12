@@ -1,9 +1,11 @@
 /*
- * Argon — A discord client modification.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import definePlugin from "@utils/types";
 import { ArgonDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
 
 const CHANNEL_LINK_SELECTOR = 'a[data-list-item-id^="channels___"]';
 const NAME_CONTAINER_SELECTOR = 'div[class*="name__"]';

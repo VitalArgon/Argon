@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
+import { Text } from "@components/Text";
 import { apiConstants, deleteData, getData, saveData } from "@equicordplugins/songSpotlight.desktop/lib/api";
 import { presentOAuth2Modal } from "@equicordplugins/songSpotlight.desktop/lib/oauth2";
 import { useAuthorizationStore } from "@equicordplugins/songSpotlight.desktop/lib/stores/AuthorizationStore";
@@ -21,7 +21,7 @@ import { sid } from "@song-spotlight/api/util";
 import { readClipboard } from "@utils/clipboard";
 import { copyWithToast } from "@utils/discord";
 import { RenderModalProps } from "@vencord/discord-types";
-import { Alerts, Modal,openModal, Parser, showToast, Toasts, useCallback, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { Alerts, Modal, openModal, Parser, showToast, useCallback, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
 interface ImportButtonProps {
     overwrite: boolean;
@@ -39,24 +39,24 @@ function ImportButton({ overwrite, pending, setPending, onImport }: ImportButton
             json = JSON.parse(await readClipboard());
         } catch {
             setPending(false);
-            return showToast("No JSON in clipboard!", Toasts.Type.FAILURE);
+            return showToast({ text: "No JSON in clipboard!", variant: "critical" });
         }
 
         const { error, data } = UserDataSchema.max(apiConstants.songLimit).safeParse(json);
         if (error) {
             setPending(false);
-            return showToast("Invalid Song Spotlight data in clipboard!", Toasts.Type.FAILURE);
+            return showToast({ text: "Invalid Song Spotlight data in clipboard!", variant: "critical" });
         }
 
         const validated = await Promise.allSettled(data.map(song => Native.validateSong(song)));
         if (!validated.every(x => x.status === "fulfilled" && x.value)) {
             setPending(false);
-            return showToast("One or more imported songs were invalid.", Toasts.Type.FAILURE);
+            return showToast({ text: "One or more imported songs were invalid.", variant: "critical" });
         }
 
         onImport(data);
         setPending(false);
-        showToast("Imported songs from clipboard!", Toasts.Type.SUCCESS);
+        showToast({ text: "Imported songs from clipboard!", variant: "success" });
     }, [pending]);
 
     return (
@@ -110,19 +110,19 @@ export default function Settings({ templateData }: SettingsProps) {
 
     return (
         <Flex flexDirection="column" gap="20px">
-            <BaseText size="md" weight="normal">
+            <Text size="md" weight="normal">
                 You can also view your songs via the {Parser.parse("</songspotlight:1468320979938971802>")} command!
-            </BaseText>
+            </Text>
             {localData
                 ? (
                     <Flex flexDirection="column" gap="12px">
                         <Flex flexDirection="column" gap={0}>
-                            <BaseText size="lg" weight="semibold">Songs</BaseText>
+                            <Text size="lg" weight="semibold">Songs</Text>
                             {self?.at
                                 && (
-                                    <BaseText size="xs" weight="normal" className={cl("sub")}>
+                                    <Text size="xs" weight="normal" className={cl("sub")}>
                                         Last updated <b>{Intl.DateTimeFormat().format(new Date(self.at))}</b>
-                                    </BaseText>
+                                    </Text>
                                 )}
                         </Flex>
                         <Flex flexDirection="column" gap="6px">
@@ -153,7 +153,7 @@ export default function Settings({ templateData }: SettingsProps) {
                                     setPending(true);
                                     try {
                                         await saveData(localData);
-                                        showToast("Successfully saved songs!", Toasts.Type.SUCCESS);
+                                        showToast({ text: "Successfully saved songs!", variant: "success" });
                                     } finally {
                                         setPending(false);
                                     }
@@ -167,13 +167,13 @@ export default function Settings({ templateData }: SettingsProps) {
                 )
                 : <Spinner type={Spinner.Type.WANDERING_CUBES} />}
             <Flex flexDirection="column" gap="12px">
-                <BaseText size="lg" weight="semibold">Authorization</BaseText>
+                <Text size="lg" weight="semibold">Authorization</Text>
                 <div className={cl("twin-buttons")}>
                     <Button
                         variant="dangerPrimary"
                         onClick={() => {
                             deleteTokens();
-                            showToast("Successfully signed out!", Toasts.Type.SUCCESS);
+                            showToast({ text: "Successfully signed out!", variant: "success" });
                         }}
                         disabled={pending}
                     >
@@ -191,7 +191,7 @@ export default function Settings({ templateData }: SettingsProps) {
                                         await deleteData();
                                         deleteTokens();
 
-                                        showToast("Successfully deleted songs!", Toasts.Type.SUCCESS);
+                                        showToast({ text: "Successfully deleted songs!", variant: "success" });
                                     } finally {
                                         setPending(false);
                                     }

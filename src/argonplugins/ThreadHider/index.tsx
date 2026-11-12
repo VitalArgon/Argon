@@ -1,5 +1,12 @@
-import definePlugin from "@utils/types";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { ArgonDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
+
 import { createStyleInjector } from "../ArgonCoreAPI";
 
 const STYLE_ID = "thread-hider-styles";

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
 import { Card } from "@components/Card";
-import { HeadingPrimary } from "@components/Heading";
+import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { SettingsTab, wrapTab } from "@components/settings";
+import { Text } from "@components/Text";
 import { classNameFactory } from "@utils/css";
 import { copyWithToast, openUserProfile } from "@utils/discord";
 import { Avatar, Clickable, ContextMenuApi, Menu, React, TextInput, Tooltip, UserStore } from "@webpack/common";
@@ -25,26 +25,56 @@ function tooltipText(user: IStorageUser) {
 
 function UsersCollectionRows({ usersCollection }: { usersCollection: Data["usersCollection"]; }) {
     if (Object.keys(usersCollection).length === 0) return (
-        <BaseText>
+        <Text>
             It's empty right now
-        </BaseText>
+        </Text>
     );
 
     return (
         <>
             {Object.entries(usersCollection)
-                .map(([_key, { users, name }]) => ({ name, users: Object.values(users) }))
+                .map(([key, { users, name, id }]) => ({ key, id: id || key, name, users: Object.values(users) }))
                 .sort((a, b) => b.users.length - a.users.length)
-                .map(({ name, users }) => (
-                    <aside key={name}>
-                        <div className={cl("header-container")}>
-                            <HeadingPrimary className={cl("header-name")}>{name}</HeadingPrimary>
-                            <div className={cl("header-btns")}>
-                                {users.map(u => <UserRow key={u.id} user={u} />)}
+                .map(({ key, id, name, users }) => {
+                    const isGuild = key !== "dm" && id !== "dm";
+                    return (
+                        <aside key={key}>
+                            <div className={cl("header-container")}>
+                                <Heading tag="h2" className={cl("header-name")}>
+                                    {name}
+                                    {isGuild && (
+                                        <span
+                                            className={cl("header-id")}
+                                            onContextMenu={e => {
+                                                e.preventDefault();
+                                                ContextMenuApi.openContextMenu(e, () => (
+                                                    <Menu.Menu
+                                                        navId="guild-id-context-menu"
+                                                        onClose={ContextMenuApi.closeContextMenu}
+                                                        aria-label="Server Options"
+                                                    >
+                                                        <Menu.MenuItem
+                                                            id="copy-server-id"
+                                                            label="Copy Server ID"
+                                                            action={() => copyWithToast(id, "Server ID copied to clipboard")}
+                                                        />
+                                                    </Menu.Menu>
+                                                ));
+                                            }}
+                                        >
+                                            <Clickable onClick={() => copyWithToast(id, "Server ID copied to clipboard")}>
+                                                ({id})
+                                            </Clickable>
+                                        </span>
+                                    )}
+                                </Heading>
+                                <div className={cl("header-btns")}>
+                                    {users.map(u => <UserRow key={u.id} user={u} />)}
+                                </div>
                             </div>
-                        </div>
-                    </aside>
-                ))}
+                        </aside>
+                    );
+                })}
         </>
     );
 }

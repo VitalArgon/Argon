@@ -1,20 +1,26 @@
-import definePlugin, { OptionType } from "@utils/types";
-import { ArgonDevs } from "@utils/constants";
-import { definePluginSettings } from "@api/Settings";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
-import { React } from "@webpack/common";
+import { definePluginSettings } from "@api/Settings";
 import * as Icons from "@components/Icons";
-import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
+import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
+import { ArgonDevs } from "@utils/constants";
+import definePlugin, { OptionType } from "@utils/types";
+import { React } from "@webpack/common";
+
 import {
-    h,
     createStyleInjector,
+    findPluginByName,
+    h,
     observeMatches,
     openSimpleModal,
-    findPluginByName,
-    reactNodeToDom,
-    Plugins,
     PluginMeta,
+    reactNodeToDom,
 } from "../ArgonCoreAPI";
 
 const PROCESSED_ATTR = "data-rf-processed";
@@ -352,9 +358,9 @@ function buildPluginCardSpan(rawName: string) {
 
     const pluginInfo = [
         {
-            condition: (plugin.isVeilModified ?? false) && PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
+            condition: (plugin.isArgonModified ?? false) && PluginMeta[plugin.name]?.folderName?.startsWith("src/equicordplugins/"),
             src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
-            alt: "Veil Modified",
+            alt: "Argon Modified",
             title: "Modified Equicord Plugin"
         },
         {
@@ -420,7 +426,7 @@ function buildPluginCardSpan(rawName: string) {
     });
     renderIconInto(infoBtn, "CogWheel");
 
-    const enabled = !!plugin.started || !!plugin.enabled;
+    const enabled = !!plugin.started;
     const toggle = document.createElement("span");
     toggle.className = `rf-toggle ${enabled ? "rf-toggle-on" : "rf-toggle-off"}`;
     const knob = document.createElement("span");
@@ -542,7 +548,7 @@ function processInlineIntoFragment(text: string) {
 
 function shouldSkipElement(el: Element): boolean {
     if (el.tagName === "CODE" || el.tagName === "PRE") return true;
-    const className = (el as HTMLElement).className;
+    const { className } = (el as HTMLElement);
     if (typeof className === "string" && /edited/i.test(className)) return true;
     return false;
 }
@@ -664,7 +670,7 @@ function buildHelpText() {
         "",
         `**Shortcuts** (defined in ext.txt): ${shortcuts.size ? [...shortcuts.keys()].map(k => `\`{{${k}}}\``).join(", ") : "none loaded"}`,
     ].join("\n");
-};
+}
 
 const settings = definePluginSettings({
     logIconsOnStart: {

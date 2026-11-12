@@ -5,8 +5,9 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
+import { Button } from "@components/Button";
 import { OptionType } from "@utils/types";
-import { Button, showToast, Toasts } from "@webpack/common";
+import { showToast } from "@webpack/common";
 
 import { sendTestWebhook } from "./webhook";
 
@@ -26,10 +27,10 @@ function TestWebhookButton() {
             onClick={() => {
                 void sendTestWebhook(webhookUrl)
                     .then(() => {
-                        showToast("Test webhook sent successfully.", Toasts.Type.SUCCESS);
+                        showToast({ text: "Test webhook sent successfully.", variant: "success" });
                     })
                     .catch((error: unknown) => {
-                        showToast(getToastErrorMessage(error), Toasts.Type.FAILURE);
+                        showToast({ text: getToastErrorMessage(error), variant: "critical" });
                     });
             }}
         >

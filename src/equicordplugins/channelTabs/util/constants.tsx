@@ -14,6 +14,8 @@ import { makeRange, OptionType } from "@utils/types";
 import { SearchableSelect, useState } from "@webpack/common";
 import { JSX } from "react";
 
+import { Bookmarks } from "./types";
+
 interface DynamicDropdownSettingOption {
     label: string;
     value: string;
@@ -139,10 +141,11 @@ export const settings = definePluginSettings({
         type: OptionType.COMPONENT,
         default: {}
     },
-    noPomeloNames: {
-        description: "Use display names instead of usernames for DM's",
-        type: OptionType.BOOLEAN,
-        default: false
+    bookmarks: {
+        type: OptionType.CUSTOM,
+        description: "Saved bookmarks per account",
+        default: {} as Record<string, Bookmarks>,
+        hidden: true
     },
     showStatusIndicators: {
         description: "Show status indicators for DM's",

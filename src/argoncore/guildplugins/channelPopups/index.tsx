@@ -1,9 +1,16 @@
-import { defineGuildPlugin } from "../_api/defineGuildPlugin";
-import { ArgonDevs } from "@utils/constants";
-import { FluxDispatcher, ChannelStore, Button, Text } from "@webpack/common";
-import { ModalRoot, ModalHeader, ModalContent, ModalFooter, openModal } from "@utils/modal";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
-import { h, findPluginByName } from "../../../argonplugins/ArgonCoreAPI";
+import { Text } from "@components/Text";
+import { ArgonDevs } from "@utils/constants";
+import { ChannelStore, FluxDispatcher, Modal, openModal } from "@webpack/common";
+
+import { findPluginByName } from "../../../argonplugins/ArgonCoreAPI";
+import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 
 interface ParsedPopup {
     title: string;
@@ -49,35 +56,41 @@ function renderPluginCard(pluginId: string) {
         return <Text color="text-danger">Unknown plugin id in popup: {pluginId}</Text>;
     }
 
-    return h(PluginCard, {
-        plugin,
-        disabled: plugin.required ?? false,
-        onRestartNeeded: () => {},
-    });
+    return (
+        <PluginCard
+            plugin={plugin}
+            disabled={plugin.required ?? false}
+            onRestartNeeded={() => {}}
+        />
+    );
 }
 
 function showPopupModal(popup: ParsedPopup) {
-    openModal(props => (
-        <ModalRoot {...props}>
-            <ModalHeader>
-                <Text variant="heading-lg/semibold">{popup.title}</Text>
-            </ModalHeader>
-            {(popup.text || popup.pluginId) && (
-                <ModalContent>
-                    {popup.text && <Text>{popup.text}</Text>}
-                    {popup.pluginId && renderPluginCard(popup.pluginId)}
-                </ModalContent>
-            )}
-            <ModalFooter>
-                {popup.buttonText && popup.buttonLink && (
-                    <Button onClick={() => window.open(popup.buttonLink, "_blank")}>
-                        {popup.buttonText}
-                    </Button>
-                )}
-                <Button color={Button.Colors.TRANSPARENT} onClick={props.onClose}>Close</Button>
-            </ModalFooter>
-        </ModalRoot>
-    ));
+    openModal(props => {
+        const actions: { text: string; variant: "primary" | "secondary"; onClick: () => void; }[] = [];
+
+        if (popup.buttonText && popup.buttonLink) {
+            const { buttonLink } = popup;
+            actions.push({
+                text: popup.buttonText,
+                variant: "primary",
+                onClick: () => window.open(buttonLink, "_blank"),
+            });
+        }
+
+        actions.push({ text: "Close", variant: "secondary", onClick: props.onClose });
+
+        return (
+            <Modal
+                {...props}
+                title={popup.title}
+                actions={actions}
+            >
+                {popup.text && <Text>{popup.text}</Text>}
+                {popup.pluginId && renderPluginCard(popup.pluginId)}
+            </Modal>
+        );
+    });
 }
 
 const shownThisSession = new Set<string>();

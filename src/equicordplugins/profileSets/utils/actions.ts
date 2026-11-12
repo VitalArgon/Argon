@@ -6,7 +6,7 @@
 
 import { isNonNullish } from "@utils/guards";
 import { ProfilePreset } from "@vencord/discord-types";
-import { showToast, Toasts, UserProfileSettingsStore } from "@webpack/common";
+import { showToast, UserProfileSettingsStore } from "@webpack/common";
 
 import { getCurrentProfile } from "./profile";
 import { addPreset, movePresetInArray, presets, PresetSection, type ProfilePresetEx, removePreset, replaceAllPresets, savePresetsData, updatePreset } from "./storage";
@@ -38,6 +38,22 @@ export async function savePreset(name: string, section: PresetSection, guildId?:
         avatarDataUrl: effectiveAvatar,
     };
     addPreset(newPreset);
+    await savePresetsData(section);
+}
+
+export async function updatePresetFromCurrent(index: number, section: PresetSection, guildId?: string) {
+    if (index < 0 || index >= presets.length) return;
+    const profile = await getCurrentProfile(guildId, { isGuildProfile: section === "server" });
+    const freshPendingAvatar = getFreshPendingAvatar(section, guildId);
+    const effectiveAvatar = freshPendingAvatar ?? profile.avatarDataUrl ?? null;
+
+    const updatedPreset = {
+        ...presets[index],
+        ...profile,
+        avatarDataUrl: effectiveAvatar,
+        timestamp: Date.now()
+    };
+    updatePreset(index, updatedPreset);
     await savePresetsData(section);
 }
 
@@ -111,9 +127,31 @@ export async function importPresets(
             if (!file) return;
 
             const text = await file.text();
-            const importedPresets = JSON.parse(text);
+            let importedPresets: unknown;
+            try {
+                importedPresets = JSON.parse(text);
+            } catch {
+                showToast({ text: "Failed to import presets. The file might be invalid.", variant: "critical" });
+                return;
+            }
 
             if (!Array.isArray(importedPresets)) {
+                showToast({ text: "Failed to import presets. The file might be invalid.", variant: "critical" });
+                return;
+            }
+
+            const validPresets: ProfilePresetEx[] = importedPresets.filter((p): p is ProfilePresetEx =>
+                typeof p === "object"
+                && p !== null
+                && typeof p.name === "string"
+                && p.name.trim().length > 0
+            ).map(p => ({
+                ...p,
+                timestamp: typeof p.timestamp === "number" && !isNaN(p.timestamp) ? p.timestamp : Date.now()
+            }));
+
+            if (!validPresets.length) {
+                showToast({ text: "Failed to import presets. The file might be invalid.", variant: "critical" });
                 return;
             }
 
@@ -121,19 +159,19 @@ export async function importPresets(
                 const decision = await onImportPrompt(presets.length);
                 if (decision === "cancel") return;
                 if (decision === "override") {
-                    replaceAllPresets(importedPresets);
+                    replaceAllPresets(validPresets);
                 } else {
-                    const combined = [...presets, ...importedPresets];
+                    const combined = [...presets, ...validPresets];
                     replaceAllPresets(combined);
                 }
             } else {
-                replaceAllPresets(importedPresets);
+                replaceAllPresets(validPresets);
             }
 
             await savePresetsData(section);
             forceUpdate();
         } catch {
-            showToast("Failed to import presets. The file might be invalid.", Toasts.Type.FAILURE);
+            showToast({ text: "Failed to import presets. The file might be invalid.", variant: "critical" });
         }
     };
     input.click();

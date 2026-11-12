@@ -12,7 +12,7 @@ import { AddonCard } from "@components/settings/AddonCard";
 import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import { Plugin } from "@utils/types";
-import { React, showToast, Toasts } from "@webpack/common";
+import { React, showToast } from "@webpack/common";
 
 import { PluginMeta } from "~plugins";
 
@@ -80,9 +80,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             settings.enabled = false;
 
             const msg = `Error while ${wasEnabled ? "stopping" : "starting"} plugin ${plugin.name}`;
-            showToast(msg, Toasts.Type.FAILURE, {
-                position: Toasts.Position.BOTTOM,
-            });
+            showToast({ text: msg, variant: "critical", position: "bottom" });
 
             return;
         }
@@ -92,10 +90,10 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
 
     const pluginInfo = [
         {
-            condition: (plugin.isVeilModified ?? false) && isEquicordPlugin,
-            src: "https://raw.githubusercontent.com/VitalVeil/Veil/main/browser/Modified.png",
-            alt: "Veil Modified",
-            title: "Equicord plugin modified by Veil"
+            condition: (plugin.isArgonModified ?? false) && isEquicordPlugin,
+            src: "https://raw.githubusercontent.com/VitalArgon/Argon/main/browser/Modified.png",
+            alt: "Argon Modified",
+            title: "Equicord plugin modified by Argon"
         },
         {
             condition: isModifiedPlugin,

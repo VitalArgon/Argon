@@ -1,19 +1,15 @@
 /*
- * Argon, a Discord client mod
- * MultiGifSource — a /multi-gif command that searches GIF providers
- * (Giphy, Klipy, etc.) directly and shows the results in a picker
- * modal. Deliberately doesn't touch Discord's own GIF picker or its
- * network requests at all, so none of Discord's own result filtering
- * (which was crashing a different plugin) applies here.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
 import { definePluginSettings } from "@api/Settings";
 import { ArgonDevs } from "@utils/constants";
 import { insertTextIntoChatInputBox } from "@utils/discord";
-import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
-import { React } from "@webpack/common";
+import { Modal, openModal, React } from "@webpack/common";
 
 // NOTE: don't do `const h = React.createElement` at module scope —
 // this file is evaluated once on load, and if @webpack/common's React
@@ -21,8 +17,8 @@ import { React } from "@webpack/common";
 // off it immediately throws and the whole plugin fails to register.
 // Wrapping it in a function defers the property access until we
 // actually render, by which point React is available.
-function h(...args: Parameters<typeof React.createElement>) {
-    return React.createElement(...args);
+function h(type: any, props?: any, ...children: any[]) {
+    return React.createElement(type, props, ...children);
 }
 
 const settings = definePluginSettings({
@@ -158,59 +154,65 @@ function GifPickerModal({ modalProps, initialQuery }: { modalProps: any; initial
 
     React.useEffect(() => { runSearch(initialQuery); }, []);
 
-    return h(ModalRoot, { ...modalProps, size: ModalSize.LARGE },
-        h(ModalHeader, null,
-            h("input", {
-                type: "text",
-                value: query,
-                onChange: (e: any) => setQuery(e.target.value),
-                onKeyDown: (e: any) => { if (e.key === "Enter") runSearch(query); },
-                placeholder: "Search GIFs…",
-                autoFocus: true,
-                style: {
-                    flex: 1,
+    return (
+        <Modal
+            {...modalProps}
+            size="lg"
+            title="Search GIFs"
+            actions={[{ text: "Close", variant: "secondary", onClick: () => modalProps.onClose() }]}
+        >
+            <input
+                type="text"
+                value={query}
+                onChange={(e: any) => setQuery(e.target.value)}
+                onKeyDown={(e: any) => { if (e.key === "Enter") runSearch(query); }}
+                placeholder="Search GIFs…"
+                autoFocus
+                style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    marginBottom: 12,
                     background: "var(--input-background)",
                     color: "var(--text-normal)",
                     border: "none",
                     borderRadius: 4,
                     padding: "8px 10px",
-                },
-            }),
-            h(ModalCloseButton, { onClick: modalProps.onClose })
-        ),
-        h(ModalContent, { style: { padding: 16 } },
-            pending
-                ? h("div", null, "Searching…")
+                }}
+            />
+            {pending
+                ? <div>Searching…</div>
                 : error
-                    ? h("div", { style: { color: "var(--text-danger)" } }, error)
+                    ? <div style={{ color: "var(--text-danger)" }}>{error}</div>
                     : !results.length
-                        ? h("div", null, "No results — check that at least one provider is enabled and has a valid API key in plugin settings.")
-                        : h("div", {
-                            style: {
+                        ? <div>No results — check that at least one provider is enabled and has a valid API key in plugin settings.</div>
+                        : (
+                            <div style={{
                                 display: "grid",
                                 gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
                                 gap: 8,
-                            },
-                        }, results.map((gif, i) =>
-                            h("img", {
-                                key: `${gif.url}-${i}`,
-                                src: gif.src || gif.url,
-                                title: gif.title ?? "",
-                                loading: "lazy",
-                                style: {
-                                    width: "100%",
-                                    aspectRatio: "1 / 1",
-                                    objectFit: "cover",
-                                    borderRadius: 4,
-                                    cursor: "pointer",
-                                },
-                                onClick: () => {
-                                    insertTextIntoChatInputBox(gif.url + " ");
-                                    modalProps.onClose();
-                                },
-                            })
-                        ))
-        )
+                            }}>
+                                {results.map((gif, i) => (
+                                    <img
+                                        key={`${gif.url}-${i}`}
+                                        src={gif.src || gif.url}
+                                        title={gif.title ?? ""}
+                                        loading="lazy"
+                                        style={{
+                                            width: "100%",
+                                            aspectRatio: "1 / 1",
+                                            objectFit: "cover",
+                                            borderRadius: 4,
+                                            cursor: "pointer",
+                                        }}
+                                        onClick={() => {
+                                            insertTextIntoChatInputBox(gif.url + " ");
+                                            modalProps.onClose();
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+        </Modal>
     );
 }
 

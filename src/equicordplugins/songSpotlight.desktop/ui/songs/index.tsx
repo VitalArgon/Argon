@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
 import { LinkIcon } from "@components/Icons";
 import { Link } from "@components/Link";
+import { Text } from "@components/Text";
 import { apiConstants } from "@equicordplugins/songSpotlight.desktop/lib/api";
 import { useSongStore } from "@equicordplugins/songSpotlight.desktop/lib/stores/SongStore";
 import { cl, formatCoverTooltip, formatDurationMs } from "@equicordplugins/songSpotlight.desktop/lib/utils";
@@ -30,21 +30,7 @@ import { Song as SongType } from "@song-spotlight/api/structs";
 import { isListLayout, sid } from "@song-spotlight/api/util";
 import { copyWithToast } from "@utils/discord";
 import { classes } from "@utils/misc";
-import {
-    Clickable,
-    ContextMenuApi,
-    FluxDispatcher,
-    Menu,
-    React,
-    ScrollerThin,
-    showToast,
-    Toasts,
-    Tooltip,
-    useCallback,
-    useMemo,
-    useRef,
-    useState
-} from "@webpack/common";
+import { Clickable, ContextMenuApi, FluxDispatcher, Menu, React, ScrollerThin, showToast, Tooltip, useCallback, useMemo, useRef, useState } from "@webpack/common";
 
 interface SongEntryProps {
     entry: RenderInfoEntryBased;
@@ -72,25 +58,27 @@ function SongEntry({ entry, number, isLoaded, isPlaying, big, onClick }: SongEnt
                             id="copy-link"
                             label="Copy link"
                             icon={LinkIcon}
+                            leadingAccessory={{ type: "icon", icon: LinkIcon }}
                             action={() => copyWithToast(entry.link)}
                         />
                         <Menu.MenuItem
                             id="steal-song"
                             label="Steal song"
                             icon={PuzzlePieceIcon}
+                            leadingAccessory={{ type: "icon", icon: PuzzlePieceIcon }}
                             action={async () => {
                                 const self = useSongStore.getState().self?.data ?? [];
                                 if (self.length >= apiConstants.songLimit) {
-                                    return showToast("You don't have enough space!");
+                                    return showToast({ text: "You don't have enough space!" });
                                 }
 
                                 const song = await Native.parseLink(entry.link);
                                 if (!song) {
-                                    return showToast("Uh oh, this song doesn't exist!", Toasts.Type.FAILURE);
+                                    return showToast({ text: "Uh oh, this song doesn't exist!", variant: "critical" });
                                 }
 
                                 if (self.find(x => sid(x) === sid(song))) {
-                                    return showToast("You already have this song added!");
+                                    return showToast({ text: "You already have this song added!" });
                                 }
 
                                 openSettingsModal([...self, song]);
@@ -108,18 +96,18 @@ function SongEntry({ entry, number, isLoaded, isPlaying, big, onClick }: SongEnt
                 data-playing={isPlaying}
             >
                 <Flex alignItems="center" justifyContent="center" gap={0} className={cl("song-entry-number")}>
-                    <BaseText size={baseSize} weight="medium">{number}</BaseText>
+                    <Text size={baseSize} weight="medium">{number}</Text>
                 </Flex>
                 <Flex flexDirection="column" justifyContent="center" gap={0}>
                     <Flex alignItems="center" gap="6px">
-                        <BaseText size={subSize} weight="semibold" className={cl("clamped")} title={entry.label}>
+                        <Text size={subSize} weight="semibold" className={cl("clamped")} title={entry.label}>
                             {entry.label}
-                        </BaseText>
+                        </Text>
                         {entry.explicit && <ExplicitTag />}
                     </Flex>
-                    <BaseText size={subSize} weight="normal" className={cl("clamped", "sub")} title={entry.sublabel}>
+                    <Text size={subSize} weight="normal" className={cl("clamped", "sub")} title={entry.sublabel}>
                         {entry.sublabel}
-                    </BaseText>
+                    </Text>
                 </Flex>
             </Flex>
         </Clickable>
@@ -186,6 +174,7 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                                                 id="copy-link"
                                                 label="Copy link"
                                                 icon={LinkIcon}
+                                                leadingAccessory={{ type: "icon", icon: LinkIcon }}
                                                 action={() => copyWithToast(render.link)}
                                             />
                                             {!owned
@@ -194,13 +183,14 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                                                         id="steal-song"
                                                         label="Steal song"
                                                         icon={PuzzlePieceIcon}
+                                                        leadingAccessory={{ type: "icon", icon: PuzzlePieceIcon }}
                                                         action={() => {
                                                             const self = useSongStore.getState().self?.data ?? [];
                                                             if (self.length >= apiConstants.songLimit) {
-                                                                return showToast("You don't have enough space!");
+                                                                return showToast({ text: "You don't have enough space!" });
                                                             }
                                                             if (self.find(x => sid(x) === sid(song))) {
-                                                                return showToast("You already have this song added!");
+                                                                return showToast({ text: "You already have this song added!" });
                                                             }
 
                                                             openSettingsModal([...self, song]);
@@ -213,12 +203,13 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                                                         color="danger"
                                                         label="Remove song"
                                                         icon={TrashIcon}
+                                                        leadingAccessory={{ type: "icon", icon: TrashIcon }}
                                                         action={() => {
                                                             const self = useSongStore.getState().self?.data ?? [];
 
                                                             const i = self.findIndex(x => sid(x) === sid(song));
                                                             if (i === -1) {
-                                                                return showToast("You... don't have this song added?");
+                                                                return showToast({ text: "You... don't have this song added?" });
                                                             }
 
                                                             openSettingsModal(self.toSpliced(i, 1));
@@ -251,19 +242,19 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                         className={cl("clamped")}
                     >
                         <Flex alignItems="center" gap="6px">
-                            <BaseText size={baseSize} weight="semibold" className={cl("clamped")} title={render.label}>
+                            <Text size={baseSize} weight="semibold" className={cl("clamped")} title={render.label}>
                                 {render.label}
-                            </BaseText>
+                            </Text>
                             {render.explicit && <ExplicitTag />}
                         </Flex>
-                        <BaseText
+                        <Text
                             size={baseSize}
                             weight="normal"
                             className={cl("clamped", "sub")}
                             title={render.sublabel}
                         >
                             {render.sublabel}
-                        </BaseText>
+                        </Text>
                     </Flex>
                 </Flex>
                 <Flex justifyContent="flex-end" className={cl("song-service")}>
@@ -277,9 +268,9 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                     data-idle={playing === undefined && !big}
                 >
                     {duration && (
-                        <BaseText size={subSize} weight="medium" className={cl("mono", "sub")}>
+                        <Text size={subSize} weight="medium" className={cl("mono", "sub")}>
                             {formatDurationMs(duration)}
-                        </BaseText>
+                        </Text>
                     )}
                     <div className={cl("song-progress-container")}>
                         <ProgressCircle

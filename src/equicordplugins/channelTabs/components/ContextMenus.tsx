@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
+import { Button } from "@components/Button";
 import { Heading } from "@components/Heading";
+import { BookCheckIcon, OpenExternalIcon, PencilIcon, StarFilled, StarOutlined, TrashIcon, UnsendIcon, WindowTopOutlineIcon, XLargeBoldIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
+import { Text } from "@components/Text";
 import { bookmarkFolderColors, bookmarkPlaceholderName, closeOtherTabs, closeTab, closeTabsToTheLeft, closeTabsToTheRight, createTab, getDiscordFolderIcon, getDiscordFolderIconNames, hasClosedTabs, isBookmarkFolder, openedTabs, reopenClosedTab, settings, toggleCompactTab } from "@equicordplugins/channelTabs/util";
 import { Bookmark, BookmarkFolder, Bookmarks, ChannelTabsProps, UseBookmarkMethods } from "@equicordplugins/channelTabs/util/types";
 import { getIntlMessage } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { RenderModalProps } from "@vencord/discord-types";
-import { Button, ChannelStore, closeModal, ColorPicker, FluxDispatcher, Menu, Modal, openModal, ReadStateStore, ReadStateUtils, Select, TextInput, useMemo, useState } from "@webpack/common";
+import { ChannelStore, closeModal, ColorPicker, FluxDispatcher, Menu, Modal, openModal, ReadStateStore, ReadStateUtils, Select, TextInput, useMemo, useState } from "@webpack/common";
 
 const legacyFolderColors: Record<string, string> = {
     "var(--channeltabs-red)": bookmarkFolderColors.Red,
@@ -109,7 +111,7 @@ function FolderChipPreview({ name, color, iconName }: { name: string; color: str
             padding: "6px 10px"
         }}>
             <FolderGlyph color={color} iconName={iconName} />
-            <BaseText size="sm">{name.trim() || "Folder"}</BaseText>
+            <Text size="sm">{name.trim() || "Folder"}</Text>
         </div>
     );
 }
@@ -136,7 +138,7 @@ function FolderIconPickerModal({ modalProps, modalKey, name, color, iconName, on
         <Modal
             {...modalProps}
             size="sm"
-            title={<BaseText size="lg" weight="semibold">Choose Folder Icon</BaseText>}
+            title={<Text size="lg" weight="semibold">Choose Folder Icon</Text>}
             actions={[
                 {
                     text: "Close",
@@ -254,8 +256,7 @@ function FolderAppearanceFields({
         >Choose Icon</Button>
         {iconName && <Button
             className={Margins.top8}
-            color={Button.Colors.TRANSPARENT}
-            look={Button.Looks.FILLED}
+            variant="secondary"
             onClick={() => setIconName(undefined)}
         >Use Default Icon</Button>}
     </>;
@@ -276,7 +277,7 @@ export function EditModal({ modalProps, modalKey, bookmark, onSave }: {
         <Modal
             {...modalProps}
             size="sm"
-            title={<BaseText size="lg" weight="semibold">Edit Bookmark</BaseText>}
+            title={<Text size="lg" weight="semibold">Edit Bookmark</Text>}
             actions={[
                 {
                     text: "Save",
@@ -327,7 +328,7 @@ function AddToFolderModal({ modalProps, modalKey, bookmarks, onSave }: {
         <Modal
             {...modalProps}
             size="sm"
-            title={<BaseText size="lg" weight="semibold">Add Bookmark to Folder</BaseText>}
+            title={<Text size="lg" weight="semibold">Add Bookmark to Folder</Text>}
             actions={[
                 {
                     text: "Save",
@@ -379,7 +380,7 @@ function DeleteFolderConfirmationModal({ modalProps, modalKey, onConfirm }: {
         <Modal
             {...modalProps}
             size="sm"
-            title={<BaseText size="lg" weight="semibold">Are you sure?</BaseText>}
+            title={<Text size="lg" weight="semibold">Are you sure?</Text>}
             actions={[
                 {
                     text: "Delete",
@@ -415,6 +416,8 @@ export function BookmarkContextMenu({ bookmarks, index, methods }: { bookmarks: 
                 {bookmarkNotificationDot && !isFolder &&
                     <Menu.MenuItem
                         id="mark-as-read"
+                        icon={BookCheckIcon}
+                        leadingAccessory={{ type: "icon", icon: BookCheckIcon }}
                         label={getIntlMessage("MARK_AS_READ")}
                         disabled={!ReadStateStore.hasUnread(bookmark.channelId)}
                         action={() => ReadStateUtils.ackChannel(ChannelStore.getChannel(bookmark.channelId))}
@@ -424,11 +427,15 @@ export function BookmarkContextMenu({ bookmarks, index, methods }: { bookmarks: 
                     ? <Menu.MenuItem
                         id="open-all-in-folder"
                         label={"Open All Bookmarks"}
+                        icon={StarFilled}
+                        leadingAccessory={{ type: "icon", icon: StarFilled }}
                         action={() => bookmark.bookmarks.forEach(b => createTab(b))}
                     />
                     : < Menu.MenuItem
                         id="open-in-tab"
                         label={"Open in New Tab"}
+                        icon={OpenExternalIcon}
+                        leadingAccessory={{ type: "icon", icon: OpenExternalIcon }}
                         action={() => createTab(bookmark)}
                     />
                 }
@@ -437,6 +444,8 @@ export function BookmarkContextMenu({ bookmarks, index, methods }: { bookmarks: 
                 <Menu.MenuItem
                     id="edit-bookmark"
                     label="Edit Bookmark"
+                    icon={PencilIcon}
+                    leadingAccessory={{ type: "icon", icon: PencilIcon }}
                     action={() => {
                         const key = openModal(modalProps =>
                             <EditModal
@@ -458,6 +467,8 @@ export function BookmarkContextMenu({ bookmarks, index, methods }: { bookmarks: 
                 <Menu.MenuItem
                     id="delete-bookmark"
                     label="Delete Bookmark"
+                    icon={TrashIcon}
+                    leadingAccessory={{ type: "icon", icon: TrashIcon }}
                     action={() => {
                         if (isFolder) {
                             const key = openModal(modalProps =>
@@ -476,6 +487,8 @@ export function BookmarkContextMenu({ bookmarks, index, methods }: { bookmarks: 
                 <Menu.MenuItem
                     id="add-to-folder"
                     label="Add Bookmark to Folder"
+                    icon={PencilIcon}
+                    leadingAccessory={{ type: "icon", icon: PencilIcon }}
                     disabled={isFolder}
                     action={() => {
                         const key = openModal(modalProps =>
@@ -503,6 +516,8 @@ export function BookmarkContextMenu({ bookmarks, index, methods }: { bookmarks: 
                     checked={showBookmarkBar}
                     id="show-bookmark-bar"
                     label="Bookmark Bar"
+                    icon={StarOutlined}
+                    leadingAccessory={{ type: "icon", icon: StarOutlined }}
                     action={() => {
                         settings.store.showBookmarkBar = !settings.store.showBookmarkBar;
                     }}
@@ -528,6 +543,8 @@ export function TabContextMenu({ tab }: { tab: ChannelTabsProps; }) {
                     <Menu.MenuItem
                         id="mark-as-read"
                         label={getIntlMessage("MARK_AS_READ")}
+                        icon={BookCheckIcon}
+                        leadingAccessory={{ type: "icon", icon: BookCheckIcon }}
                         disabled={!ReadStateStore.hasUnread(channel.id)}
                         action={() => ReadStateUtils.ackChannel(channel)}
                     />
@@ -536,6 +553,8 @@ export function TabContextMenu({ tab }: { tab: ChannelTabsProps; }) {
                     checked={compact}
                     id="toggle-compact-tab"
                     label="Compact"
+                    icon={WindowTopOutlineIcon}
+                    leadingAccessory={{ type: "icon", icon: WindowTopOutlineIcon }}
                     action={() => {
                         setCompact(compact => !compact);
                         toggleCompactTab(tab.id);
@@ -546,28 +565,38 @@ export function TabContextMenu({ tab }: { tab: ChannelTabsProps; }) {
                 <Menu.MenuItem
                     id="close-tab"
                     label="Close Tab"
+                    icon={XLargeBoldIcon}
+                    leadingAccessory={{ type: "icon", icon: XLargeBoldIcon }}
                     action={() => closeTab(tab.id)}
                 />
                 <Menu.MenuItem
                     id="close-other-tabs"
                     label="Close Other Tabs"
+                    icon={XLargeBoldIcon}
+                    leadingAccessory={{ type: "icon", icon: XLargeBoldIcon }}
                     action={() => closeOtherTabs(tab.id)}
                 />
                 <Menu.MenuItem
                     id="close-right-tabs"
                     label="Close Tabs to the Right"
+                    icon={XLargeBoldIcon}
+                    leadingAccessory={{ type: "icon", icon: XLargeBoldIcon }}
                     disabled={openedTabs.indexOf(tab) === openedTabs.length - 1}
                     action={() => closeTabsToTheRight(tab.id)}
                 />
                 <Menu.MenuItem
                     id="close-left-tabs"
                     label="Close Tabs to the Left"
+                    icon={XLargeBoldIcon}
+                    leadingAccessory={{ type: "icon", icon: XLargeBoldIcon }}
                     disabled={openedTabs.indexOf(tab) === 0}
                     action={() => closeTabsToTheLeft(tab.id)}
                 />
                 <Menu.MenuItem
                     id="reopen-closed-tab"
                     label="Reopen Closed Tab"
+                    icon={UnsendIcon}
+                    leadingAccessory={{ type: "icon", icon: UnsendIcon }}
                     disabled={!hasClosedTabs()}
                     action={() => reopenClosedTab()}
                 />
@@ -577,6 +606,8 @@ export function TabContextMenu({ tab }: { tab: ChannelTabsProps; }) {
                     checked={showBookmarkBar}
                     id="show-bookmark-bar"
                     label="Bookmark Bar"
+                    icon={StarOutlined}
+                    leadingAccessory={{ type: "icon", icon: StarOutlined }}
                     action={() => {
                         settings.store.showBookmarkBar = !settings.store.showBookmarkBar;
                     }}

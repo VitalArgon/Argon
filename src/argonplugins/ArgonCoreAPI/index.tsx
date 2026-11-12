@@ -1,18 +1,29 @@
-// not adding notes because if you're snooping through this you should be able to al least guess what it does
-import definePlugin from "@utils/types";
-import { ArgonDevs, Devs, EquicordDevs } from "@utils/constants";
-import {
-    React, Modal, openModal, showToast,
-    FluxDispatcher, UserStore, ChannelStore, GuildStore,
-    SelectedChannelStore, GuildMemberStore, ReactDOM, createRoot,
-} from "@webpack/common";
-import Plugins, { PluginMeta } from "~plugins";
-import { Logger } from "@utils/Logger";
-import { addContextMenuPatch, removeContextMenuPatch, findGroupChildrenByChildId } from "@api/ContextMenu";
-import { addPreSendListener, removePreSendListener, addPreEditListener, removePreEditListener } from "@api/MessageEvents";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 
-export function h(...args: Parameters<typeof React.createElement>) {
-    return React.createElement(...args);
+// not adding notes because if you're snooping through this you should be able to al least guess what it does
+import { addContextMenuPatch, findGroupChildrenByChildId,removeContextMenuPatch } from "@api/ContextMenu";
+import {
+    addMessagePreEditListener as addPreEditListener,
+    addMessagePreSendListener as addPreSendListener,
+    removeMessagePreEditListener as removePreEditListener,
+    removeMessagePreSendListener as removePreSendListener } from "@api/MessageEvents";
+import { ArgonDevs } from "@utils/constants";
+import { Logger } from "@utils/Logger";
+import definePlugin from "@utils/types";
+import {
+ChannelStore, createRoot,
+    FluxDispatcher, GuildMemberStore, GuildStore,
+Modal, openModal, React, ReactDOM, SelectedChannelStore, showToast,
+UserStore, } from "@webpack/common";
+
+import Plugins, { PluginMeta } from "~plugins";
+
+export function h(type: any, props?: any, ...children: any[]) {
+    return React.createElement(type, props, ...children);
 }
 
 export function createStyleInjector(id: string, css: string) {
@@ -56,13 +67,19 @@ export function observeMatches(
     return () => observer.disconnect();
 }
 
+function SimpleModal({ modalProps, title, render }: { modalProps: any; title: string; render: (props: any) => any; }) {
+    return (
+        <Modal {...modalProps} title={title}>
+            {render(modalProps)}
+        </Modal>
+    );
+}
+
 export function openSimpleModal(
     title: string,
     render: (modalProps: any) => any
 ) {
-    openModal(modalProps =>
-        h(Modal, { ...modalProps, title }, render(modalProps))
-    );
+    openModal(modalProps => <SimpleModal modalProps={modalProps} title={title} render={render} />);
 }
 
 export function findPluginByName(rawName: string) {
@@ -73,7 +90,7 @@ export function findPluginByName(rawName: string) {
     );
 }
 
-export { Plugins, PluginMeta };
+export { PluginMeta,Plugins };
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -180,22 +197,25 @@ export function createLogger(name: string, color = "#A259FF") {
 export { showToast };
 
 export function notifyRestartNeeded() {
-    showToast("Restart to apply changes!");
+    showToast({ text: "Restart to apply changes!" });
 }
 
 export function copyToClipboard(text: string, toastMessage = "Copied!") {
-    navigator.clipboard.writeText(text).then(() => showToast(toastMessage));
+    navigator.clipboard
+        .writeText(text)
+        .then(() => showToast({ text: toastMessage }))
+        .catch(e => createLogger("ArgonCoreAPI").error("Failed to copy to clipboard", e));
 }
 
-export { UserStore, ChannelStore, GuildStore, SelectedChannelStore, GuildMemberStore };
+export { ChannelStore, GuildMemberStore,GuildStore, SelectedChannelStore, UserStore };
 
 export function subscribeFlux(event: string, handler: (payload: any) => void) {
     FluxDispatcher.subscribe(event, handler);
     return () => FluxDispatcher.unsubscribe(event, handler);
 }
 
-export { addContextMenuPatch, removeContextMenuPatch, findGroupChildrenByChildId };
-export { addPreSendListener, removePreSendListener, addPreEditListener, removePreEditListener };
+export { addContextMenuPatch, findGroupChildrenByChildId,removeContextMenuPatch };
+export { addPreEditListener, addPreSendListener, removePreEditListener,removePreSendListener };
 
 export function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -324,7 +344,7 @@ export class EventBus<Events extends Record<string, any> = Record<string, any>> 
             try {
                 handler(payload);
             } catch (e) {
-                createLogger("VeilCoreAPI").error(`EventBus handler for "${String(event)}" threw`, e);
+                createLogger("ArgonCoreAPI").error(`EventBus handler for "${String(event)}" threw`, e);
             }
         });
     }
@@ -334,12 +354,17 @@ export class EventBus<Events extends Record<string, any> = Record<string, any>> 
     }
 }
 
+const LEGACY_STORAGE_PREFIX = "veil-";
+const STORAGE_PREFIX = "argon-";
+
 export function createSimpleStore<T>(key: string, defaultValue: T) {
-    const storageKey = `veil-${key}`;
+    const storageKey = `${STORAGE_PREFIX}${key}`;
+    const legacyKey = `${LEGACY_STORAGE_PREFIX}${key}`;
     return {
         get(): T {
             try {
-                const raw = localStorage.getItem(storageKey);
+                // Values written before the rename still live under veil-*.
+                const raw = localStorage.getItem(storageKey) ?? localStorage.getItem(legacyKey);
                 return raw ? (JSON.parse(raw) as T) : defaultValue;
             } catch {
                 return defaultValue;
@@ -349,7 +374,7 @@ export function createSimpleStore<T>(key: string, defaultValue: T) {
             try {
                 localStorage.setItem(storageKey, JSON.stringify(value));
             } catch (e) {
-                createLogger("VeilCoreAPI").error(`Failed to persist store "${key}"`, e);
+                createLogger("ArgonCoreAPI").error(`Failed to persist store "${key}"`, e);
             }
         },
         clear(): void {
@@ -391,7 +416,7 @@ export function wrapMethod<O extends object, K extends keyof O>(
 
 export default definePlugin({
     name: "ArgonCoreAPI",
-    description: "Shared helpers for building Veil plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, debounce/throttle/once/memoize, waitFor, a lightweight EventBus, simple localStorage-backed stores, managed React child mounting, and method wrapping).",
+    description: "Shared helpers for building Argon plugins (style injection, DOM observing, modals, plugin/dev lookups, icon rendering, logging, toasts, common stores, Flux events, context menus, debounce/throttle/once/memoize, waitFor, a lightweight EventBus, simple localStorage-backed stores, managed React child mounting, and method wrapping).",
     authors: [ArgonDevs.Zarak],
     required: true,
     dependencies: ["ContextMenuAPI", "MessageEventsAPI"],

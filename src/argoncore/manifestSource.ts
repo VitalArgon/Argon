@@ -1,6 +1,12 @@
-import { ChannelStore } from "@webpack/common";
-import { GuildManifestEntry, StaticOverrides } from "@argoncore/guildplugins/manifest";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { GuildPlugins } from "@argoncore/guildplugins";
+import { GuildManifestEntry, StaticOverrides } from "@argoncore/guildplugins/manifest";
+import { ChannelStore } from "@webpack/common";
 
 export type { GuildManifestEntry };
 
@@ -30,7 +36,7 @@ function parseConfig(topic: string | undefined, guildId: string): GuildManifestE
             promptOnJoin: parsed.promptOnJoin !== false,
         };
     } catch {
-        console.warn(`[Veil] malformed JSON in #${CONFIG_CHANNEL_NAME} topic for guild ${guildId}`);
+        console.warn(`[Argon] malformed JSON in #${CONFIG_CHANNEL_NAME} topic for guild ${guildId}`);
         return null;
     }
 }
