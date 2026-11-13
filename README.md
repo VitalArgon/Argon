@@ -18,7 +18,7 @@ Argon keeps the whole upstream Equicord plugin set and adds a set of its own, pl
 | **LyricStats** | Lyric statistics for whatever you are listening to. |
 | **Server Badges** | Makes servers you own display the Verified and Partnered header badges. |
 | **Argon Badges** | Custom badges from the Argon community server. |
-| **GifSources** | Search Giphy, Tenor and Discord itself with `/gif` and paste the result into the chat box. No API keys, no signup, and it shows explicit results that Discord's own picker filters out. |
+| **GifSources** | Scrape Bing or DuckDuckGo image search with `/gif` and paste the result into the chat box. No API keys, no signup, and it asks for unfiltered results (Bing `adlt=off`, DuckDuckGo `p=-1`) instead of the filtered set Discord's own picker returns. |
 | **SilentEdit** | Edits a message without the edit tag, and without Vencord's message logger recording it. |
 | **AbbreviationExpander**, **AntiBadwords**, **ArgonTag**, **Fake accounts**, **HypeSquadSwitcher**, **Spaced out**, **ThreadHider**, **DontLimitMe** | Smaller quality-of-life plugins. |
 
