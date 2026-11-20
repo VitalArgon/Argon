@@ -4,25 +4,6 @@ A Discord client mod, forked from [Equicord](https://github.com/Equicord/Equicor
 
 Argon keeps the whole upstream Equicord plugin set and adds a set of its own, plus a framework for **guild plugins**: plugins that a server enables for its own members, configured from a channel topic rather than by each user.
 
-## Argon's own plugins
-
-| Plugin | What it does |
-| --- | --- |
-| **ArgonCoreAPI** | Shared helpers the other Argon plugins are built on: style injection, DOM observing, modals, logging, toasts, Flux helpers, an EventBus, debounce/throttle, `waitFor`, simple stores. |
-| **Guild Plugins** | The framework below: a Settings tab where you opt in per server. |
-| **NitroSniper** | Watches for Nitro gift links in chat and redeems them, optionally posting the result to a webhook. |
-| **richFormatting** | Type-to-render buttons, badges, progress bars, folds, icons and plugin cards in your own messages (client-side only). |
-| **StatusCycler** | Rotates your custom status text and emoji on a timer. |
-| **SnippetVault** | Save, tag and reuse text and code snippets from a toolbar button. |
-| **MusicalThemes** | Reskins Discord from the album art of the track you are playing. |
-| **LyricStats** | Lyric statistics for whatever you are listening to. |
-| **Server Badges** | Makes servers you own display the Verified and Partnered header badges. |
-| **Argon Badges** | Custom badges from the Argon community server. |
-| **GifSources** | Scrape Bing or DuckDuckGo image search with `/gif` and paste the result into the chat box. No API keys, no signup, and it asks for unfiltered results (Bing `adlt=off`, DuckDuckGo `p=-1`) instead of the filtered set Discord's own picker returns. |
-| **SilentEdit** | Edits a message without the edit tag, and without Vencord's message logger recording it. |
-| **AbbreviationExpander**, **AntiBadwords**, **ArgonTag**, **Fake accounts**, **HypeSquadSwitcher**, **Spaced out**, **ThreadHider**, **DontLimitMe** | Smaller quality-of-life plugins. |
-
-Everything else in the plugin list comes from Equicord upstream.
 
 ## Guild plugins
 
@@ -106,3 +87,5 @@ pnpm lint:fix     # format and fix
 1. Discord is a trademark of Discord Inc., mentioned only for descriptivity. Nothing here implies affiliation with or endorsement by Discord Inc.
 2. If you take plugins from this repo, take **ArgonCoreAPI** as well; several of them depend on it.
 3. Client modifications are against Discord's Terms of Service. Discord is generally indifferent to them and there are no known cases of an account being actioned purely for using one, but that can change, and a screenshot in the wrong server can get you banned.
+
+???I was included in this edit??? https://www.tiktok.com/t/ZPNFEmG8r/
