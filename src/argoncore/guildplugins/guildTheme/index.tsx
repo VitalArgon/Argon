@@ -5,7 +5,7 @@
  */
 
 import { ArgonDevs } from "@utils/constants";
-import { ChannelStore,FluxDispatcher, SelectedGuildStore } from "@webpack/common";
+import { ChannelStore, FluxDispatcher, SelectedGuildStore } from "@webpack/common";
 
 import { defineGuildPlugin } from "../_api/defineGuildPlugin";
 
@@ -20,9 +20,6 @@ function getCssForGuild(guildId: string): string | null {
         (c: any) => c.name?.toLowerCase() === CSS_CHANNEL_NAME
     ) as any;
 
-    // topic caps out around 1024 chars on most Discord tiers — fine for
-    // small overrides, but don't expect a full stylesheet to fit. Worth
-    // switching to a pinned message or an attachment if you outgrow it.
     return cssChannel?.topic || null;
 }
 
@@ -45,8 +42,6 @@ function applyThemeIfActive() {
 }
 
 function onChannelUpdate({ channel }: any) {
-    // live-refresh if the owner edits #css topic while you're actively
-    // sitting in that guild — same pattern as the argon-plugins channel
     if (channel?.guild_id === watchedGuildId && channel?.name?.toLowerCase() === CSS_CHANNEL_NAME) {
         applyThemeIfActive();
     }
@@ -59,14 +54,16 @@ export default defineGuildPlugin({
 
     start(guildId?: string) {
         watchedGuildId = guildId ?? null;
-        FluxDispatcher.subscribe("CHANNEL_SELECT", applyThemeIfActive);
+        FluxDispatcher.subscribe("GUILD_SELECT", applyThemeIfActive);
         FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
-        applyThemeIfActive(); // in case you're already sitting in the guild when it activates
+        FluxDispatcher.subscribe("CHANNEL_CREATE", onChannelUpdate);
+        applyThemeIfActive();
     },
 
     stop() {
-        FluxDispatcher.unsubscribe("CHANNEL_SELECT", applyThemeIfActive);
+        FluxDispatcher.unsubscribe("GUILD_SELECT", applyThemeIfActive);
         FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
+        FluxDispatcher.unsubscribe("CHANNEL_CREATE", onChannelUpdate);
         document.getElementById(STYLE_ID)?.remove();
         watchedGuildId = null;
     },
