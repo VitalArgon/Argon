@@ -13,10 +13,10 @@ const NAMES_CHANNEL_NAME = "customnames";
 const MAPPING_REGEX = /\{\s*([^{}=]+?)\s*=\s*([^{}]+?)\s*\}/g;
 const BASE_REPLACEMENTS: [RegExp, string][] = [[/-/g, " "]];
 
-let watchedGuildId: string | null = null;
-let dynamicReplacements: [RegExp, string][] = [];
-let originalGetChannel: typeof ChannelStore.getChannel | null = null;
-let originalGetMutableGuildChannelsForGuild: typeof ChannelStore.getMutableGuildChannelsForGuild | null = null;
+let watchedGuilds = new Set<string>();
+const dynamicReplacements = new Map<string, [RegExp, string][]>();
+let originalGetChannel: typeof ChannelStore.getChannel | undefined;
+let originalGetMutableGuildChannelsForGuild: typeof ChannelStore.getMutableGuildChannelsForGuild | undefined;
 
 function escapeRegex(str: string) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -34,53 +34,83 @@ function parseReplacementsFromTopic(topic: string | null | undefined): [RegExp, 
     return pairs;
 }
 
-function applyReplacements(text: string) {
+function applyReplacements(guildId: string, text: string) {
     let out = text;
     for (const [pattern, replacement] of BASE_REPLACEMENTS) out = out.replace(pattern, replacement);
-    for (const [pattern, replacement] of dynamicReplacements) out = out.replace(pattern, replacement);
+    for (const [pattern, replacement] of dynamicReplacements.get(guildId) ?? []) {
+        out = out.replace(pattern, replacement);
+    }
     return out;
 }
 
 function rebuildReplacements(guildId: string) {
-    if (!originalGetMutableGuildChannelsForGuild) return;
+    const getChannels = originalGetMutableGuildChannelsForGuild;
+    if (!getChannels) return;
 
-    const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
+    const channels = getChannels.call(ChannelStore, guildId);
     const namesChannel = Object.values(channels).find(
         (c: any) => c.name?.toLowerCase() === NAMES_CHANNEL_NAME
     ) as any;
 
-    dynamicReplacements = parseReplacementsFromTopic(namesChannel?.topic);
+    dynamicReplacements.set(guildId, parseReplacementsFromTopic(namesChannel?.topic));
 }
 
 function withDisplayName(channel: any) {
-    if (!channel || channel.guild_id !== watchedGuildId || typeof channel.name !== "string") return channel;
+    if (!channel || !watchedGuilds.has(channel.guild_id) || typeof channel.name !== "string") return channel;
     if (channel.name.toLowerCase() === NAMES_CHANNEL_NAME) return channel;
 
-    const displayName = applyReplacements(channel.name);
+    const displayName = applyReplacements(channel.guild_id, channel.name);
     return displayName === channel.name ? channel : { ...channel, name: displayName };
 }
 
 function applyDisplayNamesToGuildChannels(guildId: string) {
-    if (!originalGetMutableGuildChannelsForGuild) return;
+    const getChannels = originalGetMutableGuildChannelsForGuild;
+    if (!getChannels) return;
 
-    const channels = originalGetMutableGuildChannelsForGuild.call(ChannelStore, guildId);
+    const channels = getChannels.call(ChannelStore, guildId);
     for (const ch of Object.values(channels) as any[]) {
-        if (!ch || ch.guild_id !== watchedGuildId || typeof ch.name !== "string") continue;
+        if (!ch || ch.guild_id !== guildId || typeof ch.name !== "string") continue;
         if (ch.name.toLowerCase() === NAMES_CHANNEL_NAME) continue;
 
-        const displayName = applyReplacements(ch.name);
-        if (displayName !== ch.name) {
-            ch.name = displayName;
-        }
+        const displayName = applyReplacements(guildId, ch.name);
+        if (displayName !== ch.name) ch.name = displayName;
+    }
+}
+
+function wrappedGetChannel(channelId: string) {
+    return withDisplayName(originalGetChannel?.call(ChannelStore, channelId));
+}
+
+function wrappedGetMutableGuildChannelsForGuild(guildId: string) {
+    const channels = originalGetMutableGuildChannelsForGuild?.call(ChannelStore, guildId);
+    if (!channels || !watchedGuilds.has(guildId)) return channels;
+
+    const patched: Record<string, any> = {};
+    for (const [id, channel] of Object.entries(channels)) {
+        patched[id] = withDisplayName(channel);
+    }
+    return patched;
+}
+
+function installChannelStoreWrappers() {
+    if (!originalGetChannel) originalGetChannel = ChannelStore.getChannel;
+    if (!originalGetMutableGuildChannelsForGuild) {
+        originalGetMutableGuildChannelsForGuild = ChannelStore.getMutableGuildChannelsForGuild;
+    }
+
+    if (ChannelStore.getChannel !== wrappedGetChannel) ChannelStore.getChannel = wrappedGetChannel;
+    if (ChannelStore.getMutableGuildChannelsForGuild !== wrappedGetMutableGuildChannelsForGuild) {
+        ChannelStore.getMutableGuildChannelsForGuild = wrappedGetMutableGuildChannelsForGuild;
     }
 }
 
 function onChannelUpdate({ channel }: any) {
-    if (!channel || channel.guild_id !== watchedGuildId) return;
+    const guildId = channel?.guild_id;
+    if (!guildId || !watchedGuilds.has(guildId)) return;
 
     if (channel.name?.toLowerCase() === NAMES_CHANNEL_NAME) {
-        rebuildReplacements(watchedGuildId);
-        applyDisplayNamesToGuildChannels(watchedGuildId);
+        rebuildReplacements(guildId);
+        applyDisplayNamesToGuildChannels(guildId);
     }
 }
 
@@ -90,44 +120,29 @@ export default defineGuildPlugin({
     authors: [ArgonDevs.Zarak],
 
     start(guildId?: string) {
-        watchedGuildId = guildId ?? null;
+        if (!guildId) return;
 
-        originalGetChannel = ChannelStore.getChannel.bind(ChannelStore);
-        originalGetMutableGuildChannelsForGuild = ChannelStore.getMutableGuildChannelsForGuild.bind(ChannelStore);
-
-        if (watchedGuildId) rebuildReplacements(watchedGuildId);
-
-        ChannelStore.getChannel = (channelId: string) => withDisplayName(originalGetChannel!(channelId));
-
-        ChannelStore.getMutableGuildChannelsForGuild = (guildId: string) => {
-            const channels = originalGetMutableGuildChannelsForGuild!.call(ChannelStore, guildId);
-            if (guildId !== watchedGuildId) return channels;
-
-            const patched: Record<string, any> = {};
-            for (const [id, channel] of Object.entries(channels)) {
-                patched[id] = withDisplayName(channel);
-            }
-            return patched;
-        };
-
-        if (watchedGuildId) applyDisplayNamesToGuildChannels(watchedGuildId);
+        watchedGuilds.add(guildId);
+        installChannelStoreWrappers();
+        rebuildReplacements(guildId);
+        applyDisplayNamesToGuildChannels(guildId);
 
         FluxDispatcher.subscribe("CHANNEL_CREATE", onChannelUpdate);
         FluxDispatcher.subscribe("CHANNEL_UPDATE", onChannelUpdate);
     },
 
     stop() {
+        FluxDispatcher.unsubscribe("CHANNEL_CREATE", onChannelUpdate);
+        FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
+
         if (originalGetChannel) ChannelStore.getChannel = originalGetChannel;
         if (originalGetMutableGuildChannelsForGuild) {
             ChannelStore.getMutableGuildChannelsForGuild = originalGetMutableGuildChannelsForGuild;
         }
 
-        originalGetChannel = null;
-        originalGetMutableGuildChannelsForGuild = null;
-
-        FluxDispatcher.unsubscribe("CHANNEL_CREATE", onChannelUpdate);
-        FluxDispatcher.unsubscribe("CHANNEL_UPDATE", onChannelUpdate);
-        dynamicReplacements = [];
-        watchedGuildId = null;
+        originalGetChannel = undefined;
+        originalGetMutableGuildChannelsForGuild = undefined;
+        watchedGuilds = new Set();
+        dynamicReplacements.clear();
     },
 });
