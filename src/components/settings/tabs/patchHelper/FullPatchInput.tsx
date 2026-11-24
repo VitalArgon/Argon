@@ -18,42 +18,49 @@ export interface FullPatchInputProps {
 export function FullPatchInput({ setFind, setParsedFind, setMatch, setReplacement }: FullPatchInputProps) {
     const [patch, setPatch] = useState<string>("");
     const [error, setError] = useState<string>("");
-
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
+    const hasEdits = useRef(false);
+
+    function clearValues() {
+        setFind("");
+        setParsedFind("");
+        setMatch("");
+        setReplacement("");
+    }
 
     function update() {
-        if (patch === "") {
-            setError("");
+        if (!hasEdits.current) return;
+        hasEdits.current = false;
 
-            setFind("");
-            setParsedFind("");
-            setMatch("");
-            setReplacement("");
+        if (patch.trim() === "") {
+            setError("");
+            clearValues();
             return;
         }
 
         try {
-            let { find, replacement } = (0, eval)(`([${patch}][0])`) as Patch;
-
-            if (!find) throw new Error("No 'find' field");
-            if (!replacement) throw new Error("No 'replacement' field");
-
-            if (replacement instanceof Array) {
-                if (replacement.length === 0) throw new Error("Invalid replacement");
-
-                // Only test the first replacement
-                replacement = replacement[0];
+            const { find, replacement } = (0, eval)(`([${patch}][0])`) as Patch;
+            if (!find || (typeof find !== "string" && !(find instanceof RegExp))) {
+                throw new Error("Expected a string or RegExp in 'find'");
             }
 
-            if (!replacement.match) throw new Error("No 'replacement.match' field");
-            if (replacement.replace == null) throw new Error("No 'replacement.replace' field");
+            const replacements = Array.isArray(replacement) ? replacement : [replacement];
+            const firstReplacement = replacements[0];
+            if (!firstReplacement) throw new Error("No replacements to test");
+            if (typeof firstReplacement.match !== "string" && !(firstReplacement.match instanceof RegExp)) {
+                throw new Error("Expected a string or RegExp in 'replacement.match'");
+            }
+            if (typeof firstReplacement.replace !== "string" && typeof firstReplacement.replace !== "function") {
+                throw new Error("Expected a string or function in 'replacement.replace'");
+            }
 
             setFind(find instanceof RegExp ? `/${find.source}/` : find);
             setParsedFind(find);
-            setMatch(replacement.match instanceof RegExp ? replacement.match.source : replacement.match);
-            setReplacement(replacement.replace);
+            setMatch(firstReplacement.match instanceof RegExp ? firstReplacement.match.source : firstReplacement.match);
+            setReplacement(firstReplacement.replace);
             setError("");
         } catch (e) {
+            clearValues();
             setError((e as Error).message);
         }
     }
@@ -62,16 +69,22 @@ export function FullPatchInput({ setFind, setParsedFind, setMatch, setReplacemen
         const { current: textArea } = textAreaRef;
         if (textArea) {
             textArea.style.height = "auto";
-            textArea.style.height = `${textArea.scrollHeight}px`;
+            textArea.style.height = `${Math.min(textArea.scrollHeight, 224)}px`;
         }
     }, [patch]);
 
     return (
         <>
+            <Paragraph>Paste a full patch here. Only the first replacement is used by this input.</Paragraph>
             <TextArea
+                aria-label="Full patch"
+                rows={4}
                 inputRef={textAreaRef}
                 value={patch}
-                onChange={setPatch}
+                onChange={value => {
+                    hasEdits.current = true;
+                    setPatch(value);
+                }}
                 onBlur={update}
             />
             {error !== "" && <Paragraph style={{ color: "var(--text-feedback-critical)" }}>{error}</Paragraph>}
