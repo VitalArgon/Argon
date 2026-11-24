@@ -1,0 +1,21 @@
+Guild plugins are enabled per server through the Guild Plugins framework.
+
+1. In the server, create or reuse a channel named `rules`.
+2. Put this JSON in the channel topic, replacing the example values:
+
+{
+  "guildName": "My Server",
+  "pluginIds": ["customChannelNames"],
+  "promptOnJoin": true
+}
+
+3. Save the topic. Each member can then opt in under **Settings → Guild Plugins**.
+4. Create or reuse a channel named `customnames`.
+5. In that channel's topic, add one or more mappings in this format:
+
+{general-chat = general chat}
+{dev = development}
+
+The text before `=` is matched literally in channel names; the text after it is the replacement. Channel names are display-only and are not changed on Discord's servers. Hyphens are also displayed as spaces. Opt in to CustomChannelNames under **Settings → Guild Plugins**.
+
+Use braces around each mapping. The replacement can contain spaces and symbols, but not braces. Avoid duplicate shorthand mappings because replacements are applied in order.
