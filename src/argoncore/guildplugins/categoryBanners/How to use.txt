@@ -1,0 +1,20 @@
+Guild plugins are enabled per server through the Guild Plugins framework.
+
+1. In the server, create or reuse a channel named `rules`.
+2. Put this JSON in the channel topic, replacing the example values:
+
+{
+  "guildName": "My Server",
+  "pluginIds": ["categoryBanners"],
+  "promptOnJoin": true
+}
+
+3. Save the topic. Each member can then opt in under **Settings → Guild Plugins**.
+4. Create or reuse a channel named `categorybanners`.
+5. Post each banner image in that channel. For every category, add a mapping to the channel topic using the category name and the ID of the image message:
+
+{Information = 123456789012345678}
+
+To copy a message ID, enable Developer Mode in Discord, right-click the image message, and choose **Copy Message ID**. The plugin uses the first attachment on that message as the banner. You can add multiple `{category name = message ID}` mappings. Opt in to CategoryBanners under **Settings → Guild Plugins**.
+
+The image message must be accessible to your client. Category names are matched case-insensitively after normalization; a category ID can also be used in place of its name.
