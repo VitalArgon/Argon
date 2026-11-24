@@ -1,0 +1,16 @@
+Guild plugins are enabled per server through the Guild Plugins framework.
+
+1. In the server, create or reuse a channel named `rules`.
+2. Put this JSON in the channel topic, replacing the example values:
+
+{
+  "guildName": "My Server",
+  "pluginIds": ["guildTheme"],
+  "promptOnJoin": true
+}
+
+3. Save the topic. Each member can then opt in under **Settings → Guild Plugins**.
+4. Create or reuse a channel named `css` and put the CSS you want to apply in that channel's topic.
+5. Opt in to GuildTheme in **Settings → Guild Plugins**. The CSS applies while you are viewing that server and is removed when you leave it or disable the plugin.
+
+The rules topic uses JSON; keep the quotation marks and commas valid. `guildTheme` is the plugin ID (case-sensitive). Only use CSS you trust: it is applied locally in your client. Discord channel topics are short, so this is best for small style changes.
