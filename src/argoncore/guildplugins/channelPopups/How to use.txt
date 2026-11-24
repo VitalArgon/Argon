@@ -1,0 +1,21 @@
+Guild plugins are enabled per server through the Guild Plugins framework.
+
+1. In the server, create or reuse a channel named `rules`.
+2. Put this JSON in the channel topic, replacing the example values:
+
+{
+  "guildName": "My Server",
+  "pluginIds": ["channelPopups"],
+  "promptOnJoin": true
+}
+
+3. Save the topic. Each member can then opt in under **Settings → Guild Plugins**.
+4. Add popup tags to the topic of any channel where you want a popup. A title is required; the other tags are optional:
+
+{{popupTitle: Welcome}}
+{{popupText: Read the information in this channel before posting.}}
+{{popupButton: Server guide|https://example.com/guide}}
+
+The button format is `label|URL`. A popup appears the first time you open that channel during the current client session. Opt in to ChannelPopups under **Settings → Guild Plugins**.
+
+Only use links you trust. The popup content is configured in the channel topic and is visible to members who use the plugin.
