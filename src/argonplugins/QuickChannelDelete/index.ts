@@ -114,8 +114,8 @@ function handleWindowBlur() {
 }
 
 export default definePlugin({
-    name: "QuickDelete",
-    description: "Hold Alt and hover over a channel to instantly delete it.",
+    name: "QuickChannelDelete",
+    description: "Hold Alt and hover over a channel to more easily delete it.",
     authors: [{ name: "Zarak" }],
     tags: ["Utility", "Servers"],
 
