@@ -1,5 +1,10 @@
 
 import definePlugin from "@utils/types";
+import {
+    ChannelStore,
+    PermissionStore,
+    Permissions
+} from "@webpack/common";
 
 const STYLE_ID = "argon-quick-delete-style";
 const BUTTON_CLASS = "argon-quick-delete-button";
@@ -19,6 +24,15 @@ function getChannelId(row: HTMLElement): string | null {
     return id && /^\d+$/.test(id) ? id : null;
 }
 
+function canDeleteChannel(channelId: string): boolean {
+    const channel = ChannelStore.getChannel(channelId);
+
+    return !!channel && PermissionStore.can(
+        Permissions.MANAGE_CHANNELS,
+        channel
+    );
+}
+
 function removeButton() {
     hoveredRow?.querySelector(`.${BUTTON_CLASS}`)?.remove();
     hoveredRow = null;
@@ -29,6 +43,11 @@ function updateButton(row: HTMLElement) {
 
     const channelId = getChannelId(row);
     if (!channelId) return;
+
+    if (!canDeleteChannel(channelId)) {
+        removeButton();
+        return;
+    }
 
     if (hoveredRow !== row) removeButton();
     hoveredRow = row;
@@ -56,7 +75,7 @@ function updateButton(row: HTMLElement) {
         event.preventDefault();
         event.stopPropagation();
 
-        if (!altPressed) return;
+        if (!altPressed || !canDeleteChannel(channelId)) return;
 
         button.disabled = true;
 
@@ -125,7 +144,7 @@ export default definePlugin({
         style.textContent = `
             .${BUTTON_CLASS} {
                 position: absolute;
-                right: 8px;
+                right: 76px;
                 top: 50%;
                 transform: translateY(-50%);
                 display: flex;
@@ -182,6 +201,7 @@ export default definePlugin({
         window.removeEventListener("blur", handleWindowBlur);
 
         document.getElementById(STYLE_ID)?.remove();
+
         document.querySelectorAll(`.${BUTTON_CLASS}`)
             .forEach(button => button.remove());
 
