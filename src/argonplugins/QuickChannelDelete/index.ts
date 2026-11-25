@@ -3,7 +3,7 @@ import definePlugin from "@utils/types";
 import {
     ChannelStore,
     PermissionStore,
-    Permissions
+    PermissionsBits
 } from "@webpack/common";
 
 const STYLE_ID = "argon-quick-delete-style";
@@ -28,7 +28,7 @@ function canDeleteChannel(channelId: string): boolean {
     const channel = ChannelStore.getChannel(channelId);
 
     return !!channel && PermissionStore.can(
-        Permissions.MANAGE_CHANNELS,
+        PermissionsBits.MANAGE_CHANNELS,
         channel
     );
 }
@@ -133,14 +133,15 @@ function handleWindowBlur() {
 }
 
 export default definePlugin({
-    name: "QuickChannelDelete",
-    description: "Hold Alt and hover over a channel to more easily delete it.",
+    name: "QuickChannDelete",
+    description: "Hold Alt and hover over a channel to easily delete it.",
     authors: [{ name: "Zarak" }],
     tags: ["Utility", "Servers"],
 
     start() {
         const style = document.createElement("style");
         style.id = STYLE_ID;
+
         style.textContent = `
             .${BUTTON_CLASS} {
                 position: absolute;
